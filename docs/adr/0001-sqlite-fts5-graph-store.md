@@ -5,7 +5,7 @@
 
 ## Context
 
-The resolver navigates a graph built from the CMS ICD-10-CM files: Tabular List codes (46,635
+The resolver navigates a graph built from the CMS ICD-10-CM files: Tabular List codes (46,881
 `<diag>` elements in the FY2026 April update, plus the codes generated from 7th-character
 definitions), Alphabetic Index terms with their subterms and cross-references (63,142 code
 references, 12,141 "see" and 2,063 "see also" entries), and the Neoplasm and Drug tables. It also needs ranked full-text search over

@@ -28,3 +28,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   checks, safe zip extraction, no overwrites); `text2icd data releases` shows what is present.
 - `text2icd.ontology.codes`: add and remove the dot, validate code format, append 7th characters
   with `X` placeholders, and parse code references and ranges such as `N18.1-N18.6` or `E10.-`.
+- `text2icd.ontology.tabular`: parser for the Tabular List XML (chapters, sections, codes, all
+  instructional notes, 7th-character definitions with inheritance, placeholders); and
+  `text2icd.ontology.files` to locate the files of a fetched release.

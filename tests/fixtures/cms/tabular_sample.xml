@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ICD10CM.tabular>
+  <version>2027</version>
+  <introduction>
+    <introSection type="title">
+      <title>ICD-10-CM TABULAR LIST of DISEASES and INJURIES</title>
+    </introSection>
+  </introduction>
+  <chapter>
+    <name>4</name>
+    <desc>Endocrine, nutritional and metabolic diseases (E00-E89)</desc>
+    <sectionIndex>
+      <sectionRef first="E08" last="E13" id="E08-E13">
+         Diabetes mellitus
+      </sectionRef>
+    </sectionIndex>
+    <section id="E08-E13">
+      <desc>Diabetes mellitus (E08-E13)</desc>
+      <diag>
+        <name>E08</name>
+        <desc>Diabetes mellitus due to underlying condition</desc>
+        <codeFirst>
+          <note>the underlying condition, such as:</note>
+          <note>congenital rubella (P35.0)</note>
+          <note>Cushing's syndrome (E24.-)</note>
+          <note>cystic fibrosis (E84.-)</note>
+          <note>malignant neoplasm (C00-C96)</note>
+          <note>malnutrition (E40-E46)</note>
+          <note>pancreatitis and other diseases of the pancreas (K85-K86.-)</note>
+        </codeFirst>
+        <useAdditionalCode>
+          <note>code to identify control using:</note>
+          <note>injectable non-insulin antidiabetic drugs (Z79.85)</note>
+          <note>insulin (Z79.4)</note>
+          <note>oral antidiabetic drugs (Z79.84)</note>
+          <note>oral hypoglycemic drugs (Z79.84)</note>
+        </useAdditionalCode>
+        <excludes1>
+          <note>drug or chemical induced diabetes mellitus (E09.-)</note>
+          <note>gestational diabetes (O24.4-)</note>
+          <note>neonatal diabetes mellitus (P70.2)</note>
+          <note>postpancreatectomy diabetes mellitus (E13.-)</note>
+          <note>postprocedural diabetes mellitus (E13.-)</note>
+          <note>secondary diabetes mellitus NEC (E13.-)</note>
+          <note>type 1 diabetes mellitus (E10.-)</note>
+          <note>type 2 diabetes mellitus (E11.-)</note>
+        </excludes1>
+        <diag>
+          <name>E08.3</name>
+          <desc>Diabetes mellitus due to underlying condition with ophthalmic complications</desc>
+          <diag>
+            <name>E08.32</name>
+            <desc>Diabetes mellitus due to underlying condition with mild nonproliferative diabetic retinopathy</desc>
+            <inclusionTerm>
+              <note>Diabetes mellitus due to underlying condition with nonproliferative diabetic retinopathy NOS</note>
+            </inclusionTerm>
+            <sevenChrNote>
+              <note>One of the following 7th characters is to be assigned to codes in subcategory E08.32 to designate laterality of the disease:</note>
+            </sevenChrNote>
+            <sevenChrDef>
+              <extension char="1">right eye</extension>
+              <extension char="2">left eye</extension>
+              <extension char="3">bilateral</extension>
+              <extension char="9">unspecified eye</extension>
+            </sevenChrDef>
+            <diag>
+              <name>E08.321</name>
+              <desc>Diabetes mellitus due to underlying condition with mild nonproliferative diabetic retinopathy with macular edema</desc>
+            </diag>
+            <diag>
+              <name>E08.329</name>
+              <desc>Diabetes mellitus due to underlying condition with mild nonproliferative diabetic retinopathy without macular edema</desc>
+            </diag>
+          </diag>
+        </diag>
+      </diag>
+      <diag>
+        <name>E11</name>
+        <desc>Type 2 diabetes mellitus</desc>
+        <includes>
+          <note>diabetes (mellitus) due to insulin secretory defect</note>
+          <note>diabetes NOS</note>
+          <note>insulin resistant diabetes (mellitus)</note>
+        </includes>
+        <useAdditionalCode>
+          <note>code to identify control using:</note>
+          <note>injectable non-insulin antidiabetic drugs (Z79.85)</note>
+          <note>insulin (Z79.4)</note>
+          <note>oral antidiabetic drugs (Z79.84)</note>
+          <note>oral hypoglycemic drugs (Z79.84)</note>
+        </useAdditionalCode>
+        <excludes1>
+          <note>diabetes mellitus due to underlying condition (E08.-)</note>
+          <note>drug or chemical induced diabetes mellitus (E09.-)</note>
+          <note>gestational diabetes (O24.4-)</note>
+          <note>neonatal diabetes mellitus (P70.2)</note>
+          <note>postpancreatectomy diabetes mellitus (E13.-)</note>
+          <note>postprocedural diabetes mellitus (E13.-)</note>
+          <note>secondary diabetes mellitus NEC (E13.-)</note>
+          <note>type 1 diabetes mellitus (E10.-)</note>
+        </excludes1>
+        <diag>
+          <name>E11.2</name>
+          <desc>Type 2 diabetes mellitus with kidney complications</desc>
+          <diag>
+            <name>E11.22</name>
+            <desc>Type 2 diabetes mellitus with diabetic chronic kidney disease</desc>
+            <useAdditionalCode>
+              <note>code to identify stage of chronic kidney disease (N18.1-N18.6)</note>
+            </useAdditionalCode>
+          </diag>
+        </diag>
+      </diag>
+    </section>
+  </chapter>
+  <chapter>
+    <name>19</name>
+    <desc>Injury, poisoning and certain other consequences of external causes (S00-T88)</desc>
+    <excludes2>
+      <note>birth trauma (P10-P15)</note>
+      <note>obstetric trauma (O70-O71)</note>
+    </excludes2>
+    <sectionIndex>
+      <sectionRef first="T51" last="T65" id="T51-T65">
+         Toxic effects of substances chiefly nonmedicinal as to source
+      </sectionRef>
+    </sectionIndex>
+    <section id="T51-T65">
+      <desc>Toxic effects of substances chiefly nonmedicinal as to source (T51-T65)</desc>
+      <notes>
+        <note>When no intent is indicated code to accidental.  Undetermined intent is only for use when there is specific documentation in the record that the intent of the toxic effect cannot be determined.</note>
+      </notes>
+      <useAdditionalCode>
+        <note>code(s):</note>
+        <note>for all associated manifestations of toxic effect, such as: respiratory conditions due to external agents (J60-J70)</note>
+        <note>personal history of foreign body fully removed (Z87.821)</note>
+        <note>to identify any retained foreign body, if applicable (Z18.-)</note>
+      </useAdditionalCode>
+      <excludes1>
+        <note>contact with and (suspected) exposure to toxic substances (Z77.-)</note>
+      </excludes1>
+      <diag>
+        <name>T51</name>
+        <desc>Toxic effect of alcohol</desc>
+        <sevenChrNote>
+          <note>The appropriate 7th character is to be added to each code from category T51</note>
+        </sevenChrNote>
+        <sevenChrDef>
+          <extension char="A">initial encounter</extension>
+          <extension char="D">subsequent encounter</extension>
+          <extension char="S">sequela</extension>
+        </sevenChrDef>
+        <diag>
+          <name>T51.3</name>
+          <desc>Toxic effect of fusel oil</desc>
+          <inclusionTerm>
+            <note>Toxic effect of amyl alcohol</note>
+            <note>Toxic effect of butyl [1-butanol] alcohol</note>
+            <note>Toxic effect of propyl [1-propanol] alcohol</note>
+          </inclusionTerm>
+          <diag placeholder="true">
+            <name>T51.3X</name>
+            <desc>Toxic effect of fusel oil</desc>
+            <diag>
+              <name>T51.3X1</name>
+              <desc>Toxic effect of fusel oil, accidental (unintentional)</desc>
+              <inclusionTerm>
+                <note>Toxic effect of fusel oil NOS</note>
+              </inclusionTerm>
+            </diag>
+            <diag>
+              <name>T51.3X2</name>
+              <desc>Toxic effect of fusel oil, intentional self-harm</desc>
+            </diag>
+            <diag>
+              <name>T51.3X3</name>
+              <desc>Toxic effect of fusel oil, assault</desc>
+            </diag>
+            <diag>
+              <name>T51.3X4</name>
+              <desc>Toxic effect of fusel oil, undetermined</desc>
+            </diag>
+          </diag>
+        </diag>
+      </diag>
+    </section>
+  </chapter>
+</ICD10CM.tabular>

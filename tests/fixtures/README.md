@@ -10,3 +10,9 @@ Rules:
 - **Never add MIMIC-IV content**, not even a single line or a "de-identified" phrase taken from a note.
   The PhysioNet data use agreement forbids redistribution. Write synthetic phrases by hand instead.
 - Keep each fixture as small as the test allows (a few KB). The pre-commit hook rejects files over 500 KB.
+
+## Files
+
+| File | Origin |
+| --- | --- |
+| `cms/tabular_sample.xml` | FY2027 Tabular List, trimmed to E08.32 (7th characters), E11.22 (use additional code) and T51.3 (placeholders), with their section and chapter notes. Element content is unchanged. |
