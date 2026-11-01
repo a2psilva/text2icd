@@ -90,6 +90,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `valid` in the evaluated release, `mapped` to the codes that replaced it (from the CMS conversion
   tables followed across releases, or a header's subdivisions) or `unmappable`.
   `text2icd eval reconcile` looks up codes or rewrites a dataset against a release.
+- Evaluation metrics (`text2icd.eval.metrics`): accuracy@1 and @5, category accuracy, code-set
+  precision, recall and F1, invalid-code rate, calibration error, selective accuracy by coverage,
+  LLM call rate, cost per 1,000 phrases and latency percentiles, with 95% bootstrap intervals,
+  overall, for valid and mapped gold codes, and per group (such as chapter).
 
 ### Fixed
 
