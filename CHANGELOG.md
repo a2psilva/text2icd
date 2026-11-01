@@ -57,6 +57,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `index_exceptions.toml` are applied (the four "pubic ramus" entries); the other listed exceptions
   are kept out with a warning in the build log. FY2026 and FY2027 have no unresolved pointer.
 - `IndexBook.paths()` returns the joined path of every term in one pass.
+- `text2icd.graph.model.load(release) -> Graph`: the built graph in memory, with accessors for codes
+  (`code`, `parent`, `children`, `ancestors`, `seven_char_def`, `notes` and `edges`, optionally
+  inherited from ancestors), Index terms (`term_at`, `subterms`, `pointers`, `xrefs`), reverse
+  lookups and search. FY2027 loads in about 0.85 s within 255 MB.
+- `text2icd graph show "<Index path>"` and `text2icd graph code <code>` print a term or a code with
+  its notes, edges, cross-references and the Index terms that give it.
 - Full-text search in the graph: FTS5 tables over every Index term (title, modifiers and path) and
   over Tabular descriptions and inclusion terms (`tabular_term`), with `graph.search.search_index`
   and `search_tabular` (BM25, free-text queries made safe for FTS5). `build-graph --tokenizer`
