@@ -16,7 +16,7 @@ from typing import Literal
 
 IndexSource = Literal["index", "eindex", "neoplasm", "drug"]
 
-NOT_APPLICABLE = "--"
+NOT_APPLICABLE = frozenset({"-", "--"})
 _SINGLE_VALUED = ("code", "see", "seeAlso", "seecat", "subcat", "manif")
 
 
@@ -41,10 +41,13 @@ class IndexTerm:
     cells: tuple[tuple[int, str], ...] = ()
 
     def cell(self, column: int) -> str | None:
-        """The code in a table column, or None when the cell is absent or marked `--`."""
+        """The code in a table column, or None when the cell is absent or marked not applicable.
+
+        The Table of Drugs and Chemicals writes `--` for an empty cell, the Neoplasm Table `-`.
+        """
         for col, value in self.cells:
             if col == column:
-                return None if value == NOT_APPLICABLE else value
+                return None if value in NOT_APPLICABLE else value
         return None
 
     @property

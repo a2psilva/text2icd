@@ -8,6 +8,8 @@ import typer
 from text2icd import __version__
 from text2icd.config import Settings
 from text2icd.fetch import FetchError, fetch_release, is_complete
+from text2icd.ontology.files import ReleaseFiles
+from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
 
 app = typer.Typer(
@@ -78,6 +80,41 @@ def data_fetch(
 
     for target in targets:
         _fetch_one(target, settings.cms_raw_dir(target.id))
+
+
+@data_app.command("stats")
+def data_stats(
+    release: Annotated[
+        list[str] | None,
+        typer.Option("--release", "-r", help="Release id; repeatable. Default: TEXT2ICD_RELEASE."),
+    ] = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Parse a fetched release, print what it contains and run the consistency checks."""
+    settings = _settings(data_dir)
+    registry = load_registry()
+    try:
+        targets = (
+            [registry.get(r) for r in release] if release else [registry.get(settings.release)]
+        )
+    except KeyError as exc:
+        raise typer.BadParameter(str(exc.args[0]), param_hint="--release") from exc
+    failed = False
+    for target in targets:
+        if target.scope != "full":
+            raise typer.BadParameter(f"{target.id} is a history release", param_hint="--release")
+        raw_dir = settings.cms_raw_dir(target.id)
+        if not is_complete(target, raw_dir):
+            typer.echo(
+                f"error: {target.id} is not fetched; run `text2icd data fetch -r {target.id}`",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        report = release_report(ReleaseFiles(raw_dir), target.id)
+        typer.echo("\n".join(report.lines()))
+        failed = failed or not report.ok
+    if failed:
+        raise typer.Exit(code=1)
 
 
 def _fetch_one(release: Release, raw_dir: Path) -> None:

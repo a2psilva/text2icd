@@ -29,6 +29,20 @@ def cms_release() -> Callable[[str], ReleaseFiles]:
     return locate
 
 
+@pytest.fixture
+def fixture_release(tmp_path: Path, fixtures_dir: Path) -> ReleaseFiles:
+    """A tiny fake release, `fy2099`, assembled from the committed CMS fixtures."""
+    root = tmp_path / "raw" / "cms" / "fy2099"
+    (root / "tables-index").mkdir(parents=True)
+    (root / "order").mkdir()
+    cms = fixtures_dir / "cms"
+    for book in ("tabular", "index", "eindex", "neoplasm", "drug"):
+        target = root / "tables-index" / f"icd10cm_{book}_2099.xml"
+        target.write_bytes((cms / f"{book}_sample.xml").read_bytes())
+    (root / "order" / "icd10cm_order_2099.txt").write_bytes((cms / "order_sample.txt").read_bytes())
+    return ReleaseFiles(root)
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if any(MIMIC_DIR.glob("*.csv*")):
         return

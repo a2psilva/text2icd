@@ -1,0 +1,89 @@
+# Alphabetic Index references that do not resolve to a Tabular List code, reviewed by hand.
+#
+# Every code an Index term points to (code, manifestation, subcat, seecat, table cells) must exist
+# in the release's Tabular List or billable set. The entries below are the known exceptions, each
+# with the reason. Where the intended reading is clear, `code` and `manifestation` give it so that
+# the graph builder can apply the correction. `text2icd data stats` fails on any new unresolved
+# reference and on any entry here that is no longer observed.
+
+schema = 1
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Osteitis > deformans > in > neoplastic disease > pubic ramus"
+field = "manifestation"
+value = "pubis] D49.2 [M90.68"
+reason = "XML markup error. The printed Index reads 'pubic ramus [pubis] D49.2 [M90.68]'."
+code = "D49.2"
+manifestation = "M90.68"
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Osteomalacia > vitamin-D-resistant in adults > pubic ramus"
+field = "manifestation"
+value = "pubis] E83.31 [M90.88"
+reason = "XML markup error. The printed Index reads 'pubic ramus [pubis] E83.31 [M90.88]'."
+code = "E83.31"
+manifestation = "M90.88"
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Osteonecrosis > secondary NEC > due to > hemoglobinopathy NEC > pubic ramus"
+field = "manifestation"
+value = "pubis] D58.2 [M90.58"
+reason = "XML markup error. The printed Index reads 'pubic ramus [pubis] D58.2 [M90.58]'."
+code = "D58.2"
+manifestation = "M90.58"
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Osteonecrosis > secondary NEC > in > caisson disease > pubic ramus"
+field = "manifestation"
+value = "pubis] T70.3 [M90.58"
+reason = "XML markup error. The printed Index reads 'pubic ramus [pubis] T70.3 [M90.58]'."
+code = "T70.3"
+manifestation = "M90.58"
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Slipped, slipping > epiphysis > capital femoral"
+field = "manifestation"
+value = "SCFE"
+reason = "The abbreviation SCFE (slipped capital femoral epiphysis) is marked up as a manifestation code; the term has no code of its own and its subterms carry the codes."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "neoplasm"
+path = "Neoplasm, neoplastic > book-leaf"
+field = "manifestation"
+value = "ventral surface of tongue and floor of mouth"
+reason = "Descriptive text marked up as a manifestation code; the row's codes are in its table cells."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Genetic > susceptibility to disease NEC > malignant neoplasm > small bowel"
+field = "code"
+value = "Z15.08"
+reason = "Z15.08 does not exist in the Tabular List (Z15.0 has Z15.01 to Z15.07 and Z15.09). No correction is assumed."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr"]
+book = "index"
+path = "Syndrome > usher > specified NEC"
+field = "code"
+value = "Q99.814"
+reason = "Q99.814 is not in the FY2026 Tabular List. The FY2027 Index no longer refers to it."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr"]
+book = "index"
+path = "Syndrome > usher > type 4"
+field = "code"
+value = "Q99.814"
+reason = "Q99.814 is not in the FY2026 Tabular List. The FY2027 Index no longer refers to it."
