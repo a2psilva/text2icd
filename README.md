@@ -96,7 +96,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 ```bash
 git clone https://github.com/a2psilva/text2icd.git
 cd text2icd
-uv sync                      # creates .venv with Python 3.12 and the dev tools
+uv sync --all-extras         # creates .venv with Python 3.12, the dev tools and local embeddings
 uv run pre-commit install    # enables the lint and data-safety hooks
 uv run text2icd data fetch   # downloads and verifies the newest CMS ICD-10-CM release
 uv run text2icd data stats   # parses it and checks it against the CMS code order file

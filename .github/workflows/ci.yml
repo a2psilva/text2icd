@@ -36,7 +36,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-      - run: uv sync --locked
+      - run: uv sync --locked --all-extras
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
@@ -54,7 +54,7 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --locked
+      - run: uv sync --locked --all-extras
       - run: uv run pytest --cov --cov-report=term-missing
 
   integration:
@@ -68,7 +68,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-      - run: uv sync --locked
+      - run: uv sync --locked --all-extras
       - name: Restore the CMS release files
         uses: actions/cache@v6
         with:
@@ -85,7 +85,9 @@ jobs:
             uv run text2icd build-graph -r "$release"
             uv run text2icd graph check -r "$release"
           done
-      - name: Evaluate the BM25 baseline on the committed cms-synthetic sample
+      - name: Evaluate the BM25 and embedding baselines on the committed cms-synthetic sample
         run: |
           uv run text2icd eval validate benchmarks/cms-synthetic/fy2027-sample.jsonl
-          uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all -r fy2027
+          for system in bm25 embedding; do
+            uv run text2icd eval run -d cms-synthetic-sample -s "$system" --split all -r fy2027
+          done

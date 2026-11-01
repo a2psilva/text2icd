@@ -6,6 +6,7 @@ string options from the command line (`-O k=20`).
 """
 
 import math
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import ClassVar
@@ -13,6 +14,7 @@ from typing import ClassVar
 from pydantic import JsonValue
 
 from text2icd.config import Settings
+from text2icd.embeddings import Embedder, StaticEmbedder, VectorIndex
 from text2icd.eval.predictions import Prediction
 from text2icd.graph.model import Graph
 
@@ -90,10 +92,71 @@ class BM25System(System):
         return {"k": self.k, "top": self.top, "tokenizer": self.graph.meta.get("fts_tokenizer")}
 
 
+DEFAULT_EMBEDDING_MODEL = "NeuML/pubmedbert-base-embeddings-8M"
+_QUERY_BATCH = 1024
+
+
+class EmbeddingSystem(System):
+    """B2, the semantic floor at zero API cost: the nearest Tabular descriptions and inclusion
+    terms (the same texts as B1) by cosine similarity of local embeddings, keeping billable
+    codes in rank order. The confidence is the similarity of the first code's text."""
+
+    name = "embedding"
+
+    def __init__(self, graph: Graph, options: Options, embedder: Embedder | None = None) -> None:
+        self.graph = graph
+        self.k = option(options, "k", 50)
+        self.top = option(options, "top", 5)
+        unknown = set(options) - {"k", "top", "model"}
+        if unknown:
+            raise SystemSetupError(f"unknown options for embedding: {', '.join(sorted(unknown))}")
+        self.embedder = embedder or StaticEmbedder(options.get("model", DEFAULT_EMBEDDING_MODEL))
+        texts = list(graph.tabular_texts())
+        self.nodes = [text.node for text in texts]
+        self.index = VectorIndex(self.embedder.encode([text.text for text in texts]))
+
+    def predict(self, phrase: str) -> Prediction:
+        return next(self.predict_many([phrase]))
+
+    def predict_many(self, phrases: Sequence[str]) -> Iterator[Prediction]:
+        for start in range(0, len(phrases), _QUERY_BATCH):
+            batch = phrases[start : start + _QUERY_BATCH]
+            began = time.perf_counter()
+            hits = self.index.search(self.embedder.encode(batch), self.k)
+            each = (time.perf_counter() - began) * 1000 / max(len(batch), 1)
+            for found in hits:
+                yield self._prediction(found, each)
+
+    def _prediction(self, hits: list[tuple[int, float]], latency_ms: float) -> Prediction:
+        ranked: dict[str, float] = {}
+        for row, similarity in hits:
+            node = self.nodes[row]
+            if similarity <= 0:
+                break
+            if node not in ranked and self.graph.code(node).billable:
+                ranked[node] = similarity
+            if len(ranked) == self.top:
+                break
+        if not ranked:
+            return Prediction(id="", confidence=0.0, latency_ms=latency_ms)
+        codes = list(ranked)
+        return Prediction(
+            id="",
+            codes=(codes[0],),
+            alternates=tuple(codes[1:]),
+            confidence=min(max(ranked[codes[0]], 0.0), 1.0),
+            latency_ms=latency_ms,
+        )
+
+    def settings(self) -> dict[str, JsonValue]:
+        return {"model": self.embedder.model, "k": self.k, "top": self.top}
+
+
 Factory = Callable[[Graph, Settings, Options], System]
 
 SYSTEMS: dict[str, Factory] = {
     "bm25": lambda graph, settings, options: BM25System(graph, options),
+    "embedding": lambda graph, settings, options: EmbeddingSystem(graph, options),
 }
 
 

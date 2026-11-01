@@ -136,12 +136,30 @@ chapter. They are computed by `text2icd.eval.metrics.score`:
 | Id | Method | Purpose |
 | --- | --- | --- |
 | B1 | BM25 over Tabular descriptions and inclusion terms (`-s bm25`) | Lexical floor |
-| B2 | Embedding nearest neighbour over the same text | Semantic floor at zero API cost |
+| B2 | Embedding nearest neighbour over the same text (`-s embedding`, a local static model) | Semantic floor at zero API cost |
 | B3 | A small, low-cost LLM given the top 20 codes from B2 | The "cheap LLM plus retrieval" approach text2icd must beat |
 | B4 | A large, high-end LLM given the top 20 codes from B2, on a small sample with a hard budget | Reference ceiling for an expensive model |
 
 Success criterion for v1.0: text2icd beats B3 on accuracy@1 and code-set F1 on `mimic-gold`, at less
 than one tenth of B3's cost per 1,000 phrases.
+
+B1 and B2 rank the billable codes whose description or inclusion term is closest to the phrase.
+Codes made by adding a 7th character have no text of their own, so neither baseline can return
+them; that is part of what they measure.
+
+B2 runs locally with a static embedding model (`text2icd.embeddings`, installed with
+`uv sync --extra embeddings`); the default, `NeuML/pubmedbert-base-embeddings-8M`, was trained on
+biomedical text. `-O model=<id>` selects another model2vec model. The MIMIC-IV aligner uses a
+different model, so that silver labels do not favour B2.
+
+### Results on `cms-synthetic`
+
+FY2027, `dev` split (67,812 phrases), 95% intervals:
+
+| System | Acc@1 | Acc@5 | Category | Code-set F1 | Invalid | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| B1 BM25 | 38.8% (38.5-39.2) | 52.0% (51.6-52.3) | 50.4% (50.0-50.7) | 40.8% (40.4-41.2) | 0% | $0 |
+| B2 embedding | 40.6% (40.2-41.0) | 55.2% (54.8-55.6) | 53.8% (53.4-54.2) | 41.6% (41.3-42.0) | 0% | $0 |
 
 ## Protocol
 
