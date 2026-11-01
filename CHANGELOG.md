@@ -31,3 +31,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `text2icd.ontology.tabular`: parser for the Tabular List XML (chapters, sections, codes, all
   instructional notes, 7th-character definitions with inheritance, placeholders); and
   `text2icd.ontology.files` to locate the files of a fetched release.
+- `text2icd.ontology.index`: parser for the Alphabetic Index, the External Cause Index, the
+  Neoplasm Table and the Table of Drugs and Chemicals. Titles are split into essential words and
+  nonessential modifiers (including nested and mixed cases), with see, see also, subcat, seecat,
+  manifestation codes and table cells.

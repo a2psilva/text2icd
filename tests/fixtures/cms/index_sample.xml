@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ICD10CM.index>
+  <version>2027</version>
+  <title>ICD-10-CM INDEX TO DISEASES and INJURIES</title>
+  <letter>
+    <title>A</title>
+    <mainTerm>
+      <title>Abandonment</title>
+      <see>Maltreatment</see>
+    </mainTerm>
+    <mainTerm>
+      <title>Abdomen, abdominal</title>
+      <seeAlso>condition</seeAlso>
+      <term level="1">
+        <title>acute</title>
+        <code>R10.0</code>
+      </term>
+      <term level="1">
+        <title>angina</title>
+        <code>K55.1</code>
+      </term>
+      <term level="1">
+        <title>muscle deficiency syndrome</title>
+        <code>Q79.4</code>
+      </term>
+    </mainTerm>
+    <mainTerm>
+      <title>Amyloid heart<nemod>(disease)</nemod>
+      </title>
+      <code>E85.4</code>
+      <manif>I43</manif>
+    </mainTerm>
+  </letter>
+  <letter>
+    <title>B</title>
+    <mainTerm>
+      <title>Bonnier's syndrome</title>
+      <subcat>H81.8</subcat>
+    </mainTerm>
+  </letter>
+  <letter>
+    <title>P</title>
+    <mainTerm>
+      <title>Pneumonia<nemod>(acute) (double) (migratory) (purulent) (septic) (unresolved)</nemod>
+      </title>
+      <code>J18.9</code>
+      <term level="1">
+        <title>with</title>
+        <term level="2">
+          <title>lung abscess</title>
+          <code>J85.1</code>
+          <term level="3">
+            <title>due to specified organism</title>
+            <see>Pneumonia, in (due to)</see>
+          </term>
+        </term>
+        <term level="2">
+          <title>influenza</title>
+          <see>Influenza, with, pneumonia</see>
+        </term>
+      </term>
+      <term level="1">
+        <title>adenoviral</title>
+        <code>J12.0</code>
+      </term>
+      <term level="1">
+        <title>aspiration</title>
+        <code>J69.0</code>
+        <term level="2">
+          <title>due to</title>
+          <term level="3">
+            <title>aspiration of microorganisms</title>
+            <term level="4">
+              <title>bacterial</title>
+              <code>J15.9</code>
+            </term>
+            <term level="4">
+              <title>viral</title>
+              <code>J12.9</code>
+            </term>
+          </term>
+          <term level="3">
+            <title>food<nemod>(regurgitated)</nemod>
+            </title>
+            <code>J69.0</code>
+          </term>
+          <term level="3">
+            <title>gastric secretions</title>
+            <code>J69.0</code>
+          </term>
+          <term level="3">
+            <title>milk<nemod>(regurgitated)</nemod>
+            </title>
+            <code>J69.0</code>
+          </term>
+          <term level="3">
+            <title>oils, essences</title>
+            <code>J69.1</code>
+          </term>
+          <term level="3">
+            <title>solids, liquids NEC</title>
+            <code>J69.8</code>
+          </term>
+          <term level="3">
+            <title>vomitus</title>
+            <code>J69.0</code>
+          </term>
+        </term>
+        <term level="2">
+          <title>newborn</title>
+          <code>P24.81</code>
+          <term level="3">
+            <title>amniotic fluid<nemod>(clear)</nemod>
+            </title>
+            <code>P24.11</code>
+          </term>
+          <term level="3">
+            <title>blood</title>
+            <code>P24.21</code>
+          </term>
+          <term level="3">
+            <title>liquor<nemod>(amnii)</nemod>
+            </title>
+            <code>P24.11</code>
+          </term>
+          <term level="3">
+            <title>meconium</title>
+            <code>P24.01</code>
+          </term>
+          <term level="3">
+            <title>milk</title>
+            <code>P24.31</code>
+          </term>
+          <term level="3">
+            <title>mucus</title>
+            <code>P24.11</code>
+          </term>
+          <term level="3">
+            <title>food<nemod>(regurgitated)</nemod>
+            </title>
+            <code>P24.31</code>
+          </term>
+          <term level="3">
+            <title>specified NEC</title>
+            <code>P24.81</code>
+          </term>
+          <term level="3">
+            <title>stomach contents</title>
+            <code>P24.31</code>
+          </term>
+        </term>
+        <term level="2">
+          <title>postprocedural</title>
+          <code>J95.4</code>
+        </term>
+      </term>
+    </mainTerm>
+    <mainTerm>
+      <title>Pyelitis<nemod>(congenital) (uremic)</nemod>
+      </title>
+      <seeAlso>Pyelonephritis</seeAlso>
+      <term level="1">
+        <title>with</title>
+        <term level="2">
+          <title>calculus</title>
+          <seecat>N20</seecat>
+          <term level="3">
+            <title>with hydronephrosis</title>
+            <code>N13.6</code>
+          </term>
+        </term>
+        <term level="2">
+          <title>contracted kidney</title>
+          <code>N11.9</code>
+        </term>
+      </term>
+      <term level="1">
+        <title>acute</title>
+        <code>N10</code>
+      </term>
+      <term level="1">
+        <title>chronic</title>
+        <code>N11.9</code>
+        <term level="2">
+          <title>with calculus</title>
+          <seecat>N20</seecat>
+          <term level="3">
+            <title>with hydronephrosis</title>
+            <code>N13.6</code>
+          </term>
+        </term>
+      </term>
+      <term level="1">
+        <title>cystica</title>
+        <code>N28.84</code>
+      </term>
+      <term level="1">
+        <title>puerperal<nemod>(postpartum)</nemod>
+        </title>
+        <code>O86.21</code>
+      </term>
+      <term level="1">
+        <title>tuberculous</title>
+        <code>A18.11</code>
+      </term>
+    </mainTerm>
+  </letter>
+</ICD10CM.index>

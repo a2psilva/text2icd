@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ICD10CM.index>
+  <version>2027</version>
+  <title>ICD-10-CM EXTERNAL CAUSE of INJURIES INDEX</title>
+  <letter>
+    <title>A</title>
+    <mainTerm>
+      <title>Abandonment<nemod>(causing exposure to weather conditions) (with intent to injure or kill)</nemod> NEC</title>
+      <code>X58</code>
+    </mainTerm>
+    <mainTerm>
+      <title>Abuse<nemod>(adult) (child) (mental) (physical) (sexual)</nemod>
+      </title>
+      <code>X58</code>
+    </mainTerm>
+  </letter>
+</ICD10CM.index>

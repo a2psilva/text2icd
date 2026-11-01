@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ICD10CM.index>
+  <version>2027</version>
+  <indexHeading>
+    <head col="1">Neoplasm</head>
+    <head col="2">Malignant Primary</head>
+    <head col="3">Malignant Secondary</head>
+    <head col="4">Ca in situ</head>
+    <head col="5">Benign</head>
+    <head col="6">Uncertain Behavior</head>
+    <head col="7">Unspecified Behavior</head>
+  </indexHeading>
+  <letter>
+    <title>N</title>
+    <mainTerm>
+      <title>Neoplasm, neoplastic</title>
+      <cell col="2">C80.1</cell>
+      <cell col="3">C79.9</cell>
+      <cell col="4">D09.9</cell>
+      <cell col="5">D36.9</cell>
+      <cell col="6">D48.9</cell>
+      <cell col="7">D49.9</cell>
+      <term level="1">
+        <title>abdomen, abdominal</title>
+        <cell col="2">C76.2</cell>
+        <cell col="3">C79.8-</cell>
+        <cell col="4">D09.8</cell>
+        <cell col="5">D36.7</cell>
+        <cell col="6">D48.7</cell>
+        <cell col="7">D49.89</cell>
+        <term level="2">
+          <title>cavity</title>
+          <cell col="2">C76.2</cell>
+          <cell col="3">C79.8-</cell>
+          <cell col="4">D09.8</cell>
+          <cell col="5">D36.7</cell>
+          <cell col="6">D48.7</cell>
+          <cell col="7">D49.89</cell>
+        </term>
+        <term level="2">
+          <title>organ</title>
+          <cell col="2">C76.2</cell>
+          <cell col="3">C79.8-</cell>
+          <cell col="4">D09.8</cell>
+          <cell col="5">D36.7</cell>
+          <cell col="6">D48.7</cell>
+          <cell col="7">D49.89</cell>
+        </term>
+        <term level="2">
+          <title>viscera</title>
+          <cell col="2">C76.2</cell>
+          <cell col="3">C79.8-</cell>
+          <cell col="4">D09.8</cell>
+          <cell col="5">D36.7</cell>
+          <cell col="6">D48.7</cell>
+          <cell col="7">D49.89</cell>
+        </term>
+        <term level="2">
+          <title>wall</title>
+          <seeAlso>Neoplasm, abdomen, wall, skin</seeAlso>
+          <cell col="2">C44.509</cell>
+          <cell col="3">C79.2-</cell>
+          <cell col="4">D04.5</cell>
+          <cell col="5">D23.5</cell>
+          <cell col="6">D48.5</cell>
+          <cell col="7">D49.2</cell>
+          <term level="3">
+            <title>connective tissue</title>
+            <cell col="2">C49.4</cell>
+            <cell col="3">C79.8-</cell>
+            <cell col="4">-</cell>
+            <cell col="5">D21.4</cell>
+            <cell col="6">D48.1-</cell>
+            <cell col="7">D49.2</cell>
+          </term>
+          <term level="3">
+            <title>skin</title>
+            <cell col="2">C44.509</cell>
+            <term level="4">
+              <title>basal cell carcinoma</title>
+              <cell col="2">C44.519</cell>
+              <cell col="3">-</cell>
+              <cell col="4">-</cell>
+              <cell col="5">-</cell>
+              <cell col="6">-</cell>
+              <cell col="7">-</cell>
+            </term>
+            <term level="4">
+              <title>specified type NEC</title>
+              <cell col="2">C44.599</cell>
+              <cell col="3">-</cell>
+              <cell col="4">-</cell>
+              <cell col="5">-</cell>
+              <cell col="6">-</cell>
+              <cell col="7">-</cell>
+            </term>
+            <term level="4">
+              <title>squamous cell carcinoma</title>
+              <cell col="2">C44.529</cell>
+              <cell col="3">-</cell>
+              <cell col="4">-</cell>
+              <cell col="5">-</cell>
+              <cell col="6">-</cell>
+              <cell col="7">-</cell>
+            </term>
+          </term>
+        </term>
+      </term>
+    </mainTerm>
+  </letter>
+</ICD10CM.index>
