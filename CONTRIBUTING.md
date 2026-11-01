@@ -28,7 +28,9 @@ Place the CMS FY2026 release files in `data/raw/cms/fy2026/` (see [data/README.m
 
 ## Workflow
 
-1. Open an issue first for anything larger than a small fix.
+1. Open an issue first for anything larger than a small fix. Changes to a recorded design decision
+   (storage, the cascade, LLM providers, release handling) also need a new record in
+   [docs/adr/](docs/adr/README.md).
 2. Branch from `main` (`feat/...`, `fix/...`, `docs/...`).
 3. Keep changes focused. Add or update tests with the change.
 4. Run `make check`. CI runs the same steps on Python 3.11, 3.12 and 3.13.

@@ -1,7 +1,8 @@
 # Architecture
 
 Status: design. The sections below describe the target system. Names of modules, tables and
-fields are the planned ones and may be refined during implementation.
+fields are the planned ones and may be refined during implementation. The main design decisions,
+with the alternatives that were considered, are recorded in [docs/adr/](adr/README.md).
 
 ## Goals and non-goals
 

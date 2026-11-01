@@ -126,7 +126,7 @@ src/text2icd/
   api/        FastAPI service
   eval/       datasets, metrics, baselines, benchmark runner
 tests/        unit and integration tests (CMS fixtures only)
-docs/         architecture, coder workflow, data and compliance, evaluation
+docs/         architecture, decision records, coder workflow, data and compliance, evaluation
 data/         local data (git-ignored)
 notebooks/    exploration (notebooks/local/ is git-ignored)
 ```
