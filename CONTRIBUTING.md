@@ -28,11 +28,11 @@ Place the CMS FY2026 release files in `data/raw/cms/fy2026/` (see [data/README.m
 
 ## Workflow
 
-1. Pick an unchecked item in [TASKS.md](TASKS.md), or open an issue first for anything larger.
+1. Open an issue first for anything larger than a small fix.
 2. Branch from `main` (`feat/...`, `fix/...`, `docs/...`).
 3. Keep changes focused. Add or update tests with the change.
 4. Run `make check`. CI runs the same steps on Python 3.11, 3.12 and 3.13.
-5. Tick the task in `TASKS.md` and add a line under `Unreleased` in `CHANGELOG.md`.
+5. Add a line under `Unreleased` in `CHANGELOG.md`.
 6. Open a pull request and complete its checklist.
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)

@@ -31,7 +31,7 @@ Currently present in `raw/cms/fy2026/` (from "2026 Code Tables, Tabular and Inde
 | `icd10cm_drug_2026.xml` | Table of Drugs and Chemicals |
 | `*.pdf` | PDF renderings of the same books, for human reference |
 
-Still to download (TASKS.md Phase 1): the code descriptions in tabular order (billable flags), the
+Still to download: the code descriptions in tabular order (billable flags), the
 addendum and conversion table, the Official Coding Guidelines PDF, the April 1, 2026 update, the
 FY2027 release, and the order files for FY2016 to FY2025 (for MIMIC-IV version reconciliation).
 `text2icd data fetch` will automate this.

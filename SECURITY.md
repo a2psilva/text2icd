@@ -23,4 +23,4 @@ synthetic phrases.
 - Ways to bypass the endpoint policy that blocks unapproved LLM providers.
 - Injection through input phrases that changes the resolver's behaviour beyond choosing among the
   options the graph offers.
-- Vulnerabilities in the HTTP service once it exists (TASKS.md Phase 10).
+- Vulnerabilities in the HTTP service, once it exists.

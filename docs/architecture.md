@@ -1,7 +1,7 @@
 # Architecture
 
-Status: design. The sections below describe the target system that [TASKS.md](../TASKS.md) builds.
-Names of modules, tables and fields are the planned ones and may be refined as the phases land.
+Status: design. The sections below describe the target system. Names of modules, tables and
+fields are the planned ones and may be refined during implementation.
 
 ## Goals and non-goals
 
@@ -148,8 +148,8 @@ the probability that the primary code is correct. Below the threshold, the casca
 
 ### L2: local retrieval
 
-Embeddings run on CPU through ONNX (fastembed or model2vec; the model is chosen by benchmark in
-Phase 7) over Index full paths, Tabular descriptions and inclusion terms. Retrieved codes are fed back
+Embeddings run on CPU through ONNX (fastembed or model2vec; the model is chosen by benchmark)
+over Index full paths, Tabular descriptions and inclusion terms. Retrieved codes are fed back
 into Tabular verification. No API cost.
 
 ### L3: LLM navigator
@@ -208,8 +208,8 @@ Per L3 step with a small model priced at about $0.10 per million input tokens an
 output tokens: about 300 uncached input tokens and a few hundred output tokens including reasoning
 at low effort, so roughly $0.0002. With at most a few steps per escalated phrase and most phrases
 resolved by L0 to L2,
-the target is under $0.50 per 1,000 phrases. Phase 3 and Phase 11 measure the real figure, including
-the cache hit rate, from the `usage` fields of each response.
+the target is under $0.50 per 1,000 phrases. The evaluation harness measures the real figure,
+including the cache hit rate, from the `usage` fields of each response.
 
 ## Releases and reproducibility
 

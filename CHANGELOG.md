@@ -13,4 +13,3 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Data-safety guardrails: git-ignored `data/` tree, a pre-commit hook and a CI job that block
   restricted files from being committed.
 - Documentation: architecture, coder workflow, data and compliance, evaluation protocol.
-- Phased roadmap in `TASKS.md`.

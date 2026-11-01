@@ -8,8 +8,8 @@ Map clinical diagnosis phrases to **ICD-10-CM** codes by navigating the official
 and Tabular List the way a certified medical coder does: cheaply, transparently, and with an audit
 trail for every code.
 
-> **Status: pre-alpha.** This repository currently contains the project scaffold and the roadmap.
-> The resolver described below is being built phase by phase; see [TASKS.md](TASKS.md).
+> **Status: pre-alpha.** This repository currently contains the project scaffold and the design
+> docs. The resolver described below is under development.
 
 ## Why
 
@@ -130,17 +130,6 @@ docs/         architecture, coder workflow, data and compliance, evaluation
 data/         local data (git-ignored)
 notebooks/    exploration (notebooks/local/ is git-ignored)
 ```
-
-## Roadmap
-
-The full phased plan, with tasks, deliverables and exit criteria, is in [TASKS.md](TASKS.md).
-
-| Milestone | Phases | Outcome |
-| --- | --- | --- |
-| M1 Foundations | 0-3 | Parsed CMS data, knowledge graph, evaluation harness and baselines |
-| M2 Deterministic coder (v0.1) | 4-6 | Index walk and Tabular verification, no API cost |
-| M3 Full cascade (v0.2) | 7-9 | Calibrated confidence, local retrieval, LLM navigator, caching |
-| M4 Public release (v1.0) | 10-12 | CLI, Python API, HTTP service, Docker, published benchmark |
 
 ## Contributing
 

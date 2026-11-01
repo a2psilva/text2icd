@@ -1,7 +1,7 @@
 # Evaluation
 
-The evaluation harness is built early (TASKS.md Phase 3) so that every later change is measured
-against fixed data. This page defines the datasets, metrics, baselines and protocol.
+The evaluation harness is built before the resolver, so that every change is measured against
+fixed data. This page defines the datasets, metrics, baselines and protocol.
 
 ## Datasets
 
