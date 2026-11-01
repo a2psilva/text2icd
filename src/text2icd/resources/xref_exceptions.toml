@@ -1,0 +1,136 @@
+# Alphabetic Index cross-references (`see`, `see also`) that name no Index term, reviewed by hand.
+#
+# The graph builder resolves every cross-reference to the term it names (graph/xrefs.py). The
+# entries below do not resolve because of an error in the Index, each with the reason; the builder
+# stores the reason next to the reference. `text2icd build-graph` warns about any other unresolved
+# reference and about any entry here that is no longer observed. `field` is `see` or `see_also`.
+
+schema = 1
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Abnormal, abnormality, abnormalities > gait"
+field = "see"
+value = "Gait"
+reason = "There is no main term 'Gait'; the Index has 'Gait abnormality'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Disturbance > gait"
+field = "see"
+value = "Gait"
+reason = "There is no main term 'Gait'; the Index has 'Gait abnormality'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Ingestion > multiple drug"
+field = "see"
+value = "Table of Drugs and Chemicals, multiple"
+reason = "The Table of Drugs has no 'multiple' row; the nearest is 'Multiple unspecified drugs, medicaments and biological substances'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Plaut disease"
+field = "see_also"
+value = "Vincent's"
+reason = "There is no main term 'Vincent's'; the Index has 'Vincent's infection'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Roth disease or syndrome"
+field = "see"
+value = "Meralgia paraesthetica"
+reason = "Spelling: the main term is 'Meralgia paresthetica'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Supervision > contraceptive"
+field = "see"
+value = "Prescription, contraceptives"
+reason = "The main term is 'Prescription of contraceptives', one title without subterms of that name."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Surveillance > contraceptive"
+field = "see"
+value = "Prescription, contraceptives"
+reason = "The main term is 'Prescription of contraceptives', one title without subterms of that name."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Tuberculum > Carabelli"
+field = "see"
+value = "Note at"
+reason = "Truncated text: the printed Index refers to a note, not to a term."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "index"
+path = "Tuberculum > occlusal"
+field = "see"
+value = "Note at"
+reason = "Truncated text: the printed Index refers to a note, not to a term."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "eindex"
+path = "Effect of > motion"
+field = "see"
+value = "Motion"
+reason = "There is no main term 'Motion'; the External Cause Index has 'Motion sickness'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "eindex"
+path = "Sickness > motion"
+field = "see"
+value = "Motion"
+reason = "There is no main term 'Motion'; the External Cause Index has 'Motion sickness'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "eindex"
+path = "Hanging"
+field = "see"
+value = "also"
+reason = "Empty reference: the element holds only the word 'also'."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "eindex"
+path = "Self-harm NEC"
+field = "see_also"
+value = "External cause by type, undetermined whether accidental or intentional"
+reason = "Not a term: an instruction to code the external cause by type, with undetermined intent."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "eindex"
+path = "Self-inflicted NEC"
+field = "see_also"
+value = "External cause by type, undetermined whether accidental or intentional"
+reason = "Not a term: an instruction to code the external cause by type, with undetermined intent."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "eindex"
+path = "Self-harm NEC > poisoning NEC"
+field = "see"
+value = "Table of drugs and biologicals, accident"
+reason = "Old name of the Table of Drugs and Chemicals; 'accident' is its Poisoning Accidental (unintentional) column."
+
+[[exception]]
+releases = ["fy2026", "fy2026-apr", "fy2027"]
+book = "eindex"
+path = "Self-inflicted NEC > poisoning NEC"
+field = "see"
+value = "Table of drugs and biologicals, accident"
+reason = "Old name of the Table of Drugs and Chemicals; 'accident' is its Poisoning Accidental (unintentional) column."

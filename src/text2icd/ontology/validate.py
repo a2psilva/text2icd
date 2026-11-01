@@ -51,9 +51,12 @@ def unresolved_references(
     ]
 
 
-def load_exceptions(path: Path | None = None) -> list[KnownException]:
+def load_exceptions(
+    path: Path | None = None, resource: str = "index_exceptions.toml"
+) -> list[KnownException]:
+    """Read an exceptions file: `path`, or else the packaged `resource`."""
     if path is None:
-        raw = resources.files("text2icd.resources").joinpath("index_exceptions.toml").read_bytes()
+        raw = resources.files("text2icd.resources").joinpath(resource).read_bytes()
     else:
         raw = path.read_bytes()
     data = tomllib.loads(raw.decode("utf-8"))
