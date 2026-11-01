@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ICD10CM.index>
+  <version>2027</version>
+  <indexHeading>
+    <head col="1">Substance</head>
+    <head col="2">Poisoning Accidental (unintentional)</head>
+    <head col="3">Poisoning Intentional self-harm</head>
+    <head col="4">Poisoning Assault</head>
+    <head col="5">Poisoning Undetermined</head>
+    <head col="6">Adverse effect</head>
+    <head col="7">Underdosing</head>
+  </indexHeading>
+  <letter>
+    <title>#</title>
+    <mainTerm>
+      <title>1-propanol</title>
+      <cell col="2">T51.3X1</cell>
+      <cell col="3">T51.3X2</cell>
+      <cell col="4">T51.3X3</cell>
+      <cell col="5">T51.3X4</cell>
+      <cell col="6">--</cell>
+      <cell col="7">--</cell>
+    </mainTerm>
+    <mainTerm>
+      <title>2-propanol</title>
+      <cell col="2">T51.2X1</cell>
+      <cell col="3">T51.2X2</cell>
+      <cell col="4">T51.2X3</cell>
+      <cell col="5">T51.2X4</cell>
+      <cell col="6">--</cell>
+      <cell col="7">--</cell>
+    </mainTerm>
+    <mainTerm>
+      <title>2,4-D<nemod>(dichlorophen-oxyacetic acid)</nemod>
+      </title>
+      <cell col="2">T60.3X1</cell>
+      <cell col="3">T60.3X2</cell>
+      <cell col="4">T60.3X3</cell>
+      <cell col="5">T60.3X4</cell>
+      <cell col="6">--</cell>
+      <cell col="7">--</cell>
+    </mainTerm>
+  </letter>
+  <letter>
+    <title>C</title>
+    <mainTerm>
+      <title>2,4-D</title>
+      <cell col="2">T60.3X1</cell>
+      <cell col="3">T60.3X2</cell>
+      <cell col="4">T60.3X3</cell>
+      <cell col="5">T60.3X4</cell>
+      <cell col="6">--</cell>
+      <cell col="7">--</cell>
+    </mainTerm>
+  </letter>
+</ICD10CM.index>
