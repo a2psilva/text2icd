@@ -57,6 +57,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `index_exceptions.toml` are applied (the four "pubic ramus" entries); the other listed exceptions
   are kept out with a warning in the build log. FY2026 and FY2027 have no unresolved pointer.
 - `IndexBook.paths()` returns the joined path of every term in one pass.
+- Index cross-references (`index_xref`): every `see` and `see also` resolved to the Index term it
+  names, by longest match on titles that contain commas, with table columns taken from the column
+  headings (`Neoplasm, benign, by site`), books, `by site` and code instructions kept as such, and
+  the words a partial match leaves over. About 88% resolve fully and 0.1% do not; those 16 are
+  Index errors listed with a reason in `resources/xref_exceptions.toml`, and the build warns about
+  any other.
 - Tabular note edges (`tabular_edge`): every code or range named in an instructional note
   (`(N18.1-N18.6)`, `(E10.-)`, `category T51`), with the stray dots of the CMS files handled. About
   11,600 per release; the build log gives the share of notes with a reference by kind, the words

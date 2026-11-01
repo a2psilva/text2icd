@@ -72,9 +72,17 @@ flowchart LR
 | `excludes1`, `excludes2` | TabularCode → TabularCode or range | `<excludes1>`, `<excludes2>` note text, code references parsed out |
 | `code_first`, `use_additional`, `code_also` | TabularCode → TabularCode or range | the matching note elements |
 
-Cross-reference text such as `Pneumonia, in (due to)` is resolved by longest match against main-term
-titles, because titles themselves contain commas (`Abdomen, abdominal`). Unresolvable references are
-kept, flagged, and reported by the integrity tests.
+Cross-reference text such as `Pneumonia, in (due to)` is read as a path of comma-separated segments
+and resolved by longest match, first against main-term titles, because titles themselves contain
+commas (`Abdomen, abdominal`), then against subterms. Titles are compared in lenient forms (case,
+parenthesized words, NEC and NOS, hyphens, apostrophes, plurals, the parts of comma and "or"
+titles). Parts of a reference that are instructions are kept as such: `by site`, a table column
+(`Neoplasm, benign, by site` is the Benign column of the Neoplasm Table, matched against the column
+headings of the release), a book (`Table of Drugs and Chemicals`), a code instruction
+(`category M01`) or a generic one (`condition`). A reference is `resolved`, `partial` (a term is
+reached and the words left over are kept for the coder), `instruction`, or `unresolved`. In FY2026
+and FY2027 about 88% resolve, 6% are partial, 6% are instructions, and 16 (0.1%) are unresolved;
+those are errors in the Index, listed with a reason in `src/text2icd/resources/xref_exceptions.toml`.
 
 ### Billable code set
 
@@ -105,6 +113,7 @@ The schema is versioned SQL in `src/text2icd/graph/schema.sql`. Tables so far:
 | `index_term` | terms of the four Index books with global ids, essential title, printed title, nonessential modifiers and full path (`Pneumonia > aspiration > due to > food`) |
 | `table_column` | column headings of the Neoplasm Table and the Table of Drugs and Chemicals |
 | `index_pointer` | the `points_to` and `manifestation` edges: every code a term gives (`code`, `manif`, `subcat`, `seecat`, table cells), as written and resolved to a Tabular node, with a status (`ok`, `corrected`, `excluded`, `unresolved`) |
+| `index_xref` | the `see` and `see_also` edges: every cross-reference as written, with its status, the term it reaches, the book, table column and instruction it names, the words left over, and for a known Index error the reason |
 | `tabular_edge` | the `excludes1`, `excludes2`, `code_first`, `use_additional` and `code_also` edges: every code or range written in a note (any note kind), as written and as a range of code prefixes, with the Tabular node a single code names and a status (`ok`, `unresolved`) |
 
 Generated codes take their description from the order file. Billable codes in `tabular_node` must

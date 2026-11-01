@@ -146,8 +146,10 @@ def test_build_reports_exception_warnings(fixture_release: ReleaseFiles, tmp_pat
 
 
 def test_fixture_pointers_give_no_warnings(fixture_build: BuildReport) -> None:
-    # The fixture's notes name codes it does not contain; those warnings are tested in test_notes.
-    assert [w for w in fixture_build.warnings if not w.startswith("no code for ")] == []
+    # The fixture's notes and cross-references name what it does not contain; those warnings are
+    # tested in test_notes and test_xrefs.
+    pointer_warnings = ("excluded ", "exception not found in the Index")
+    assert [w for w in fixture_build.warnings if w.startswith(pointer_warnings)] == []
 
 
 @pytest.mark.slow

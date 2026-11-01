@@ -21,6 +21,7 @@ from text2icd import __version__
 from text2icd.fetch import sha256_of
 from text2icd.graph.notes import CodeIndex, find_references
 from text2icd.graph.pointers import Pointer, index_pointers
+from text2icd.graph.xrefs import XREF_EXCEPTIONS, CrossReference, cross_references
 from text2icd.ontology.billable import BillableCode, iter_billable
 from text2icd.ontology.codes import CODE_LENGTH_BEFORE_SEVENTH, dot, undot
 from text2icd.ontology.files import ReleaseFiles
@@ -52,6 +53,7 @@ class Sources:
     billable: tuple[BillableCode, ...]
     file_hashes: dict[str, str]
     exceptions: tuple[KnownException, ...] = ()
+    xref_exceptions: tuple[KnownException, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,8 +84,14 @@ class BuildLog:
     warnings: list[str]
 
 
-def load_sources(files: ReleaseFiles, release_id: str, exceptions: Path | None = None) -> Sources:
-    """Parse a release. `exceptions` replaces the packaged `index_exceptions.toml`."""
+def load_sources(
+    files: ReleaseFiles,
+    release_id: str,
+    exceptions: Path | None = None,
+    xref_exceptions: Path | None = None,
+) -> Sources:
+    """Parse a release. `exceptions` and `xref_exceptions` replace the packaged
+    `index_exceptions.toml` and `xref_exceptions.toml`."""
     paths = {
         "tabular": files.tabular,
         "index": files.index,
@@ -100,16 +108,26 @@ def load_sources(files: ReleaseFiles, release_id: str, exceptions: Path | None =
         order=parse_order_file(paths["order"]),
         billable=tuple(iter_billable(tabular)),
         file_hashes={path.name: sha256_of(path) for path in paths.values()},
-        exceptions=tuple(e for e in load_exceptions(exceptions) if release_id in e.releases),
+        exceptions=_for_release(load_exceptions(exceptions), release_id),
+        xref_exceptions=_for_release(load_exceptions(xref_exceptions, XREF_EXCEPTIONS), release_id),
     )
 
 
+def _for_release(exceptions: list[KnownException], release_id: str) -> tuple[KnownException, ...]:
+    return tuple(exception for exception in exceptions if release_id in exception.releases)
+
+
 def build_graph(
-    files: ReleaseFiles, release_id: str, output: Path, *, exceptions: Path | None = None
+    files: ReleaseFiles,
+    release_id: str,
+    output: Path,
+    *,
+    exceptions: Path | None = None,
+    xref_exceptions: Path | None = None,
 ) -> BuildReport:
     """Write the graph of one release to `output`, replacing it only once the build succeeds."""
     start = time.perf_counter()
-    sources = load_sources(files, release_id, exceptions)
+    sources = load_sources(files, release_id, exceptions, xref_exceptions)
     output.parent.mkdir(parents=True, exist_ok=True)
     partial = output.with_name(output.name + ".partial")
     partial.unlink(missing_ok=True)
@@ -147,9 +165,19 @@ def write_graph(conn: sqlite3.Connection, sources: Sources) -> BuildLog:
     nodes = set(sources.tabular.nodes) | {entry.code for entry in sources.billable}
     codes = CodeIndex(key for key, node in sources.tabular.nodes.items() if node.kind == "diag")
     _insert(conn, "tabular_edge", _edge_rows(notes, codes, nodes, log))
-    pointers = index_pointers(sources.books, term_offsets(sources.books), nodes, sources.exceptions)
+    offsets = term_offsets(sources.books)
+    pointers = index_pointers(sources.books, offsets, nodes, sources.exceptions)
     _insert(conn, "index_pointer", map(_pointer_row, pointers.pointers))
     log.warnings.extend(pointers.warnings)
+    xrefs = cross_references(sources.books, offsets, sources.xref_exceptions)
+    _insert(conn, "index_xref", map(_xref_row, xrefs.xrefs))
+    statuses = Counter(xref.status for xref in xrefs.xrefs)
+    shares = ", ".join(
+        f"{status} {statuses[status] / len(xrefs.xrefs):.1%}"
+        for status in ("resolved", "partial", "instruction", "unresolved")
+    )
+    log.details.append(f"cross-references: {len(xrefs.xrefs):,}; {shares}")
+    log.warnings.extend(xrefs.warnings)
     return log
 
 
@@ -268,6 +296,21 @@ def _pointer_row(pointer: Pointer) -> Row:
         int(pointer.partial),
         pointer.target,
         pointer.status,
+    )
+
+
+def _xref_row(xref: CrossReference) -> Row:
+    return (
+        xref.term,
+        xref.kind,
+        xref.written,
+        xref.status,
+        xref.book,
+        xref.target,
+        xref.column,
+        xref.instruction,
+        xref.remainder,
+        xref.reason,
     )
 
 

@@ -126,3 +126,29 @@ CREATE TABLE index_pointer (
     CHECK ((status IN ('ok', 'corrected')) = (target IS NOT NULL))
 ) WITHOUT ROWID;
 CREATE INDEX index_pointer_target ON index_pointer (target);
+
+-- The `see` and `see also` of Index terms, resolved to the term they name (graph/xrefs.py).
+-- status: resolved (every segment of the text used); partial (`target` reached, the words left
+-- for the coder in `remainder`); instruction (no term, only `instruction`, such as "condition" or
+-- "category M01", maybe with a `book` and a table column `col`); unresolved, with the `reason`
+-- when resources/xref_exceptions.toml lists it as an error in the Index.
+CREATE TABLE index_xref (
+    term        INTEGER NOT NULL REFERENCES index_term (id),
+    kind        TEXT NOT NULL CHECK (kind IN ('see', 'see_also')),
+    written     TEXT NOT NULL,
+    status      TEXT NOT NULL
+                CHECK (status IN ('resolved', 'partial', 'instruction', 'unresolved')),
+    book        TEXT CHECK (book IN ('index', 'eindex', 'neoplasm', 'drug')),
+    target      INTEGER REFERENCES index_term (id),
+    col         INTEGER,
+    instruction TEXT,
+    remainder   TEXT,
+    reason      TEXT,
+    PRIMARY KEY (term, kind),
+    FOREIGN KEY (book, col) REFERENCES table_column (book, col),
+    CHECK (reason IS NULL OR status = 'unresolved'),
+    CHECK ((status IN ('resolved', 'partial')) = (target IS NOT NULL)),
+    CHECK (status != 'resolved' OR remainder IS NULL),
+    CHECK (status != 'partial' OR remainder IS NOT NULL)
+) WITHOUT ROWID;
+CREATE INDEX index_xref_target ON index_xref (target);
