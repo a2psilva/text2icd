@@ -103,6 +103,7 @@ uv run text2icd data stats   # parses it and checks it against the CMS code orde
 uv run text2icd build-graph  # builds the knowledge graph (data/processed/, about 10 s)
 uv run text2icd graph show "Pneumonia > aspiration"   # an Index term, its codes and subterms
 uv run text2icd graph code E11.22                     # a code, its notes, edges and Index terms
+uv run text2icd graph check  # runs the integrity checks on the built graph
 make check                   # lint, format check, type check, tests
 ```
 

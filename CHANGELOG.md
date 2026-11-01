@@ -57,6 +57,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `index_exceptions.toml` are applied (the four "pubic ramus" entries); the other listed exceptions
   are kept out with a warning in the build log. FY2026 and FY2027 have no unresolved pointer.
 - `IndexBook.paths()` returns the joined path of every term in one pass.
+- `text2icd graph check`: integrity checks of a built graph (content hash, both trees, billable
+  codes, Index pointers, cross-references, note edges, search tables, and the share of billable
+  codes the Index leads to); it exits non-zero when a check fails.
+- CI integration job (not required): fetches FY2026 and FY2027 with a cache, runs the slow tests,
+  builds both graphs and checks them. Timing tests get a `benchmark` marker and run locally only.
 - `text2icd.graph.model.load(release) -> Graph`: the built graph in memory, with accessors for codes
   (`code`, `parent`, `children`, `ancestors`, `seven_char_def`, `notes` and `edges`, optionally
   inherited from ancestors), Index terms (`term_at`, `subterms`, `pointers`, `xrefs`), reverse

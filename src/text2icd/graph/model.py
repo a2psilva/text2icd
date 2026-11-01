@@ -387,6 +387,13 @@ def load(
 ) -> Graph:
     """Load the graph of `release` (default: TEXT2ICD_RELEASE) from the data directory, or the
     file at `path`."""
+    return Graph(graph_file(release, path=path, settings=settings))
+
+
+def graph_file(
+    release: str | None = None, *, path: Path | None = None, settings: Settings | None = None
+) -> Path:
+    """The graph file of `release` in the data directory, or `path`; GraphError if it is missing."""
     if path is None:
         settings = settings or Settings()
         release = load_registry().get(release or settings.release).id
@@ -394,4 +401,4 @@ def load(
     if not path.is_file():
         hint = f" -r {release}" if release else ""
         raise GraphError(f"{path} does not exist; run `text2icd build-graph{hint}`")
-    return Graph(path)
+    return path

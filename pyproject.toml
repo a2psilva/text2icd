@@ -92,6 +92,7 @@ addopts = ["-ra", "--strict-markers", "--strict-config"]
 markers = [
     "mimic: needs local MIMIC-IV files under data/raw/mimic-iv (skipped when absent, never runs in CI)",
     "slow: long-running test (graph builds, full benchmarks)",
+    "benchmark: a time or memory budget; run locally, since shared CI runners vary too much",
 ]
 
 [tool.coverage.run]
