@@ -114,6 +114,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   cosine similarity of a local static embedding model (`text2icd.embeddings`; optional extra
   `embeddings`, model2vec; default `NeuML/pubmedbert-base-embeddings-8M`). CI installs all extras.
   On the FY2027 `cms-synthetic` dev split, B1 reaches 38.8% accuracy@1 and B2 40.6%.
+- MIMIC-IV discharge diagnosis extractor (`text2icd.eval.mimic.sections`): the section of each
+  discharge summary split into items, with primary or secondary group labels, bullets, numbering,
+  underlines and leading labels handled; `text2icd eval mimic sections` prints aggregate counts
+  only. Tests use hand-written synthetic notes.
 
 ### Fixed
 
