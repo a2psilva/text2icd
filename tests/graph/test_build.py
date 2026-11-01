@@ -144,6 +144,7 @@ def test_meta(fixture_db: sqlite3.Connection, fixture_release: ReleaseFiles) -> 
     assert meta["release"] == "fy2099"
     assert meta["tabular_version"] == "2027"
     assert meta["content_sha256"] == content_hash(fixture_db)
+    assert meta["fts_tokenizer"] == "porter"
     assert meta["sha256:icd10cm_tabular_2099.xml"] == build.sha256_of(fixture_release.tabular)
     assert {key for key in meta if key.startswith("sha256:")} == {
         f"sha256:icd10cm_{name}_2099.{'txt' if name == 'order' else 'xml'}"
@@ -174,7 +175,7 @@ def test_failed_build_keeps_the_previous_file(
     output.parent.mkdir()
     output.write_bytes(b"previous")
 
-    def broken(conn: sqlite3.Connection, sources: build.Sources) -> None:
+    def broken(conn: sqlite3.Connection, sources: build.Sources, tokenizer: str) -> None:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(build, "write_graph", broken)

@@ -9,6 +9,7 @@ from text2icd import __version__
 from text2icd.config import Settings
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
+from text2icd.graph.search import DEFAULT_TOKENIZER, Tokenizer
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
@@ -127,6 +128,10 @@ def build_graph_command(
             help="Output file (default: data/processed/text2icd-graph-<release>.sqlite).",
         ),
     ] = None,
+    tokenizer: Annotated[
+        Tokenizer,
+        typer.Option(help="FTS5 tokenizer: porter (stemmed words) or unicode61 (exact words)."),
+    ] = DEFAULT_TOKENIZER,
     data_dir: DataDirOption = None,
 ) -> None:
     """Build the knowledge-graph SQLite file of a fetched release."""
@@ -134,7 +139,12 @@ def build_graph_command(
     target = _full_release(release or settings.release)
     raw_dir = settings.cms_raw_dir(target.id)
     _require_fetched(target, raw_dir)
-    report = build_graph(ReleaseFiles(raw_dir), target.id, output or settings.graph_path(target.id))
+    report = build_graph(
+        ReleaseFiles(raw_dir),
+        target.id,
+        output or settings.graph_path(target.id),
+        tokenizer=tokenizer,
+    )
     typer.echo("\n".join(report.lines()))
 
 

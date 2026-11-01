@@ -57,6 +57,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `index_exceptions.toml` are applied (the four "pubic ramus" entries); the other listed exceptions
   are kept out with a warning in the build log. FY2026 and FY2027 have no unresolved pointer.
 - `IndexBook.paths()` returns the joined path of every term in one pass.
+- Full-text search in the graph: FTS5 tables over every Index term (title, modifiers and path) and
+  over Tabular descriptions and inclusion terms (`tabular_term`), with `graph.search.search_index`
+  and `search_tabular` (BM25, free-text queries made safe for FTS5). `build-graph --tokenizer`
+  chooses `porter` (default) or `unicode61`; the choice is recorded in `meta`.
 - Index cross-references (`index_xref`): every `see` and `see also` resolved to the Index term it
   names, by longest match on titles that contain commas, with table columns taken from the column
   headings (`Neoplasm, benign, by site`), books, `by site` and code instructions kept as such, and
