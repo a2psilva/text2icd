@@ -56,6 +56,10 @@ class Settings(BaseSettings):
         """Directory holding the unmodified CMS files of one release."""
         return self.data_dir / "raw" / "cms" / release
 
+    def eval_dir(self) -> Path:
+        """Local evaluation datasets and result files (git-ignored, with the rest of data/)."""
+        return self.data_dir / "processed" / "eval"
+
     def graph_path(self, release: str) -> Path:
         """The knowledge-graph file built from one release by `text2icd build-graph`."""
         return self.data_dir / "processed" / f"text2icd-graph-{release}.sqlite"

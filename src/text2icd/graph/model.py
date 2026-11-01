@@ -99,6 +99,15 @@ class CrossRef(NamedTuple):
     reason: str | None
 
 
+class TabularText(NamedTuple):
+    """A description, inclusion term or `includes` note of a Tabular node, as searched."""
+
+    id: int
+    node: str
+    kind: Literal["description", "inclusion", "includes"]
+    text: str
+
+
 class GraphError(Exception):
     """The graph file is missing or was built by an incompatible version."""
 
@@ -150,6 +159,11 @@ class Graph:
             parent = node.parent
         return tuple(found)
 
+    def tabular_texts(self) -> Iterator[TabularText]:
+        """Every description, inclusion term and `includes` note, in id order (read from disk)."""
+        rows = self._conn.execute("SELECT id, node, kind, text FROM tabular_term ORDER BY id")
+        return map(TabularText._make, rows)
+
     def seven_char_def(self, key: str) -> tuple[tuple[str, str], ...]:
         """The 7th characters and their meanings that apply to `key`, or () if none do."""
         owner = self.code(key).seventh_from
@@ -198,6 +212,10 @@ class Graph:
         for term in self._terms.values():
             paths.setdefault((term.book, term.path.casefold()), term.id)
         return paths
+
+    def terms(self, book: str | None = None) -> Iterator[Term]:
+        """Every Index term (of one book), in id order: each main term before its subterms."""
+        return (term for term in self._terms.values() if book is None or term.book == book)
 
     def main_terms(self, book: str = "index") -> tuple[Term, ...]:
         return tuple(self._terms[term_id] for term_id in self._main.get(book, ()))
