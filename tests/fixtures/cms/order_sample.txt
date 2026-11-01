@@ -1,0 +1,10 @@
+00001 A00     0 Cholera                                                      Cholera
+00002 A000    1 Cholera due to Vibrio cholerae 01, biovar cholerae           Cholera due to Vibrio cholerae 01, biovar cholerae
+00003 A001    1 Cholera due to Vibrio cholerae 01, biovar eltor              Cholera due to Vibrio cholerae 01, biovar eltor
+00004 A009    1 Cholera, unspecified                                         Cholera, unspecified
+00005 E1122   1 Type 2 diabetes mellitus w diabetic chronic kidney disease   Type 2 diabetes mellitus with diabetic chronic kidney disease
+00006 T51     0 Toxic effect of alcohol                                      Toxic effect of alcohol
+00007 T513    0 Toxic effect of fusel oil                                    Toxic effect of fusel oil
+00008 T513X   0 Toxic effect of fusel oil                                    Toxic effect of fusel oil
+00009 T513X1  0 Toxic effect of fusel oil, accidental (unintentional)        Toxic effect of fusel oil, accidental (unintentional)
+00010 T513X1A 1 Toxic effect of fusel oil, accidental (unintentional), init  Toxic effect of fusel oil, accidental (unintentional), initial encounter
