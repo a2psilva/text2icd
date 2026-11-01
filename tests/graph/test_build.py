@@ -1,6 +1,5 @@
 import json
 import sqlite3
-import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -187,12 +186,9 @@ def test_failed_build_keeps_the_previous_file(
 
 @pytest.mark.slow
 @pytest.mark.parametrize("release_id", ["fy2026", "fy2026-apr", "fy2027"])
-def test_release_build(
-    cms_release: Callable[[str], ReleaseFiles], release_id: str, tmp_path: Path
-) -> None:
-    start = time.perf_counter()
-    report = build_graph(cms_release(release_id), release_id, tmp_path / "graph.sqlite")
-    assert time.perf_counter() - start < 60
+def test_release_build(release_graph: Callable[[str], BuildReport], release_id: str) -> None:
+    report = release_graph(release_id)
+    assert report.seconds < 60
     with sqlite3.connect(report.path) as conn:
         mismatched = rows(
             conn,

@@ -57,6 +57,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `index_exceptions.toml` are applied (the four "pubic ramus" entries); the other listed exceptions
   are kept out with a warning in the build log. FY2026 and FY2027 have no unresolved pointer.
 - `IndexBook.paths()` returns the joined path of every term in one pass.
+- Tabular note edges (`tabular_edge`): every code or range named in an instructional note
+  (`(N18.1-N18.6)`, `(E10.-)`, `category T51`), with the stray dots of the CMS files handled. About
+  11,600 per release; the build log gives the share of notes with a reference by kind, the words
+  that look like codes (`B12`, `GM2`) and any reference with no code in the release.
 
 ### Fixed
 

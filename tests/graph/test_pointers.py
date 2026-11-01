@@ -140,20 +140,20 @@ def test_build_reports_exception_warnings(fixture_release: ReleaseFiles, tmp_pat
         'path = "Amyloid heart"\nfield = "manifestation"\nvalue = "I43"\nreason = "test"\n'
     )
     report = build_graph(fixture_release, "fy2099", tmp_path / "g.sqlite", exceptions=exceptions)
-    assert report.warnings == ("excluded index: Amyloid heart [manifestation] 'I43': test",)
+    excluded = [w for w in report.warnings if w.startswith("excluded ")]
+    assert excluded == ["excluded index: Amyloid heart [manifestation] 'I43': test"]
     assert "  warning: excluded index: Amyloid heart" in "\n".join(report.lines())
 
 
-def test_fixture_build_has_no_warnings(fixture_build: BuildReport) -> None:
-    assert fixture_build.warnings == ()
+def test_fixture_pointers_give_no_warnings(fixture_build: BuildReport) -> None:
+    # The fixture's notes name codes it does not contain; those warnings are tested in test_notes.
+    assert [w for w in fixture_build.warnings if not w.startswith("no code for ")] == []
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("release_id", ["fy2026", "fy2026-apr", "fy2027"])
-def test_release_pointers(
-    cms_release: Callable[[str], ReleaseFiles], release_id: str, tmp_path: Path
-) -> None:
-    report = build_graph(cms_release(release_id), release_id, tmp_path / "graph.sqlite")
+def test_release_pointers(release_graph: Callable[[str], BuildReport], release_id: str) -> None:
+    report = release_graph(release_id)
     known = [e for e in load_exceptions() if release_id in e.releases]
     with sqlite3.connect(report.path) as conn:
         statuses = dict(
@@ -162,4 +162,5 @@ def test_release_pointers(
     assert "unresolved" not in statuses
     assert statuses["corrected"] == 2 * sum(1 for e in known if e.code)
     assert statuses["excluded"] == sum(1 for e in known if not e.code)
-    assert len(report.warnings) == statuses["excluded"]
+    excluded = [w for w in report.warnings if w.startswith("excluded ")]
+    assert len(excluded) == statuses["excluded"]

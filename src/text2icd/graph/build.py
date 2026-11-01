@@ -10,7 +10,8 @@ import hashlib
 import json
 import sqlite3
 import time
-from collections.abc import Iterable, Iterator
+from collections import Counter
+from collections.abc import Container, Iterable, Iterator
 from contextlib import closing
 from dataclasses import dataclass
 from importlib import resources
@@ -18,9 +19,10 @@ from pathlib import Path
 
 from text2icd import __version__
 from text2icd.fetch import sha256_of
+from text2icd.graph.notes import CodeIndex, find_references
 from text2icd.graph.pointers import Pointer, index_pointers
 from text2icd.ontology.billable import BillableCode, iter_billable
-from text2icd.ontology.codes import CODE_LENGTH_BEFORE_SEVENTH, undot
+from text2icd.ontology.codes import CODE_LENGTH_BEFORE_SEVENTH, dot, undot
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.index import IndexBook, IndexSource, parse_index
 from text2icd.ontology.order import OrderEntry, parse_order_file
@@ -35,6 +37,8 @@ PATH_SEPARATOR = " > "
 _UNHASHED_PREFIXES = ("meta", "fts_", "sqlite_")
 
 Row = tuple[object, ...]
+# Note kinds whose references are the edges of the graph, reported in the build log.
+EDGE_NOTE_KINDS = ("excludes1", "excludes2", "codeFirst", "useAdditionalCode", "codeAlso")
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +61,7 @@ class BuildReport:
     rows: dict[str, int]
     content_sha256: str
     seconds: float
+    details: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
 
     def lines(self) -> list[str]:
@@ -64,8 +69,17 @@ class BuildReport:
         out = [f"{self.release}: {self.path}  (built in {self.seconds:.1f} s)"]
         out += [f"  {name:<{width}}  {count:>8,}" for name, count in self.rows.items()]
         out.append(f"  content sha256  {self.content_sha256}")
+        out += [f"  {detail}" for detail in self.details]
         out += [f"  warning: {warning}" for warning in self.warnings]
         return out
+
+
+@dataclass(slots=True)
+class BuildLog:
+    """What the build reports besides row counts: facts about the data, and warnings."""
+
+    details: list[str]
+    warnings: list[str]
 
 
 def load_sources(files: ReleaseFiles, release_id: str, exceptions: Path | None = None) -> Sources:
@@ -105,7 +119,7 @@ def build_graph(
             conn.execute("PRAGMA foreign_keys = ON")
             conn.executescript(schema_sql())
             with conn:
-                warnings = write_graph(conn, sources)
+                log = write_graph(conn, sources)
                 digest = content_hash(conn)
                 _write_meta(conn, sources, digest)
             rows = row_counts(conn)
@@ -114,21 +128,29 @@ def build_graph(
         raise
     partial.replace(output)
     seconds = time.perf_counter() - start
-    return BuildReport(release_id, output, rows, digest, seconds, tuple(warnings))
+    return BuildReport(
+        release_id, output, rows, digest, seconds, tuple(log.details), tuple(log.warnings)
+    )
 
 
-def write_graph(conn: sqlite3.Connection, sources: Sources) -> list[str]:
-    """Insert every row; returns the warnings to show in the build log."""
+def write_graph(conn: sqlite3.Connection, sources: Sources) -> BuildLog:
+    """Insert every row and return what the build log should show."""
+    log = BuildLog([], [])
     _insert(conn, "order_code", _order_rows(sources.order))
     _insert(conn, "tabular_node", _tabular_rows(sources))
-    _insert(conn, "tabular_note", _note_rows(sources.tabular))
+    notes = list(_note_rows(sources.tabular))
+    _insert(conn, "tabular_note", notes)
     _insert(conn, "seventh_char", _seventh_rows(sources.tabular))
     _insert(conn, "index_term", _index_rows(sources.books))
     _insert(conn, "table_column", _column_rows(sources.books))
+
     nodes = set(sources.tabular.nodes) | {entry.code for entry in sources.billable}
+    codes = CodeIndex(key for key, node in sources.tabular.nodes.items() if node.kind == "diag")
+    _insert(conn, "tabular_edge", _edge_rows(notes, codes, nodes, log))
     pointers = index_pointers(sources.books, term_offsets(sources.books), nodes, sources.exceptions)
     _insert(conn, "index_pointer", map(_pointer_row, pointers.pointers))
-    return list(pointers.warnings)
+    log.warnings.extend(pointers.warnings)
+    return log
 
 
 def schema_sql() -> str:
@@ -247,6 +269,48 @@ def _pointer_row(pointer: Pointer) -> Row:
         pointer.target,
         pointer.status,
     )
+
+
+def _edge_rows(
+    notes: list[Row], codes: CodeIndex, nodes: Container[str], log: BuildLog
+) -> Iterator[Row]:
+    """One row per code reference in a note, in the order written.
+
+    Words that look like codes are counted in the build log, not kept, and so is a note naming its
+    own code ("to be assigned to codes in subcategory E08.32"), which is not an edge.
+    """
+    words: Counter[str] = Counter()
+    notes_of: Counter[str] = Counter()
+    notes_with: Counter[str] = Counter()
+    count = 0
+    for note_id, node, kind, _, text in notes:
+        ordinal = 0
+        for found in find_references(str(text)):
+            resolves = codes.any_in(found.reference)
+            if not resolves and found.is_bare:
+                words[found.written] += 1
+                continue
+            start, end = dot(found.reference.start), dot(found.reference.end)
+            target = start if start == end and start in nodes else None
+            if target == node:
+                continue
+            if not resolves:
+                log.warnings.append(f"no code for {found.written!r} in a {kind} note of {node}")
+            status = "ok" if resolves else "unresolved"
+            yield note_id, ordinal, node, kind, found.written, start, end, target, status
+            ordinal += 1
+        count += ordinal
+        notes_of[str(kind)] += 1
+        notes_with[str(kind)] += ordinal > 0
+    shares = ", ".join(
+        f"{kind} {notes_with[kind] / notes_of[kind]:.0%}"
+        for kind in EDGE_NOTE_KINDS
+        if notes_of[kind]
+    )
+    log.details.append(f"note references: {count:,}; notes with one: {shares}")
+    if words:
+        listed = ", ".join(f"{word} ({n})" for word, n in sorted(words.items()))
+        log.details.append(f"not taken as codes: {listed}")
 
 
 def _note_rows(tabular: Tabular) -> Iterator[Row]:
