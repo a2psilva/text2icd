@@ -1,17 +1,20 @@
 """ICD-10-CM code strings: formatting, validation, 7th characters and code references.
 
-A code starts with a three-character category: a letter followed by two letters or digits (`E11`,
-`C4A`, and since FY2026 `QA0`). It is optionally followed by a dot and one to four letters or
-digits (`E11.22`, `T51.3X1A`, `QA0.0101`).
+A code starts with a three-character category: a letter followed by two letters or digits, at least
+one of them a digit (`E11`, `C4A`, and since FY2026 `QA0`). It is optionally followed by a dot and
+one to four letters or digits (`E11.22`, `T51.3X1A`, `QA0.0101`).
 MIMIC-IV and the CMS order files store codes without the dot (`E1122`).
 """
 
 import re
 from dataclasses import dataclass
 
-_UNDOTTED = re.compile(r"^[A-Z][0-9A-Z]{2}[0-9A-Z]{0,4}$")
-_DOTTED = re.compile(r"^[A-Z][0-9A-Z]{2}(?:\.[0-9A-Z]{1,4})?$")
-_REFERENCE = re.compile(r"^([A-Z][0-9A-Z]{2}(?:\.?[0-9A-Z]{1,4})?)(?:\.?-)?$")
+# A category has a digit in its second or third position: E11, C4A, O9A, QA0. Words such as HIV
+# or SCFE are not codes.
+_CATEGORY = r"[A-Z](?:[0-9][0-9A-Z]|[A-Z][0-9])"
+_UNDOTTED = re.compile(rf"^{_CATEGORY}[0-9A-Z]{{0,4}}$")
+_DOTTED = re.compile(rf"^{_CATEGORY}(?:\.[0-9A-Z]{{1,4}})?$")
+_REFERENCE = re.compile(rf"^({_CATEGORY}(?:\.?[0-9A-Z]{{1,4}})?)(?:\.?-)?$")
 
 PLACEHOLDER = "X"
 CODE_LENGTH_BEFORE_SEVENTH = 6

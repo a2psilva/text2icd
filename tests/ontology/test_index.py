@@ -86,6 +86,11 @@ def test_subterms_levels_and_paths(index: IndexBook) -> None:
     assert index[food].nonessential == ("regurgitated",)
     assert index[food].code == "J69.0"
     assert index.path(food) == ("Pneumonia", "aspiration", "due to", "food")
+    paths = index.paths()
+    assert len(paths) == len(index)
+    assert paths[food] == "Pneumonia > aspiration > due to > food"
+    assert index.paths(" / ")[food] == "Pneumonia / aspiration / due to / food"
+    assert all(paths[t.id] == " > ".join(index.path(t.id)) for t in index.terms)
     with_ = child(index, pneumonia.id, "with")
     influenza = child(index, with_, "influenza")
     assert index[influenza].see == "Influenza, with, pneumonia"

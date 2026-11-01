@@ -81,6 +81,14 @@ class IndexBook:
             current = term.parent
         return tuple(reversed(titles))
 
+    def paths(self, separator: str = " > ") -> list[str]:
+        """The joined path of every term, indexed by term id: "Pneumonia > aspiration"."""
+        paths: list[str] = []
+        for term in self.terms:
+            parent = term.parent
+            paths.append(term.title if parent is None else paths[parent] + separator + term.title)
+        return paths
+
     def descendants(self, term_id: int) -> Iterator[IndexTerm]:
         """All subterms below `term_id`, depth first, in Index order."""
         for child in self.terms[term_id].children:

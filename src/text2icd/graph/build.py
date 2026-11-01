@@ -18,12 +18,14 @@ from pathlib import Path
 
 from text2icd import __version__
 from text2icd.fetch import sha256_of
+from text2icd.graph.pointers import Pointer, index_pointers
 from text2icd.ontology.billable import BillableCode, iter_billable
 from text2icd.ontology.codes import CODE_LENGTH_BEFORE_SEVENTH, undot
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.index import IndexBook, IndexSource, parse_index
 from text2icd.ontology.order import OrderEntry, parse_order_file
 from text2icd.ontology.tabular import Tabular, parse_tabular
+from text2icd.ontology.validate import KnownException, load_exceptions
 
 SCHEMA_VERSION = 1
 BOOKS: tuple[IndexSource, ...] = ("index", "eindex", "neoplasm", "drug")
@@ -45,6 +47,7 @@ class Sources:
     order: tuple[OrderEntry, ...]
     billable: tuple[BillableCode, ...]
     file_hashes: dict[str, str]
+    exceptions: tuple[KnownException, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,16 +57,19 @@ class BuildReport:
     rows: dict[str, int]
     content_sha256: str
     seconds: float
+    warnings: tuple[str, ...] = ()
 
     def lines(self) -> list[str]:
         width = max(len(name) for name in self.rows)
         out = [f"{self.release}: {self.path}  (built in {self.seconds:.1f} s)"]
         out += [f"  {name:<{width}}  {count:>8,}" for name, count in self.rows.items()]
         out.append(f"  content sha256  {self.content_sha256}")
+        out += [f"  warning: {warning}" for warning in self.warnings]
         return out
 
 
-def load_sources(files: ReleaseFiles, release_id: str) -> Sources:
+def load_sources(files: ReleaseFiles, release_id: str, exceptions: Path | None = None) -> Sources:
+    """Parse a release. `exceptions` replaces the packaged `index_exceptions.toml`."""
     paths = {
         "tabular": files.tabular,
         "index": files.index,
@@ -80,13 +86,16 @@ def load_sources(files: ReleaseFiles, release_id: str) -> Sources:
         order=parse_order_file(paths["order"]),
         billable=tuple(iter_billable(tabular)),
         file_hashes={path.name: sha256_of(path) for path in paths.values()},
+        exceptions=tuple(e for e in load_exceptions(exceptions) if release_id in e.releases),
     )
 
 
-def build_graph(files: ReleaseFiles, release_id: str, output: Path) -> BuildReport:
+def build_graph(
+    files: ReleaseFiles, release_id: str, output: Path, *, exceptions: Path | None = None
+) -> BuildReport:
     """Write the graph of one release to `output`, replacing it only once the build succeeds."""
     start = time.perf_counter()
-    sources = load_sources(files, release_id)
+    sources = load_sources(files, release_id, exceptions)
     output.parent.mkdir(parents=True, exist_ok=True)
     partial = output.with_name(output.name + ".partial")
     partial.unlink(missing_ok=True)
@@ -96,7 +105,7 @@ def build_graph(files: ReleaseFiles, release_id: str, output: Path) -> BuildRepo
             conn.execute("PRAGMA foreign_keys = ON")
             conn.executescript(schema_sql())
             with conn:
-                write_graph(conn, sources)
+                warnings = write_graph(conn, sources)
                 digest = content_hash(conn)
                 _write_meta(conn, sources, digest)
             rows = row_counts(conn)
@@ -104,16 +113,22 @@ def build_graph(files: ReleaseFiles, release_id: str, output: Path) -> BuildRepo
         partial.unlink(missing_ok=True)
         raise
     partial.replace(output)
-    return BuildReport(release_id, output, rows, digest, time.perf_counter() - start)
+    seconds = time.perf_counter() - start
+    return BuildReport(release_id, output, rows, digest, seconds, tuple(warnings))
 
 
-def write_graph(conn: sqlite3.Connection, sources: Sources) -> None:
+def write_graph(conn: sqlite3.Connection, sources: Sources) -> list[str]:
+    """Insert every row; returns the warnings to show in the build log."""
     _insert(conn, "order_code", _order_rows(sources.order))
     _insert(conn, "tabular_node", _tabular_rows(sources))
     _insert(conn, "tabular_note", _note_rows(sources.tabular))
     _insert(conn, "seventh_char", _seventh_rows(sources.tabular))
     _insert(conn, "index_term", _index_rows(sources.books))
     _insert(conn, "table_column", _column_rows(sources.books))
+    nodes = set(sources.tabular.nodes) | {entry.code for entry in sources.billable}
+    pointers = index_pointers(sources.books, term_offsets(sources.books), nodes, sources.exceptions)
+    _insert(conn, "index_pointer", map(_pointer_row, pointers.pointers))
+    return list(pointers.warnings)
 
 
 def schema_sql() -> str:
@@ -221,6 +236,19 @@ def _tabular_rows(sources: Sources) -> Iterator[Row]:
             ordinal += 1
 
 
+def _pointer_row(pointer: Pointer) -> Row:
+    return (
+        pointer.term,
+        pointer.field,
+        pointer.column,
+        pointer.written,
+        pointer.code,
+        int(pointer.partial),
+        pointer.target,
+        pointer.status,
+    )
+
+
 def _note_rows(tabular: Tabular) -> Iterator[Row]:
     note_id = 0
     for node in tabular.nodes.values():
@@ -240,14 +268,9 @@ def _index_rows(books: dict[IndexSource, IndexBook]) -> Iterator[Row]:
     for source in BOOKS:
         book, offset = books[source], offsets[source]
         ordinals = {term_id: i for i, term_id in enumerate(book.main_terms)}
-        paths: dict[int, str] = {}
+        paths = book.paths(PATH_SEPARATOR)
         for term in book.terms:
             ordinals.update((child, i) for i, child in enumerate(term.children))
-            paths[term.id] = (
-                term.title
-                if term.parent is None
-                else paths[term.parent] + PATH_SEPARATOR + term.title
-            )
             yield (
                 offset + term.id,
                 source,

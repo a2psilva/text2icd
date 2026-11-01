@@ -33,9 +33,10 @@ class KnownException:
 
 
 def references(book: IndexBook) -> Iterable[IndexReference]:
+    paths = book.paths()
     for term in book.terms:
         for field, value in _values(term):
-            yield IndexReference(book.source, " > ".join(book.path(term.id)), field, value)
+            yield IndexReference(book.source, paths[term.id], field, value)
 
 
 def unresolved_references(

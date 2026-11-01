@@ -32,7 +32,9 @@ def test_dot_and_undot_round_trip(raw: str, dotted: str) -> None:
     assert undot(dotted) == dotted.replace(".", "")
 
 
-@pytest.mark.parametrize("bad", ["", "E1", "11.22", "1E1.22", "E11.22345", "E11-22", "E11.2/2"])
+@pytest.mark.parametrize(
+    "bad", ["", "E1", "11.22", "1E1.22", "E11.22345", "E11-22", "E11.2/2", "HIV", "SCFE", "ABC.1"]
+)
 def test_invalid_codes_are_rejected(bad: str) -> None:
     assert not is_code(bad)
     with pytest.raises(ValueError, match="not an ICD-10-CM code"):

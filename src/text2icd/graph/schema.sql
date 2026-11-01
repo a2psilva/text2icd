@@ -86,3 +86,23 @@ CREATE TABLE table_column (
     heading TEXT NOT NULL,
     PRIMARY KEY (book, col)
 ) WITHOUT ROWID;
+
+-- Codes the Index gives: <code>, <manif>, <subcat>, <seecat> and table cells (`col` is the table
+-- column of a cell, 0 otherwise). `code` is the dotted code without a trailing '-', `partial` says
+-- the Index wrote it as incomplete, and `target` is the Tabular node it resolves to.
+-- status: ok; corrected (replaced by index_exceptions.toml); excluded (a known data error with no
+-- correction, kept out of the graph); unresolved (unknown, rejected by the integrity checks).
+CREATE TABLE index_pointer (
+    term    INTEGER NOT NULL REFERENCES index_term (id),
+    field   TEXT NOT NULL
+            CHECK (field IN ('code', 'manifestation', 'subcategory', 'see_category', 'cell')),
+    col     INTEGER NOT NULL,
+    written TEXT NOT NULL,
+    code    TEXT,
+    partial INTEGER NOT NULL CHECK (partial IN (0, 1)),
+    target  TEXT REFERENCES tabular_node (key),
+    status  TEXT NOT NULL CHECK (status IN ('ok', 'corrected', 'excluded', 'unresolved')),
+    PRIMARY KEY (term, field, col),
+    CHECK ((status IN ('ok', 'corrected')) = (target IS NOT NULL))
+) WITHOUT ROWID;
+CREATE INDEX index_pointer_target ON index_pointer (target);
