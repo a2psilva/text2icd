@@ -73,9 +73,10 @@ jobs:
         uses: actions/cache@v6
         with:
           path: data/raw/cms
-          key: cms-${{ hashFiles('src/text2icd/resources/releases.toml') }}
-      - name: Fetch FY2026 and FY2027 (verified against releases.toml)
-        run: uv run text2icd data fetch -r fy2026 -r fy2027
+          # Bump the prefix when the set of fetched releases changes, so the cache is saved again.
+          key: cms-v2-${{ hashFiles('src/text2icd/resources/releases.toml') }}
+      - name: Fetch FY2026, FY2027 and the FY2016-FY2025 code lists (verified against releases.toml)
+        run: uv run text2icd data fetch -r fy2026 -r fy2027 --history
       - name: Slow tests on the CMS files
         run: uv run pytest -m "slow and not benchmark"
       - name: Build and check the graphs
@@ -84,3 +85,7 @@ jobs:
             uv run text2icd build-graph -r "$release"
             uv run text2icd graph check -r "$release"
           done
+      - name: Evaluate the BM25 baseline on the committed cms-synthetic sample
+        run: |
+          uv run text2icd eval validate benchmarks/cms-synthetic/fy2027-sample.jsonl
+          uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all -r fy2027

@@ -11,6 +11,7 @@ from pydantic import JsonValue
 
 from text2icd import __version__
 from text2icd.config import Settings
+from text2icd.eval import report as eval_report
 from text2icd.eval import synthetic
 from text2icd.eval.datasets import (
     DatasetError,
@@ -20,6 +21,16 @@ from text2icd.eval.datasets import (
     write_dataset,
     write_manifest,
 )
+from text2icd.eval.runner import (
+    RunError,
+    SplitChoice,
+    default_output,
+    evaluate,
+    read_metrics,
+    resolve_dataset,
+    write_run,
+)
+from text2icd.eval.systems import SYSTEMS, SystemSetupError, build_system
 from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reconcile_example
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
@@ -375,6 +386,111 @@ def eval_synth(
         typer.echo(f"{sample_output}")
         typer.echo("\n".join(synthetic.describe(chosen)))
         typer.echo("\n".join(summarize(chosen).lines()))
+
+
+@eval_app.command("run")
+def eval_run(
+    dataset: Annotated[
+        str,
+        typer.Option(
+            "--dataset",
+            "-d",
+            help="Dataset file or name (cms-synthetic-sample, cms-synthetic, mimic-silver, ...).",
+        ),
+    ],
+    system: Annotated[
+        str, typer.Option("--system", "-s", help=f"System: {', '.join(sorted(SYSTEMS))}.")
+    ],
+    split: Annotated[
+        SplitChoice, typer.Option(help="Split to run on; test is for reported numbers only.")
+    ] = "dev",
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Run on a seeded random sample of this many.")
+    ] = None,
+    option: Annotated[
+        list[str] | None, typer.Option("--option", "-O", help="System option key=value.")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Seed for --limit and the bootstrap.")] = 0,
+    resamples: Annotated[int, typer.Option(min=0, help="Bootstrap resamples.")] = 1000,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Result file (default: under data/processed/eval)."),
+    ] = None,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Run a system over a dataset split, write the result file and print the metrics."""
+    settings = _settings(data_dir)
+    options = _options(option or [])
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            path = resolve_dataset(dataset, graph.release, settings)
+            runner_system = build_system(system, graph, settings, options)
+        except (RunError, SystemSetupError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        try:
+            run, report = evaluate(
+                runner_system,
+                graph,
+                path,
+                split=split,
+                limit=limit,
+                seed=seed,
+                resamples=resamples,
+            )
+        except (RunError, DatasetError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        finally:
+            runner_system.close()
+    target = output or default_output(settings, run.header)
+    metrics = write_run(target, run, report)
+    typer.echo(f"{target}\n{metrics}")
+    typer.echo("\n".join(eval_report.comparison([(run.header, report)])))
+
+
+@eval_app.command("report")
+def eval_report_command(
+    results: Annotated[list[Path], typer.Argument(help="Result files (or their .metrics.json).")],
+    by_chapter: Annotated[
+        bool, typer.Option("--by-chapter", help="Also a per-chapter table for each run.")
+    ] = False,
+    intervals: Annotated[
+        bool, typer.Option("--intervals/--no-intervals", help="Show 95% intervals.")
+    ] = True,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write the markdown here.")
+    ] = None,
+) -> None:
+    """Render a markdown table comparing runs."""
+    try:
+        runs = [read_metrics(path) for path in results]
+    except (OSError, KeyError, ValueError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    lines = eval_report.comparison(runs, intervals)
+    if by_chapter:
+        for header, report in runs:
+            lines += ["", *eval_report.by_group(header, report)]
+    text = "\n".join(lines) + "\n"
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(text, encoding="utf-8")
+        typer.echo(str(output))
+    else:
+        typer.echo(text, nl=False)
+
+
+def _options(pairs: list[str]) -> dict[str, str]:
+    options = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not key.strip():
+            raise typer.BadParameter(f"expected key=value, got {pair!r}", param_hint="--option")
+        options[key.strip()] = value.strip()
+    return options
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:

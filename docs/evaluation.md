@@ -135,7 +135,7 @@ chapter. They are computed by `text2icd.eval.metrics.score`:
 
 | Id | Method | Purpose |
 | --- | --- | --- |
-| B1 | BM25 over Tabular descriptions and inclusion terms | Lexical floor |
+| B1 | BM25 over Tabular descriptions and inclusion terms (`-s bm25`) | Lexical floor |
 | B2 | Embedding nearest neighbour over the same text | Semantic floor at zero API cost |
 | B3 | A small, low-cost LLM given the top 20 codes from B2 | The "cheap LLM plus retrieval" approach text2icd must beat |
 | B4 | A large, high-end LLM given the top 20 codes from B2, on a small sample with a hard budget | Reference ceiling for an expensive model |
@@ -145,8 +145,19 @@ than one tenth of B3's cost per 1,000 phrases.
 
 ## Protocol
 
-- Every benchmark run records the git commit, release id, settings, model ids and dataset hashes in
-  its output file under `data/processed/eval/` (git-ignored).
+- `text2icd eval run -d <dataset> -s <system>` runs a system on one split (`dev` by default; `test`
+  must be asked for) and writes a result file under `data/processed/eval/results/` (git-ignored).
+  Its first line records the git commit (and whether the tree had changes), the release and graph
+  hash, the dataset hash, split and selection, the system's settings and model ids, the times and
+  the Python version; then one prediction per example, by id, with no phrase text. The metrics are
+  written next to it (`.metrics.json`). `--limit N` runs on a seeded random sample, for costly
+  systems; `-O key=value` passes system options.
+- Datasets are named by path or by name: `cms-synthetic-sample` (the committed sample),
+  `cms-synthetic` (the full local set of the release), `mimic-silver`, `mimic-gold`.
+- `text2icd eval report RESULT...` renders a markdown table comparing runs, with intervals and a
+  provenance line per run; `--by-chapter` adds per-chapter tables. Only aggregate numbers appear.
+- The CI integration job runs B1 on the committed `cms-synthetic` sample, so the harness itself is
+  exercised on every pull request.
 - Ablations switch off one component at a time: no Index walk, no Tabular verification, no
   abbreviation lexicon, no L2, no L3.
 - Error analysis groups failures into buckets (wrong main term, wrong subterm, wrong Tabular child,

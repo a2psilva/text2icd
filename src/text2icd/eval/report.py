@@ -1,0 +1,106 @@
+"""Markdown tables comparing evaluation runs (`text2icd eval report`). Only aggregate numbers."""
+
+import math
+from collections.abc import Sequence
+from typing import Any
+
+from text2icd.eval.metrics import Estimate, Report
+
+# Columns of the comparison table: (heading, metric, kind).
+COLUMNS = (
+    ("Acc@1", "accuracy@1", "share"),
+    ("Acc@5", "accuracy@5", "share"),
+    ("Category", "category accuracy", "share"),
+    ("Code-set F1", "code-set F1", "share"),
+    ("Invalid", "invalid-code rate", "share"),
+    ("ECE", "calibration error", "share"),
+    ("LLM calls", "LLM calls per phrase", "number"),
+    ("$/1k", "cost per 1,000 phrases", "dollars"),
+)
+
+
+def fmt(estimate: Estimate | None, kind: str, interval: bool = True) -> str:
+    if estimate is None or not estimate.defined:
+        return "n/a"
+    if kind == "share":
+        value = f"{estimate.value:.1%}"
+        bounds = f"{estimate.low:.1%}-{estimate.high:.1%}"
+    elif kind == "dollars":
+        value = f"${estimate.value:.4f}" if estimate.value < 0.01 else f"${estimate.value:.2f}"
+        bounds = f"{estimate.low:.4f}-{estimate.high:.4f}"
+    else:
+        value = f"{estimate.value:.2f}"
+        bounds = f"{estimate.low:.2f}-{estimate.high:.2f}"
+    show = interval and not math.isnan(estimate.low) and estimate.low != estimate.high
+    return f"{value} ({bounds})" if show else value
+
+
+def comparison(runs: Sequence[tuple[dict[str, Any], Report]], intervals: bool = True) -> list[str]:
+    """One row per run."""
+    head = ["System", "Dataset", "n", *(c[0] for c in COLUMNS), "p50 ms", "p95 ms"]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for header, report in runs:
+        dataset = header["dataset"]
+        cells = [
+            _system_label(header),
+            f"{dataset['name']} ({dataset['split']})",
+            f"{report.scored:,}",
+            *(fmt(report.metrics.get(metric), kind, intervals) for _, metric, kind in COLUMNS),
+            _latency(report, "p50"),
+            _latency(report, "p95"),
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
+    lines.append("")
+    lines += _notes(runs)
+    return lines
+
+
+def by_group(header: dict[str, Any], report: Report, label: str = "Chapter") -> list[str]:
+    """One row per group (chapter) of a single run."""
+    head = [label, "n", "Acc@1", "Acc@5", "Category", "Code-set F1"]
+    lines = [f"{_system_label(header)} on {header['dataset']['name']}", ""]
+    lines += ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for name, group in sorted(report.groups.items(), key=lambda item: _group_key(item[0])):
+        cells = [name, f"{group.scored:,}"]
+        cells += [fmt(group.metrics.get(m), "share") for m in _GROUP_METRICS]
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
+_GROUP_METRICS = ("accuracy@1", "accuracy@5", "category accuracy", "code-set F1")
+
+
+def _group_key(name: str) -> tuple[int, str]:
+    return (int(name), "") if name.isdigit() else (10_000, name)
+
+
+def _system_label(header: dict[str, Any]) -> str:
+    system = header["system"]
+    model = system.get("model")
+    return f"{system['name']} ({model})" if model else str(system["name"])
+
+
+def _latency(report: Report, key: str) -> str:
+    value = report.latency_ms.get(key)
+    return "n/a" if value is None else f"{value:.1f}"
+
+
+def _notes(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
+    notes = []
+    for header, report in runs:
+        dataset = header["dataset"]
+        git = header.get("git") or {}
+        commit = (git.get("commit") or "unknown")[:10] + (" (dirty)" if git.get("dirty") else "")
+        extra = []
+        if report.unmappable:
+            extra.append(f"{report.unmappable:,} unmappable left out")
+        if report.mapped:
+            extra.append(f"{report.mapped:,} scored by mapped match")
+        if report.missing or report.errors:
+            extra.append(f"{report.missing:,} missing, {report.errors:,} errors")
+        tail = f"; {'; '.join(extra)}" if extra else ""
+        notes.append(
+            f"- {_system_label(header)}: {header['release']}, commit {commit}, dataset "
+            f"{dataset['sha256'][:12]}, {header['started']}{tail}"
+        )
+    return notes
