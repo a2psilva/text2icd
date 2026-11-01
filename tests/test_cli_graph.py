@@ -54,3 +54,60 @@ def test_build_graph_rejects_releases_it_cannot_build(release: str, message: str
     result = runner.invoke(cli.app, ["build-graph", "-r", release])
     assert result.exit_code != 0
     assert message in result.output
+
+
+@pytest.fixture
+def built(data_dir: Path) -> Path:
+    """`data_dir` with the fixture graph built as fy2027."""
+    result = runner.invoke(cli.app, ["build-graph", "--data-dir", str(data_dir)])
+    assert result.exit_code == 0, result.output
+    return data_dir
+
+
+def test_graph_show(built: Path) -> None:
+    result = runner.invoke(
+        cli.app, ["graph", "show", "Pneumonia > aspiration", "--data-dir", str(built)]
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output.startswith("index: Pneumonia > aspiration\n")
+    assert "  subterms (3):\n    due to\n" in result.output
+
+
+def test_graph_show_a_table_row(built: Path) -> None:
+    result = runner.invoke(
+        cli.app, ["graph", "show", "1-propanol", "-b", "drug", "--data-dir", str(built)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "cell 2 (Poisoning Accidental (unintentional)): T51.3X1 -> T51.3X1  " in result.output
+
+
+def test_graph_show_suggests_close_terms(built: Path) -> None:
+    result = runner.invoke(
+        cli.app, ["graph", "show", "Pneumonia > aspirated", "--data-dir", str(built)]
+    )
+    assert result.exit_code == 1
+    assert "error: no index term at 'Pneumonia > aspirated'" in result.output
+    assert "closest: Pneumonia" in result.output
+
+
+def test_graph_code(built: Path) -> None:
+    graph = built / "processed" / "text2icd-graph-fy2027.sqlite"
+    result = runner.invoke(cli.app, ["graph", "code", "E1122", "--graph", str(graph)])
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0] == "E11.22  Type 2 diabetes mellitus with diabetic chronic kidney disease"
+    assert "  in E11  Type 2 diabetes mellitus" in lines
+    assert "      -> N18.1-N18.6 [unresolved]" in lines
+    assert "  notes inherited from E11:" in lines
+
+
+def test_graph_code_rejects_unknown_codes(built: Path) -> None:
+    result = runner.invoke(cli.app, ["graph", "code", "Z99.99", "--data-dir", str(built)])
+    assert result.exit_code == 1
+    assert "error: Z99.99 is not a code of fy2027" in result.output
+
+
+def test_graph_commands_need_a_built_graph(data_dir: Path) -> None:
+    result = runner.invoke(cli.app, ["graph", "code", "E11.22", "--data-dir", str(data_dir)])
+    assert result.exit_code == 1
+    assert "run `text2icd build-graph -r fy2027`" in result.output

@@ -9,8 +9,11 @@ from text2icd import __version__
 from text2icd.config import Settings
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
+from text2icd.graph.model import Graph, GraphError, load
 from text2icd.graph.search import DEFAULT_TOKENIZER, Tokenizer
+from text2icd.graph.show import show_code, show_term
 from text2icd.ontology.files import ReleaseFiles
+from text2icd.ontology.index import IndexSource
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
 
@@ -24,10 +27,20 @@ data_app = typer.Typer(
     help="Download and inspect the CMS ICD-10-CM release files.", no_args_is_help=True
 )
 app.add_typer(data_app, name="data")
+graph_app = typer.Typer(help="Inspect a built knowledge graph.", no_args_is_help=True)
+app.add_typer(graph_app, name="graph")
 
 DataDirOption = Annotated[
     Path | None,
     typer.Option("--data-dir", help="Data directory (default: TEXT2ICD_DATA_DIR or ./data)."),
+]
+ReleaseOption = Annotated[
+    str | None,
+    typer.Option("--release", "-r", help="Release id. Default: TEXT2ICD_RELEASE or newest."),
+]
+GraphFileOption = Annotated[
+    Path | None,
+    typer.Option("--graph", help="Graph file (default: the release's file in the data directory)."),
 ]
 
 
@@ -146,6 +159,53 @@ def build_graph_command(
         tokenizer=tokenizer,
     )
     typer.echo("\n".join(report.lines()))
+
+
+@graph_app.command("show")
+def graph_show(
+    path: Annotated[str, typer.Argument(help='Index path, such as "Pneumonia > aspiration".')],
+    book: Annotated[IndexSource, typer.Option("--book", "-b", help="Index book.")] = "index",
+    release: ReleaseOption = None,
+    graph_file: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Print an Index term: its codes, cross-references and subterms."""
+    with _open_graph(release, graph_file, data_dir) as graph:
+        term = graph.term_at(path, book)
+        if term is None:
+            typer.echo(f"error: no {book} term at {path!r}", err=True)
+            hits = graph.search_index(path, 5, book=book)
+            if hits:
+                closest = "; ".join(graph.term(hit.term).path for hit in hits)
+                typer.echo(f"closest: {closest}", err=True)
+            raise typer.Exit(code=1)
+        typer.echo("\n".join(show_term(graph, term)))
+
+
+@graph_app.command("code")
+def graph_code(
+    code: Annotated[str, typer.Argument(help="Tabular code, such as E11.22 or E1122.")],
+    release: ReleaseOption = None,
+    graph_file: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Print a Tabular code: its place, 7th characters, notes, edges and who names it."""
+    with _open_graph(release, graph_file, data_dir) as graph:
+        if code not in graph:
+            typer.echo(f"error: {code} is not a code of {graph.release}", err=True)
+            raise typer.Exit(code=1)
+        typer.echo("\n".join(show_code(graph, graph.code(code))))
+
+
+def _open_graph(release: str | None, graph_file: Path | None, data_dir: Path | None) -> Graph:
+    try:
+        if graph_file is not None:
+            return load(path=graph_file)
+        settings = _settings(data_dir)
+        return load(_full_release(release or settings.release).id, settings=settings)
+    except GraphError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
 
 
 def _full_release(release_id: str | None) -> Release:

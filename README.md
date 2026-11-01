@@ -100,6 +100,9 @@ uv sync                      # creates .venv with Python 3.12 and the dev tools
 uv run pre-commit install    # enables the lint and data-safety hooks
 uv run text2icd data fetch   # downloads and verifies the newest CMS ICD-10-CM release
 uv run text2icd data stats   # parses it and checks it against the CMS code order file
+uv run text2icd build-graph  # builds the knowledge graph (data/processed/, about 10 s)
+uv run text2icd graph show "Pneumonia > aspiration"   # an Index term, its codes and subterms
+uv run text2icd graph code E11.22                     # a code, its notes, edges and Index terms
 make check                   # lint, format check, type check, tests
 ```
 

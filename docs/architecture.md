@@ -129,8 +129,10 @@ resolves when at least one code lies inside it, since some ranges end at a WHO-o
 `GM2 gangliosidosis`); the build log lists them. Any other reference with no code is kept as
 `unresolved` with a warning: FY2026 has one, `G31.90` in a code-first note of F02.
 
-At run time the graph is loaded into plain Python dicts and tuples (target: under 1 s and under
-300 MB), so traversal never touches disk. SQLite was chosen over networkx (memory-heavy, no full-text
+At run time `text2icd.graph.model.load(release)` reads the graph into plain dicts and named tuples,
+so traversal never touches disk; search runs on the FTS5 tables through a read-only connection. For
+FY2027 (98,722 Tabular nodes, 99,108 Index terms) loading takes about 0.85 s and peaks at about
+255 MB resident on a recent laptop (targets: under 1 s and under 300 MB). SQLite was chosen over networkx (memory-heavy, no full-text
 search) and over a graph database (an extra service to run): it is a single portable file, needs no
 server, and can be attached to a GitHub Release because the CMS content is public domain.
 
