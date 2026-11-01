@@ -129,12 +129,22 @@ resolves when at least one code lies inside it, since some ranges end at a WHO-o
 `GM2 gangliosidosis`); the build log lists them. Any other reference with no code is kept as
 `unresolved` with a warning: FY2026 has one, `G31.90` in a code-first note of F02.
 
+`text2icd graph check` runs the integrity checks on a built file: the content hash still matches,
+both trees have no missing parent, bad depth or cycle, the billable codes equal the order file,
+every Index pointer resolves (apart from the listed exceptions), every unresolved cross-reference
+is listed with a reason and they stay under 1%, and the search tables are complete. Two checks warn
+instead of failing, because what they find are errors or gaps in the CMS data: note references with
+no code (FY2026 has one), and billable codes that no Index term leads to (37 in FY2027, 99.95% are
+reached). The CI integration job fetches FY2026 and FY2027, runs the slow tests, builds both graphs
+and checks them.
+
 At run time `text2icd.graph.model.load(release)` reads the graph into plain dicts and named tuples,
 so traversal never touches disk; search runs on the FTS5 tables through a read-only connection. For
 FY2027 (98,722 Tabular nodes, 99,108 Index terms) loading takes about 0.85 s and peaks at about
-255 MB resident on a recent laptop (targets: under 1 s and under 300 MB). SQLite was chosen over networkx (memory-heavy, no full-text
-search) and over a graph database (an extra service to run): it is a single portable file, needs no
-server, and can be attached to a GitHub Release because the CMS content is public domain.
+255 MB resident on a recent laptop (targets: under 1 s and under 300 MB). SQLite was chosen over
+networkx (memory-heavy, no full-text search) and over a graph database (an extra service to run):
+it is a single portable file, needs no server, and can be attached to a GitHub Release because the
+CMS content is public domain.
 
 ## Resolution cascade
 

@@ -54,4 +54,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - Tests live under `tests/`, mirroring the layout of `src/text2icd/`.
 - Tests that need local MIMIC-IV files are marked `@pytest.mark.mimic`. They are skipped automatically
   when the files are absent and never run in CI.
-- Mark long-running tests `@pytest.mark.slow`.
+- Mark long-running tests `@pytest.mark.slow`. Tests on the real CMS files are slow tests that skip
+  when the release is not fetched; the CI integration job fetches FY2026 and FY2027 and runs them.
+- Mark tests of a time or memory budget `@pytest.mark.benchmark` as well. CI skips them, because
+  shared runners vary too much; run them locally with `uv run pytest -m benchmark`.

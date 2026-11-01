@@ -1,5 +1,8 @@
 """Command-line interface for text2icd."""
 
+import sqlite3
+from collections import Counter
+from contextlib import closing
 from pathlib import Path
 from typing import Annotated
 
@@ -9,7 +12,8 @@ from text2icd import __version__
 from text2icd.config import Settings
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
-from text2icd.graph.model import Graph, GraphError, load
+from text2icd.graph.integrity import check_graph, failed
+from text2icd.graph.model import Graph, GraphError, graph_file, load
 from text2icd.graph.search import DEFAULT_TOKENIZER, Tokenizer
 from text2icd.graph.show import show_code, show_term
 from text2icd.ontology.files import ReleaseFiles
@@ -166,11 +170,11 @@ def graph_show(
     path: Annotated[str, typer.Argument(help='Index path, such as "Pneumonia > aspiration".')],
     book: Annotated[IndexSource, typer.Option("--book", "-b", help="Index book.")] = "index",
     release: ReleaseOption = None,
-    graph_file: GraphFileOption = None,
+    graph_path: GraphFileOption = None,
     data_dir: DataDirOption = None,
 ) -> None:
     """Print an Index term: its codes, cross-references and subterms."""
-    with _open_graph(release, graph_file, data_dir) as graph:
+    with _open_graph(release, graph_path, data_dir) as graph:
         term = graph.term_at(path, book)
         if term is None:
             typer.echo(f"error: no {book} term at {path!r}", err=True)
@@ -186,23 +190,54 @@ def graph_show(
 def graph_code(
     code: Annotated[str, typer.Argument(help="Tabular code, such as E11.22 or E1122.")],
     release: ReleaseOption = None,
-    graph_file: GraphFileOption = None,
+    graph_path: GraphFileOption = None,
     data_dir: DataDirOption = None,
 ) -> None:
     """Print a Tabular code: its place, 7th characters, notes, edges and who names it."""
-    with _open_graph(release, graph_file, data_dir) as graph:
+    with _open_graph(release, graph_path, data_dir) as graph:
         if code not in graph:
             typer.echo(f"error: {code} is not a code of {graph.release}", err=True)
             raise typer.Exit(code=1)
         typer.echo("\n".join(show_code(graph, graph.code(code))))
 
 
-def _open_graph(release: str | None, graph_file: Path | None, data_dir: Path | None) -> Graph:
+@graph_app.command("check")
+def graph_check(
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Run the integrity checks on a built graph; exit 1 if any check fails."""
+    path = _graph_path(release, graph_path, data_dir)
+    with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as conn:
+        results = check_graph(conn)
+    typer.echo(str(path))
+    for result in results:
+        typer.echo("\n".join(result.lines()))
+    outcomes = Counter(result.outcome for result in results)
+    typer.echo(
+        f"{len(results)} checks: {outcomes['pass']} passed, {outcomes['warn']} warned, "
+        f"{outcomes['fail']} failed"
+    )
+    if failed(results):
+        raise typer.Exit(code=1)
+
+
+def _graph_path(release: str | None, graph_path: Path | None, data_dir: Path | None) -> Path:
     try:
-        if graph_file is not None:
-            return load(path=graph_file)
+        if graph_path is not None:
+            return graph_file(path=graph_path)
         settings = _settings(data_dir)
-        return load(_full_release(release or settings.release).id, settings=settings)
+        return graph_file(_full_release(release or settings.release).id, settings=settings)
+    except GraphError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+
+def _open_graph(release: str | None, graph_path: Path | None, data_dir: Path | None) -> Graph:
+    path = _graph_path(release, graph_path, data_dir)
+    try:
+        return load(path=path)
     except GraphError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=1) from exc

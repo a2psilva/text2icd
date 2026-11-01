@@ -56,3 +56,31 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
       - run: uv run pytest --cov --cov-report=term-missing
+
+  integration:
+    name: Integration (CMS releases)
+    # Not a required check: it downloads the CMS files, which can be slow or unavailable. It runs
+    # the slow tests on the real releases, then builds each graph and runs its integrity checks.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Restore the CMS release files
+        uses: actions/cache@v6
+        with:
+          path: data/raw/cms
+          key: cms-${{ hashFiles('src/text2icd/resources/releases.toml') }}
+      - name: Fetch FY2026 and FY2027 (verified against releases.toml)
+        run: uv run text2icd data fetch -r fy2026 -r fy2027
+      - name: Slow tests on the CMS files
+        run: uv run pytest -m "slow and not benchmark"
+      - name: Build and check the graphs
+        run: |
+          for release in fy2026 fy2027; do
+            uv run text2icd build-graph -r "$release"
+            uv run text2icd graph check -r "$release"
+          done

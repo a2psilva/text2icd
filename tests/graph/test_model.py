@@ -151,6 +151,7 @@ print(seconds, peak / 1e6 if sys.platform == "darwin" else peak / 1e3)
 
 
 @pytest.mark.slow
+@pytest.mark.benchmark
 def test_release_load_time_and_memory(release_graph: Callable[[str], BuildReport]) -> None:
     report = release_graph("fy2027")
     # A fresh interpreter, so the peak resident memory is the loader's alone.
