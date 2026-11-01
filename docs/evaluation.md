@@ -74,11 +74,25 @@ is fitted on `dev`.
 
 MIMIC-IV codes were assigned under the release in force at each admission, roughly FY2016 to FY2022.
 Some of those codes were later deleted or split (for example N18.3 became N18.30, N18.31 and N18.32 in
-FY2021). Each gold code is checked against the evaluated release:
+FY2021). `text2icd.eval.versions` checks each gold code against the evaluated release, using the
+order files of every fetched release from FY2016 and the CMS conversion tables:
 
-- valid in the release: scored by exact match;
-- deleted or expanded: scored by **mapped match** using the CMS conversion tables (a prediction counts
-  if it is one of the codes the old code was converted to), and reported separately.
+- `valid`: billable in the release, scored by exact match;
+- `mapped`: billable in an earlier release and replaced since, scored by **mapped match** (a
+  prediction counts if it is one of the codes in `mapped_to`) and reported separately. The
+  replacements come from the conversion tables, read backwards (old code to the new codes that list
+  it as their previous assignment) and followed across releases until codes billable in the target
+  remain. Only references that name codes exactly (`N18.3`, `H35.20-H35.23`) are read backwards;
+  broad ones (`I63.-`, "Codes in Categories T15-T19") name codes that still exist. A code that
+  became a header with no conversion row maps to its billable subdivisions;
+- `unmappable`: never billable, or deleted with no replacement; left out of the scores and counted.
+
+`text2icd eval reconcile N18.3 -r fy2027` shows one code; `--dataset IN -o OUT` rewrites the
+statuses of a whole dataset against the release.
+
+Against FY2027, the 3,455,747 ICD-10 code assignments in the local MIMIC-IV `diagnoses_icd` (19,440
+distinct codes) are 96.2% valid, 3.7% mapped (406 codes through the conversion tables, 4 through
+their subdivisions) and 83 assignments (38 distinct codes) unmappable.
 
 ## Metrics
 

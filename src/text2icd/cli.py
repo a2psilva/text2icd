@@ -10,7 +10,14 @@ import typer
 
 from text2icd import __version__
 from text2icd.config import Settings
-from text2icd.eval.datasets import DatasetError, check_dataset, read_dataset, summarize
+from text2icd.eval.datasets import (
+    DatasetError,
+    check_dataset,
+    read_dataset,
+    summarize,
+    write_dataset,
+)
+from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reconcile_example
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
 from text2icd.graph.integrity import check_graph, failed
@@ -272,6 +279,61 @@ def eval_validate(
         bad = bad or bool(problems)
     if bad:
         raise typer.Exit(code=1)
+
+
+@eval_app.command("reconcile")
+def eval_reconcile(
+    codes: Annotated[
+        list[str] | None, typer.Argument(help="Codes to look up, such as N18.3 or N183.")
+    ] = None,
+    dataset: Annotated[
+        Path | None, typer.Option("--dataset", help="Rewrite this dataset's gold code statuses.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Where to write the rewritten dataset.")
+    ] = None,
+    release: ReleaseOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Show how codes from older releases relate to a release (valid, mapped or unmappable),
+    or rewrite a dataset's gold codes against it."""
+    if (dataset is None) != (output is None):
+        raise typer.BadParameter("--dataset and --output go together", param_hint="--output")
+    if not codes and dataset is None:
+        raise typer.BadParameter("give codes or --dataset", param_hint="CODES")
+    settings = _settings(data_dir)
+    target = _full_release(release or settings.release)
+    try:
+        reconciler = load_reconciler(target.id, settings)
+    except FileNotFoundError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    for code in codes or []:
+        try:
+            typer.echo(_reconciled(reconciler.reconcile(code), reconciler))
+        except ValueError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+    if dataset is not None and output is not None:
+        try:
+            examples = [reconcile_example(e, reconciler) for e in read_dataset(dataset)]
+        except (OSError, DatasetError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        write_dataset(output, examples)
+        typer.echo(f"{output}: {len(examples):,} examples against {target.id}")
+        typer.echo("\n".join(summarize(examples).lines()))
+
+
+def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:
+    line = f"{result.code}  {result.status}"
+    if result.billable_in:
+        line += f"  (billable {reconciler.spans(result.billable_in)})"
+    if result.mapped_to:
+        line += f" -> {', '.join(result.mapped_to)} [{result.how}]"
+    elif result.status == "unmappable":
+        line += f": {result.how}"
+    return line
 
 
 def _graph_path(release: str | None, graph_path: Path | None, data_dir: Path | None) -> Path:

@@ -86,6 +86,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   set (one primary code, then companion codes, each with its status against the release), the
   release, source, split and free metadata; a content hash independent of line order; and
   `text2icd eval validate` to check files against the release's billable codes.
+- Version reconciliation (`text2icd.eval.versions`): each code assigned under an older release is
+  `valid` in the evaluated release, `mapped` to the codes that replaced it (from the CMS conversion
+  tables followed across releases, or a header's subdivisions) or `unmappable`.
+  `text2icd eval reconcile` looks up codes or rewrites a dataset against a release.
 
 ### Fixed
 
