@@ -1,8 +1,14 @@
 """Command-line interface for text2icd."""
 
+from pathlib import Path
+from typing import Annotated
+
 import typer
 
 from text2icd import __version__
+from text2icd.config import Settings
+from text2icd.fetch import FetchError, fetch_release, is_complete
+from text2icd.releases import Release, load_registry
 
 app = typer.Typer(
     name="text2icd",
@@ -10,6 +16,15 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+data_app = typer.Typer(
+    help="Download and inspect the CMS ICD-10-CM release files.", no_args_is_help=True
+)
+app.add_typer(data_app, name="data")
+
+DataDirOption = Annotated[
+    Path | None,
+    typer.Option("--data-dir", help="Data directory (default: TEXT2ICD_DATA_DIR or ./data)."),
+]
 
 
 @app.callback()
@@ -21,3 +36,61 @@ def main() -> None:
 def version() -> None:
     """Print the installed text2icd version."""
     typer.echo(__version__)
+
+
+@data_app.command("releases")
+def data_releases(data_dir: DataDirOption = None) -> None:
+    """List the known releases and whether each is fully present locally."""
+    settings = _settings(data_dir)
+    registry = load_registry()
+    for release in registry.releases.values():
+        local = "present" if is_complete(release, settings.cms_raw_dir(release.id)) else "missing"
+        default = "  (default)" if release.id == registry.default else ""
+        typer.echo(
+            f"{release.id:<11} {release.scope:<8} effective {release.effective}  {local}{default}"
+        )
+
+
+@data_app.command("fetch")
+def data_fetch(
+    release: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--release", "-r", help="Release id to fetch; repeatable. Default: TEXT2ICD_RELEASE."
+        ),
+    ] = None,
+    history: Annotated[
+        bool, typer.Option("--history", help="Also fetch the FY2016 to FY2025 code lists.")
+    ] = False,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Download, verify and unpack CMS release files into the data directory."""
+    settings = _settings(data_dir)
+    registry = load_registry()
+    try:
+        targets = (
+            [registry.get(r) for r in release] if release else [registry.get(settings.release)]
+        )
+    except KeyError as exc:
+        raise typer.BadParameter(str(exc.args[0]), param_hint="--release") from exc
+    if history:
+        targets += [r for r in registry.by_scope("history") if r not in targets]
+
+    for target in targets:
+        _fetch_one(target, settings.cms_raw_dir(target.id))
+
+
+def _fetch_one(release: Release, raw_dir: Path) -> None:
+    typer.echo(f"{release.id}: {raw_dir}")
+    try:
+        results = fetch_release(release, raw_dir)
+    except FetchError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    for result in results:
+        action = "downloaded" if result.downloaded else "verified"
+        typer.echo(f"  {result.kind:<17} {action}, {result.extracted} new file(s) unpacked")
+
+
+def _settings(data_dir: Path | None) -> Settings:
+    return Settings(data_dir=data_dir) if data_dir is not None else Settings()

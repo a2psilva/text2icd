@@ -24,7 +24,7 @@ uv run pre-commit install   # run the hooks on every commit
 make check                  # what CI runs
 ```
 
-Place the CMS FY2026 release files in `data/raw/cms/fy2026/` (see [data/README.md](data/README.md)).
+Download the CMS release files with `uv run text2icd data fetch` (see [data/README.md](data/README.md)).
 
 ## Workflow
 

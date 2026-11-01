@@ -22,3 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `text2icd.config.Settings`: every `TEXT2ICD_*` setting (data and cache directories, release id,
   LLM provider and limits), read from the environment or a `.env` file. `.env.example` now uses
   `TEXT2ICD_RELEASE` instead of a fiscal-year number.
+- Release registry (`src/text2icd/resources/releases.toml`) listing the CMS files and SHA-256 hashes
+  of FY2027, the FY2026 April update, FY2026, and the FY2016 to FY2025 code lists.
+- `text2icd data fetch` downloads, verifies and unpacks release files (retries, hash and size
+  checks, safe zip extraction, no overwrites); `text2icd data releases` shows what is present.

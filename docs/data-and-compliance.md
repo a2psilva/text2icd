@@ -68,5 +68,6 @@ this document was written.
 - Source: <https://www.cms.gov/medicare/coding-billing/icd-10-codes>.
 - Each fiscal year (October 1 to September 30) has its own release, and some years have an April 1
   update. Releases are named `fy2026`, `fy2026-apr`, `fy2027`, and so on.
-- Files will be downloaded by `text2icd data fetch` and checked against recorded SHA-256 hashes. Raw files are never edited; all processing writes to `data/interim/` or
+- Files are downloaded by `text2icd data fetch` and checked against the SHA-256 hashes recorded in
+  `src/text2icd/resources/releases.toml`. Raw files are never edited; all processing writes to `data/interim/` or
   `data/processed/`.
