@@ -37,8 +37,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   manifestation codes and table cells.
 - `text2icd.ontology.order`: strict parser for the fixed-width code order files, giving the billable
   code set of every release from FY2016 (69,823 codes) to FY2027 (74,879).
+- `text2icd.ontology.billable`: generates the billable code set from the Tabular List (leaf codes and
+  7th-character expansions). It equals the order file exactly for FY2026, the FY2026 April update
+  and FY2027, including the S06 exception stated in the Tabular notes.
+- `text2icd.ontology.validate` and `resources/index_exceptions.toml`: every code the Index points to
+  must exist in the Tabular List; the few CMS data errors are listed with reasons and, where clear,
+  the intended code.
+- `text2icd data stats`: parses a fetched release, prints its counts and runs both checks; it exits
+  non-zero if a check fails.
 
 ### Fixed
 
 - Code validation accepts a letter in the second position, as in the `QA0`-`QA1` genetic disorder
   codes added in FY2026.
+- Neoplasm Table cells marked `-` are read as not applicable, like `--` in the Table of Drugs.

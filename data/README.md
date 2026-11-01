@@ -26,6 +26,7 @@ Source: <https://www.cms.gov/medicare/coding-billing/icd-10-codes>. Download wit
 uv run text2icd data releases                 # known releases and what is present locally
 uv run text2icd data fetch                    # the default (newest) release
 uv run text2icd data fetch -r fy2026 -r fy2026-apr --history   # more releases, plus FY2016-FY2025 code lists
+uv run text2icd data stats -r fy2027          # parse it, print counts, run the consistency checks
 ```
 
 The files of every release, with their SHA-256 hashes, are listed in

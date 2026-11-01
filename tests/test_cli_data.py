@@ -77,3 +77,33 @@ def test_releases_lists_status(tmp_path: Path) -> None:
     lines = result.output.splitlines()
     assert lines[0].startswith("fy2027      full     effective 2026-10-01  missing  (default)")
     assert len(lines) == 13
+
+
+def test_stats_requires_a_fetched_release(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["data", "stats", "-r", "fy2027", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "fy2027 is not fetched" in result.output
+
+
+def test_stats_rejects_history_releases(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["data", "stats", "-r", "fy2016", "--data-dir", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "fy2016 is a history release" in result.output
+
+
+@pytest.mark.parametrize(("ok", "exit_code"), [(True, 0), (False, 1)])
+def test_stats_prints_the_report_and_fails_on_problems(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ok: bool, exit_code: int
+) -> None:
+    class FakeReport:
+        def __init__(self) -> None:
+            self.ok = ok
+
+        def lines(self) -> list[str]:
+            return ["fy2027  (parsed in 1.0 s)", "  billable codes  74,879"]
+
+    monkeypatch.setattr(cli, "is_complete", lambda release, raw_dir: True)
+    monkeypatch.setattr(cli, "release_report", lambda files, release_id: FakeReport())
+    result = runner.invoke(cli.app, ["data", "stats", "-r", "fy2027", "--data-dir", str(tmp_path)])
+    assert result.exit_code == exit_code
+    assert "billable codes  74,879" in result.output
