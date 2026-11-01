@@ -1,0 +1,297 @@
+# ICD-10-CM releases known to text2icd, with the SHA-256 of every CMS file.
+# Source: https://www.cms.gov/medicare/coding-billing/icd-10-codes (FY2016 to FY2020 are on the
+# linked ICD-10-CM/PCS and GEM archive page). See docs/adr/0004-release-naming.md.
+#
+# scope = "full": every file needed to build the knowledge graph.
+# scope = "history": code lists only, used to reconcile codes assigned under older releases.
+
+schema = 1
+default = "fy2027"
+
+[[release]]
+id = "fy2027"
+fiscal_year = 2027
+effective = 2026-10-01
+scope = "full"
+
+[[release.file]]
+kind = "tables-index"
+url = "https://www.cms.gov/files/zip/2027-code-tables-tabular-index.zip"
+sha256 = "37baa476323714be16f95c9b2c96812bf6f3623d9f15188866e584dc529b0298"
+size = 22059093
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/2027-code-descriptions-tabular-order.zip"
+sha256 = "91c6c9d1117764ce72375a0f3a5493b1725dafbc1ab283b55799076c9e194965"
+size = 2208022
+
+[[release.file]]
+kind = "addendum"
+url = "https://www.cms.gov/files/zip/2027-icd-10-addendum.zip"
+sha256 = "16986a34d1458e549217229686f1a487cf6419ee6acb1043fbc770f8fabdd026"
+size = 671906
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/2027-conversion-table.zip"
+sha256 = "9478b8f95e137177e18be3df906c35566674b16313b12740d9e8e3778cb0e67a"
+size = 175330
+
+[[release.file]]
+kind = "poa-exempt"
+url = "https://www.cms.gov/files/zip/2027-poa-exempt-codes.zip"
+sha256 = "03f55091045024d07c99860470b9069ef2db4c19242d4c2ba0e9f30905bea904"
+size = 1654940
+
+[[release.file]]
+kind = "guidelines"
+url = "https://www.cms.gov/files/document/fy-2027-icd-10-cm-coding-guidelines.pdf"
+sha256 = "1f0065b609b678e98f85bf047b3b012c6a88ba3222e42be2f2435889e05738ab"
+size = 830104
+
+[[release]]
+id = "fy2026-apr"
+fiscal_year = 2026
+effective = 2026-04-01
+scope = "full"
+
+[[release.file]]
+kind = "tables-index"
+url = "https://www.cms.gov/files/zip/april-1-2026-code-tables-tabular-index.zip"
+sha256 = "c623e47143c156d1427fe7cd2bee7ac1ae6994bdd2196b9ec27d4a3219bcfd48"
+size = 22755010
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/april-1-2026-code-descriptions-tabular-order.zip"
+sha256 = "4fd9d8b37f02ab42827c7e7be30595c005b0cc3a6bae7a515e3f4c86b6918688"
+size = 2242530
+
+[[release.file]]
+kind = "addendum"
+url = "https://www.cms.gov/files/zip/april-1-2026-addendum.zip"
+sha256 = "e2d2d4c328e1552b5be000372dd76f70d467a32735b1c8bfdb1f4e013f0e95c6"
+size = 294423
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/icd-10-cm-conversion-table-fy2026-april-1-2026.zip"
+sha256 = "43fe164cb229d68455a45bd763cf046e014804bb6ed99074715df34cfa3a7ffd"
+size = 169772
+
+[[release]]
+id = "fy2026"
+fiscal_year = 2026
+effective = 2025-10-01
+scope = "full"
+
+[[release.file]]
+kind = "tables-index"
+url = "https://www.cms.gov/files/zip/2026-code-tables-tabular-and-index.zip"
+sha256 = "abfc45a54e4edc215cbaa2f0d18b30112db2bf9141857c9f8902390a495e6696"
+size = 22074209
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/2026-code-descriptions-tabular-order.zip"
+sha256 = "55a9124a27ca78a4a5c41e1101eda064ec2e08d105ff9e78d1fbd1a83298ef11"
+size = 2204985
+
+[[release.file]]
+kind = "addendum"
+url = "https://www.cms.gov/files/zip/2026-addendum.zip"
+sha256 = "46b3173f4ad6fa4dd139755d3c5e17808bfb8edec14636288537c3476d24adea"
+size = 894553
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/2026-conversion-table.zip"
+sha256 = "6e30c53d704441979ec2f903d53e32edaa6f5351552c2fb74e8779c58c1a3d47"
+size = 167768
+
+[[release.file]]
+kind = "poa-exempt"
+url = "https://www.cms.gov/files/zip/2026-poa-exempt-codes.zip"
+sha256 = "eedc59099e27b069f97c90880859431bf4a7416fa8e16672b04040a98cb28e9c"
+size = 1228270
+
+[[release.file]]
+kind = "guidelines"
+url = "https://www.cms.gov/files/document/fy-2026-icd-10-cm-coding-guidelines.pdf"
+sha256 = "2e87b3b088d6032edf6cda8c946cf342619df0c07237055a0e3be68410a0c267"
+size = 838642
+
+[[release]]
+id = "fy2025"
+fiscal_year = 2025
+effective = 2024-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/2025-code-descriptions-tabular-order.zip"
+sha256 = "4f6c65f0034736d2b02fa9eb1128aab564fa673dd4d99363f8b2167af3994816"
+size = 2317827
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/2025-conversion-table.zip"
+sha256 = "1a1bf02ad413776d290c8b1e3cc2a90031b5a72f91305b3810c9889655952605"
+size = 152304
+
+[[release]]
+id = "fy2024"
+fiscal_year = 2024
+effective = 2023-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/2024-code-descriptions-tabular-order-updated-02/01/2024.zip"
+sha256 = "4b30a68a011edb4aaa5ad3747971ef26f3be09eb925821d78b0d4584be977e3e"
+size = 2459697
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/2024-conversion-table-updated-09/21/2023.zip"
+sha256 = "25ba658a69cde15bf05d0b40512fff940a9e92630bdd54d5aac9bacec36c0542"
+size = 149447
+
+[[release]]
+id = "fy2023"
+fiscal_year = 2023
+effective = 2022-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/2023-code-descriptions-tabular-order-updated-01/11/2023.zip"
+sha256 = "cc7158228f6de01aa08650cc3afe446973a879dd78d44f1fec7150d45cfe1e06"
+size = 2387419
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/2023-conversion-table-updated-01/23/2023.zip-0"
+sha256 = "e0b57d9c9c3d5b968b5897849d9be90c2a738b4552a2a49092cb8fbc53a10c0b"
+size = 134685
+
+[[release]]
+id = "fy2022"
+fiscal_year = 2022
+effective = 2021-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/2022-code-descriptions-tabular-order-updated-02012022.zip"
+sha256 = "423206a194dd6db8384c3b39699ad3c1efa19718677fa81690557732a31bf560"
+size = 2184380
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/2022-conversion-table-updated-02012022.zip"
+sha256 = "262cd3c78ca4fe8104297ff4c1c07180734dfd2e29e1a966beb2c753bafaec01"
+size = 105995
+
+[[release]]
+id = "fy2021"
+fiscal_year = 2021
+effective = 2020-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/files/zip/2021-code-descriptions-tabular-order-updated-12162020.zip"
+sha256 = "479be4d5773fb2e8357c5edb8a56bbd48da4d2bca443a7c42527ad102e3b388c"
+size = 2370926
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/files/zip/2021-conversion-table-updated-12162020.zip"
+sha256 = "5aed2571cd9b03de630457947456d70572537e09dd60a937f8961e7cb6aa809a"
+size = 96117
+
+[[release]]
+id = "fy2020"
+fiscal_year = 2020
+effective = 2019-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2020-icd-10-cm-codes.zip"
+sha256 = "2e53056c702a600a7e2abb2e199322fac2c8546f2583ccda95f5aeeb2f63c4c4"
+size = 2217062
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2020-conversion-table.zip"
+sha256 = "26dba0626ba3312c9ab9545294923b7b12c688663b909c5d5acf6d71f8a97286"
+size = 83445
+
+[[release]]
+id = "fy2019"
+fiscal_year = 2019
+effective = 2018-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2019-icd-10-cm-code-descriptions.zip"
+sha256 = "73a4b41698bb9ae5e3e557edab4c76cf194faee3cf2dc594df25a9a343a70fa1"
+size = 2202400
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2019-conversion-table-.zip"
+sha256 = "3dd6e7e10e867061f8f17a5c85be92af9f80a4d03c6c1b9d5999f5a677a8ea15"
+size = 75318
+
+[[release]]
+id = "fy2018"
+fiscal_year = 2018
+effective = 2017-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2018-icd-10-code-descriptions.zip"
+sha256 = "d4954a3fa02e0bfbecb10b20864198dfa50862ded93f2d9d7313e9fe07ef0dfc"
+size = 2775671
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2018-icd-10-cm-conversion-table.zip"
+sha256 = "9973a9272867bf37f60ca6598dd55468a27dd446db982d4ba296ad47c384166d"
+size = 66369
+
+[[release]]
+id = "fy2017"
+fiscal_year = 2017
+effective = 2016-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2017-icd10-code-descriptions.zip"
+sha256 = "b406779f090a79debf39f828601da6c6d0c709f9ba317e299ff679f183207f5b"
+size = 2827060
+
+[[release.file]]
+kind = "conversion-table"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2017-icd-10-cm-conversion-table-.zip"
+sha256 = "6a7e61048430d8406d6d8072a11b86d282a338370475604f2ab9c4425f5bb306"
+size = 54629
+
+[[release]]
+id = "fy2016"
+fiscal_year = 2016
+effective = 2015-10-01
+scope = "history"
+
+[[release.file]]
+kind = "order"
+url = "https://www.cms.gov/medicare/coding/icd10/downloads/2016-code-descriptions-in-tabular-order.zip"
+sha256 = "fb7f9b15834da6a74c4dd649df009cdef5bd0fae607feaa2977d2c23077556a2"
+size = 2606714

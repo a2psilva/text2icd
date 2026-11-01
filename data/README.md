@@ -10,7 +10,9 @@ A pre-commit hook and a CI job enforce this. Read
 data/
 ├── raw/                    files exactly as downloaded, never edited
 │   ├── cms/
-│   │   └── fy2026/         one directory per ICD-10-CM release
+│   │   └── <release>/      one directory per ICD-10-CM release (fy2027, fy2026-apr, ...)
+│   │       ├── archives/   the CMS downloads, byte for byte (<kind>.zip or <kind>.pdf)
+│   │       └── <kind>/     their unpacked contents (tables-index, order, addendum, ...)
 │   └── mimic-iv/           PhysioNet credentialed data (local only)
 ├── interim/                intermediate outputs (parsed tables, alignments)
 └── processed/              build outputs (knowledge graph SQLite, evaluation sets)
@@ -18,26 +20,34 @@ data/
 
 ## CMS ICD-10-CM (public domain)
 
-Source: <https://www.cms.gov/medicare/coding-billing/icd-10-codes>.
+Source: <https://www.cms.gov/medicare/coding-billing/icd-10-codes>. Download with:
 
-Currently present in `raw/cms/fy2026/` (from "2026 Code Tables, Tabular and Index"):
+```bash
+uv run text2icd data releases                 # known releases and what is present locally
+uv run text2icd data fetch                    # the default (newest) release
+uv run text2icd data fetch -r fy2026 -r fy2026-apr --history   # more releases, plus FY2016-FY2025 code lists
+```
 
-| File | Content |
+The files of every release, with their SHA-256 hashes, are listed in
+[`src/text2icd/resources/releases.toml`](../src/text2icd/resources/releases.toml). Downloads that do
+not match are rejected, and existing files are never overwritten, so re-running is safe.
+
+Releases are named `fy<YEAR>` for the October code set and `fy<YEAR>-apr` for an April 1 update
+([ADR 0004](../docs/adr/0004-release-naming.md)). Full releases (`fy2027`, `fy2026-apr`, `fy2026`)
+contain every file kind below; history releases (`fy2016` to `fy2025`) contain only the code
+descriptions and conversion tables, used to reconcile codes assigned under older releases.
+
+| Kind | Content |
 | --- | --- |
-| `icd10cm_tabular_2026.xml` + `icd10cm_tabular.xsd` | Tabular List: chapters, blocks, codes, instructional notes, 7th characters |
-| `icd10cm_index_2026.xml` + `icd10cm_index.xsd` | Alphabetic Index to Diseases and Injuries |
-| `icd10cm_eindex_2026.xml` | External Cause of Injuries Index |
-| `icd10cm_neoplasm_2026.xml` + `icd10cm_drug_neoplasm.xsd` | Neoplasm Table |
-| `icd10cm_drug_2026.xml` | Table of Drugs and Chemicals |
-| `*.pdf` | PDF renderings of the same books, for human reference |
+| `tables-index` | Tabular List, Alphabetic Index, External Cause Index, Neoplasm Table and Table of Drugs and Chemicals, as XML (with XSD schemas) and PDF |
+| `order` | Code descriptions in tabular order (`icd10cm_order_<year>.txt`, with billable flags) and the plain code list |
+| `addendum` | Changes from the previous release |
+| `conversion-table` | Codes created since FY2016 and the codes they replaced |
+| `poa-exempt` | Codes exempt from present-on-admission reporting |
+| `guidelines` | ICD-10-CM Official Guidelines for Coding and Reporting (PDF) |
 
-Still to download: the code descriptions in tabular order (billable flags), the
-addendum and conversion table, the Official Coding Guidelines PDF, the April 1, 2026 update, the
-FY2027 release, and the order files for FY2016 to FY2025 (for MIMIC-IV version reconciliation).
-`text2icd data fetch` will automate this.
-
-CMS publishes a mid-year update for some fiscal years (for example April 1, 2026). Releases are
-therefore named `fy<YEAR>` for October and `fy<YEAR>-apr` for April.
+The FY2026 files that were placed by hand before `data fetch` existed turned out to be the April 1,
+2026 update (all 13 files are byte-identical to `fy2026-apr`), not the October 2025 release.
 
 ## MIMIC-IV (PhysioNet credentialed, never committed)
 

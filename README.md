@@ -98,7 +98,7 @@ git clone https://github.com/a2psilva/text2icd.git
 cd text2icd
 uv sync                      # creates .venv with Python 3.12 and the dev tools
 uv run pre-commit install    # enables the lint and data-safety hooks
-uv run text2icd version
+uv run text2icd data fetch   # downloads and verifies the newest CMS ICD-10-CM release
 make check                   # lint, format check, type check, tests
 ```
 
