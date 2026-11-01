@@ -85,12 +85,28 @@ order file exactly.
 
 ### Storage
 
-One SQLite file per release, for example `data/processed/text2icd-graph-fy2026.sqlite`:
+One SQLite file per release, for example `data/processed/text2icd-graph-fy2026.sqlite`, written by
+`text2icd build-graph --release fy2026`:
 
 - tables for tabular nodes, notes, edges, index terms, table cells and cross-references;
 - FTS5 virtual tables over Index full paths, titles plus nonessential modifiers, Tabular descriptions
   and inclusion terms, which gives BM25 ranking without extra dependencies;
 - a `meta` table with the release id, source file hashes and the builder version.
+
+The schema is versioned SQL in `src/text2icd/graph/schema.sql`. Tables so far:
+
+| Table | Content |
+| --- | --- |
+| `meta` | release id, schema and builder versions, SHA-256 of each source file, content hash |
+| `order_code` | the CMS code order file as published: code, billable flag, short and long descriptions |
+| `tabular_node` | chapters, sections, XML codes and the codes generated from 7th-character definitions, with parent, depth, billable flag, placeholder flag and the node whose 7th-character definition applies |
+| `tabular_note` | every instructional note in document order, by XML element name (`excludes1`, `useAdditionalCode`, ...) |
+| `seventh_char` | 7th-character definitions on the node that declares them |
+| `index_term` | terms of the four Index books with global ids, essential title, printed title, nonessential modifiers and full path (`Pneumonia > aspiration > due to > food`) |
+| `table_column` | column headings of the Neoplasm Table and the Table of Drugs and Chemicals |
+
+Generated codes take their description from the order file. Billable codes in `tabular_node` must
+equal the billable rows of `order_code`.
 
 At run time the graph is loaded into plain Python dicts and tuples (target: under 1 s and under
 300 MB), so traversal never touches disk. SQLite was chosen over networkx (memory-heavy, no full-text

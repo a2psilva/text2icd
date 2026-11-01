@@ -45,6 +45,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the intended code.
 - `text2icd data stats`: parses a fetched release, prints its counts and runs both checks; it exits
   non-zero if a check fails.
+- `text2icd build-graph`: builds the knowledge-graph SQLite file of a release
+  (`data/processed/text2icd-graph-<release>.sqlite`) with the code order file, every Tabular node
+  including the codes generated from 7th-character definitions, notes, 7th-character definitions,
+  and every Index term with its full path. The build is atomic and deterministic: a content hash
+  over the sorted rows is stored in `meta` with the hash of each source file.
+- `text2icd.ontology.billable.iter_billable` tells which leaf, 7th character and definition each
+  billable code comes from; `Tabular.seventh_character_owner` finds the definition that applies.
 
 ### Fixed
 

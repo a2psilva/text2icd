@@ -53,6 +53,9 @@ def test_seventh_characters_are_inherited(sample: Tabular) -> None:
     assert sample.seventh_characters_for("T51.3X1") == sample["T51"].seventh_characters
     assert [c for c, _ in sample.seventh_characters_for("E08.321")] == ["1", "2", "3", "9"]
     assert sample.seventh_characters_for("E11.22") == ()
+    assert sample.seventh_character_owner("T51.3X1") == "T51"
+    assert sample.seventh_character_owner("E08.32") == "E08.32"
+    assert sample.seventh_character_owner("E11.22") is None
     assert sample["E08.32"].notes_of("sevenChrNote")
 
 

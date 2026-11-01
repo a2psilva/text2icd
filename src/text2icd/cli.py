@@ -8,6 +8,7 @@ import typer
 from text2icd import __version__
 from text2icd.config import Settings
 from text2icd.fetch import FetchError, fetch_release, is_complete
+from text2icd.graph.build import build_graph
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
@@ -104,16 +105,55 @@ def data_stats(
         if target.scope != "full":
             raise typer.BadParameter(f"{target.id} is a history release", param_hint="--release")
         raw_dir = settings.cms_raw_dir(target.id)
-        if not is_complete(target, raw_dir):
-            typer.echo(
-                f"error: {target.id} is not fetched; run `text2icd data fetch -r {target.id}`",
-                err=True,
-            )
-            raise typer.Exit(code=1)
+        _require_fetched(target, raw_dir)
         report = release_report(ReleaseFiles(raw_dir), target.id)
         typer.echo("\n".join(report.lines()))
         failed = failed or not report.ok
     if failed:
+        raise typer.Exit(code=1)
+
+
+@app.command("build-graph")
+def build_graph_command(
+    release: Annotated[
+        str | None,
+        typer.Option("--release", "-r", help="Release id. Default: TEXT2ICD_RELEASE or newest."),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output file (default: data/processed/text2icd-graph-<release>.sqlite).",
+        ),
+    ] = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Build the knowledge-graph SQLite file of a fetched release."""
+    settings = _settings(data_dir)
+    target = _full_release(release or settings.release)
+    raw_dir = settings.cms_raw_dir(target.id)
+    _require_fetched(target, raw_dir)
+    report = build_graph(ReleaseFiles(raw_dir), target.id, output or settings.graph_path(target.id))
+    typer.echo("\n".join(report.lines()))
+
+
+def _full_release(release_id: str | None) -> Release:
+    try:
+        target = load_registry().get(release_id)
+    except KeyError as exc:
+        raise typer.BadParameter(str(exc.args[0]), param_hint="--release") from exc
+    if target.scope != "full":
+        raise typer.BadParameter(f"{target.id} is a history release", param_hint="--release")
+    return target
+
+
+def _require_fetched(release: Release, raw_dir: Path) -> None:
+    if not is_complete(release, raw_dir):
+        typer.echo(
+            f"error: {release.id} is not fetched; run `text2icd data fetch -r {release.id}`",
+            err=True,
+        )
         raise typer.Exit(code=1)
 
 
