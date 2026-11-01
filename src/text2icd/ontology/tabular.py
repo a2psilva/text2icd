@@ -83,13 +83,17 @@ class Tabular:
 
     def seventh_characters_for(self, key: str) -> tuple[tuple[str, str], ...]:
         """The 7th-character definition that applies to `key`: its own or the nearest ancestor's."""
-        node = self.nodes[key]
-        if node.seventh_characters:
-            return node.seventh_characters
+        owner = self.seventh_character_owner(key)
+        return self.nodes[owner].seventh_characters if owner is not None else ()
+
+    def seventh_character_owner(self, key: str) -> str | None:
+        """The node whose 7th-character definition applies to `key`, or None."""
+        if self.nodes[key].seventh_characters:
+            return key
         for ancestor in self.ancestors(key):
             if ancestor.seventh_characters:
-                return ancestor.seventh_characters
-        return ()
+                return ancestor.key
+        return None
 
 
 def parse_tabular(path: Path) -> Tabular:

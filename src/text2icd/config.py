@@ -55,3 +55,7 @@ class Settings(BaseSettings):
     def cms_raw_dir(self, release: str) -> Path:
         """Directory holding the unmodified CMS files of one release."""
         return self.data_dir / "raw" / "cms" / release
+
+    def graph_path(self, release: str) -> Path:
+        """The knowledge-graph file built from one release by `text2icd build-graph`."""
+        return self.data_dir / "processed" / f"text2icd-graph-{release}.sqlite"

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from text2icd.ontology.billable import generate_billable
+from text2icd.ontology.billable import BillableCode, generate_billable, iter_billable
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.tabular import parse_tabular
@@ -74,3 +74,19 @@ def test_generated_set_equals_the_order_file(
     official = billable_codes(parse_order_file(files.order))
     assert sorted(official - generated) == []
     assert sorted(generated - official) == []
+
+
+def test_iter_billable_tells_where_each_code_comes_from() -> None:
+    entries = list(iter_billable(parse_tabular(FIXTURES / "tabular_sample.xml")))
+    by_code = {entry.code: entry for entry in entries}
+    assert len(by_code) == len(entries)
+    assert by_code["E11.22"] == BillableCode("E11.22", "E11.22")
+    assert by_code["T51.3X1A"] == BillableCode("T51.3X1A", "T51.3X1", "A", "T51")
+    assert by_code["E08.3211"] == BillableCode("E08.3211", "E08.321", "1", "E08.32")
+    codes = [entry.code for entry in entries]
+    assert codes.index("E08.3211") < codes.index("E08.3291") < codes.index("E11.22")
+    assert codes[codes.index("T51.3X1A") : codes.index("T51.3X1A") + 3] == [
+        "T51.3X1A",
+        "T51.3X1D",
+        "T51.3X1S",
+    ]

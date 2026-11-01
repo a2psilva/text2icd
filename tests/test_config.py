@@ -95,3 +95,9 @@ def test_env_example_lists_exactly_the_settings_fields() -> None:
         if line.startswith("TEXT2ICD_")
     }
     assert documented == set(Settings.model_fields)
+
+
+def test_graph_path() -> None:
+    assert Settings(data_dir=Path("d")).graph_path("fy2027") == Path(
+        "d/processed/text2icd-graph-fy2027.sqlite"
+    )

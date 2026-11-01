@@ -7,6 +7,7 @@ placeholder (Guidelines I.A.4, I.A.5). Exceptions stated in instructional notes 
 rule is reviewed rather than silently applied to a release that changed it.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 from text2icd.ontology.codes import (
@@ -38,7 +39,26 @@ SEVENTH_CHARACTER_EXCEPTIONS = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class BillableCode:
+    """One billable code and where it comes from in the Tabular List.
+
+    `base` is the Tabular leaf; `seventh` is the 7th character added to it (None when the leaf is
+    billable as it is) and `owner` the node whose 7th-character definition supplied it.
+    """
+
+    code: str
+    base: str
+    seventh: str | None = None
+    owner: str | None = None
+
+
 def generate_billable(tabular: Tabular) -> frozenset[str]:
+    return frozenset(entry.code for entry in iter_billable(tabular))
+
+
+def iter_billable(tabular: Tabular) -> Iterator[BillableCode]:
+    """Every billable code in Tabular List order; 7th-character codes follow their leaf."""
     exceptions = [e for e in SEVENTH_CHARACTER_EXCEPTIONS if e.category in tabular]
     for exception in exceptions:
         notes = (note.text for note in tabular[exception.category].notes)
@@ -48,20 +68,18 @@ def generate_billable(tabular: Tabular) -> frozenset[str]:
                 "review SEVENTH_CHARACTER_EXCEPTIONS"
             )
 
-    codes: set[str] = set()
     for node in tabular.diags():
         if node.children:
             continue
-        sevenths = tabular.seventh_characters_for(node.key)
-        if not sevenths:
-            codes.add(node.key)
+        owner = tabular.seventh_character_owner(node.key)
+        if owner is None:
+            yield BillableCode(node.key, node.key)
             continue
         padded = undot(node.key).ljust(CODE_LENGTH_BEFORE_SEVENTH, PLACEHOLDER)
         excluded: set[str] = set()
         for exception in exceptions:
             if padded.startswith(exception.category) and padded[5] in exception.sixth_characters:
                 excluded |= exception.excluded
-        codes.update(
-            with_seventh_character(node.key, char) for char, _ in sevenths if char not in excluded
-        )
-    return frozenset(codes)
+        for char, _ in tabular[owner].seventh_characters:
+            if char not in excluded:
+                yield BillableCode(with_seventh_character(node.key, char), node.key, char, owner)
