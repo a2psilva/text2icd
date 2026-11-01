@@ -20,3 +20,4 @@ Rules:
 | `cms/eindex_sample.xml` | FY2027 External Cause Index: Abandonment (text after the nonessential modifiers) and Abuse. |
 | `cms/neoplasm_sample.xml` | FY2027 Neoplasm Table: column headings, the main term and the `abdomen, abdominal` rows. |
 | `cms/drug_sample.xml` | FY2027 Table of Drugs and Chemicals: column headings and four substances. |
+| `cms/order_sample.txt` | Ten lines of the FY2027 code order file (A00, E11.22, the T51.3 chain down to the billable T51.3X1A), renumbered 1 to 10. |

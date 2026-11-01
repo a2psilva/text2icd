@@ -22,7 +22,7 @@ def cms_release() -> Callable[[str], ReleaseFiles]:
 
     def locate(release_id: str) -> ReleaseFiles:
         files = ReleaseFiles(CMS_DIR / release_id)
-        if not (files.root / "tables-index" / COMPLETE_MARKER).is_file():
+        if not any(files.root.glob(f"*/{COMPLETE_MARKER}")):
             pytest.skip(f"CMS release {release_id} not fetched (run `text2icd data fetch`)")
         return files
 

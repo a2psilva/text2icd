@@ -1,16 +1,17 @@
 """ICD-10-CM code strings: formatting, validation, 7th characters and code references.
 
-A code is a letter, a digit and an alphanumeric character (the category, e.g. `E11` or `C4A`),
-optionally followed by a dot and one to four alphanumeric characters (`E11.22`, `T51.3X1A`).
+A code starts with a three-character category: a letter followed by two letters or digits (`E11`,
+`C4A`, and since FY2026 `QA0`). It is optionally followed by a dot and one to four letters or
+digits (`E11.22`, `T51.3X1A`, `QA0.0101`).
 MIMIC-IV and the CMS order files store codes without the dot (`E1122`).
 """
 
 import re
 from dataclasses import dataclass
 
-_UNDOTTED = re.compile(r"^[A-Z][0-9][0-9A-Z][0-9A-Z]{0,4}$")
-_DOTTED = re.compile(r"^[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?$")
-_REFERENCE = re.compile(r"^([A-Z][0-9][0-9A-Z](?:\.?[0-9A-Z]{1,4})?)(?:\.?-)?$")
+_UNDOTTED = re.compile(r"^[A-Z][0-9A-Z]{2}[0-9A-Z]{0,4}$")
+_DOTTED = re.compile(r"^[A-Z][0-9A-Z]{2}(?:\.[0-9A-Z]{1,4})?$")
+_REFERENCE = re.compile(r"^([A-Z][0-9A-Z]{2}(?:\.?[0-9A-Z]{1,4})?)(?:\.?-)?$")
 
 PLACEHOLDER = "X"
 CODE_LENGTH_BEFORE_SEVENTH = 6

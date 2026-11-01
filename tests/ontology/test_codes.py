@@ -24,6 +24,7 @@ from text2icd.ontology.codes import (
         ("T513X1A", "T51.3X1A"),
         ("C4A0", "C4A.0"),
         ("U071", "U07.1"),
+        ("QA00101", "QA0.0101"),
     ],
 )
 def test_dot_and_undot_round_trip(raw: str, dotted: str) -> None:
@@ -31,14 +32,16 @@ def test_dot_and_undot_round_trip(raw: str, dotted: str) -> None:
     assert undot(dotted) == dotted.replace(".", "")
 
 
-@pytest.mark.parametrize("bad", ["", "E1", "11.22", "EE1.22", "E11.22345", "E11-22", "E11.2/2"])
+@pytest.mark.parametrize("bad", ["", "E1", "11.22", "1E1.22", "E11.22345", "E11-22", "E11.2/2"])
 def test_invalid_codes_are_rejected(bad: str) -> None:
     assert not is_code(bad)
     with pytest.raises(ValueError, match="not an ICD-10-CM code"):
         dot(bad)
 
 
-@pytest.mark.parametrize("good", ["A00", "E11.22", "e1122", "M1A.0110", "Z3A.10", "T07.XXXA"])
+@pytest.mark.parametrize(
+    "good", ["A00", "E11.22", "e1122", "M1A.0110", "Z3A.10", "T07.XXXA", "QA0.0101"]
+)
 def test_well_formed_codes(good: str) -> None:
     assert is_code(good)
 
