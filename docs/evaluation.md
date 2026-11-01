@@ -11,6 +11,32 @@ fixed data. This page defines the datasets, metrics, baselines and protocol.
 | `mimic-silver` | "Discharge Diagnosis" sections of MIMIC-IV-Note, aligned to the admission's ICD-10 codes | 10,000+ phrases | Automatic, precision estimated by manual review | No |
 | `mimic-gold` | Stratified sample of `mimic-silver` | 300–500 phrases | Hand-annotated, ideally reviewed by a certified coder | No |
 
+### File format
+
+Every dataset is a JSONL file, one example per line, read and checked by
+`text2icd.eval.datasets`:
+
+```json
+{"id": "cms-synthetic:000042", "phrase": "aspiration pneumonia due to food",
+ "gold": [{"code": "J69.0", "role": "primary"}], "release": "fy2027",
+ "source": "cms-synthetic", "split": "dev", "meta": {"generator": "index-path"}}
+```
+
+| Field | Content |
+| --- | --- |
+| `id` | Unique within the dataset |
+| `phrase` | The diagnosis phrase, on one line |
+| `gold` | The full code set: one `primary` code first, then any `companion` codes. Each code has a `status` against `release` (`valid` by default, `mapped` with `mapped_to`, or `unmappable`; see [Code-set versions](#code-set-versions)) |
+| `release` | The release the gold codes are checked against; one per dataset |
+| `source` | Where the example came from, such as `cms-synthetic` or `mimic-silver` |
+| `split` | `dev` or `test` |
+| `meta` | Anything else: how the example was made, local identifiers for MIMIC-IV sets |
+
+`text2icd eval validate FILE...` checks the format, repeated ids and mixed releases, checks each gold
+code's status against the billable codes of the release (when it is fetched), and prints the dataset
+hash. The hash is a SHA-256 over the examples in id order, so it identifies the content whatever the
+line order or formatting; every result file records it.
+
 ### `cms-synthetic`
 
 - Positive examples: each Tabular inclusion term with its code; each Index path read as a phrase

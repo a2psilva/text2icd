@@ -82,6 +82,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   (`(N18.1-N18.6)`, `(E10.-)`, `category T51`), with the stray dots of the CMS files handled. About
   11,600 per release; the build log gives the share of notes with a reference by kind, the words
   that look like codes (`B12`, `GM2`) and any reference with no code in the release.
+- Evaluation dataset format (`text2icd.eval.datasets`): JSONL examples with a phrase, the gold code
+  set (one primary code, then companion codes, each with its status against the release), the
+  release, source, split and free metadata; a content hash independent of line order; and
+  `text2icd eval validate` to check files against the release's billable codes.
 
 ### Fixed
 
