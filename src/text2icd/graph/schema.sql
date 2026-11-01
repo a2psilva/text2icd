@@ -87,6 +87,26 @@ CREATE TABLE table_column (
     PRIMARY KEY (book, col)
 ) WITHOUT ROWID;
 
+-- Code references found in note text, one row per reference in the order written. These are the
+-- excludes1, excludes2, codeFirst, useAdditionalCode and codeAlso edges (other note kinds give
+-- references too). `range_start` and `range_end` are dotted code prefixes, equal for a single code;
+-- `target` is the Tabular node a single reference names. status: ok (at least one code of the
+-- release lies in the range) or unresolved (no code inside: an error in the notes).
+CREATE TABLE tabular_edge (
+    note        INTEGER NOT NULL REFERENCES tabular_note (id),
+    ordinal     INTEGER NOT NULL,
+    source      TEXT NOT NULL REFERENCES tabular_node (key),
+    kind        TEXT NOT NULL,
+    written     TEXT NOT NULL,
+    range_start TEXT NOT NULL,
+    range_end   TEXT NOT NULL,
+    target      TEXT REFERENCES tabular_node (key),
+    status      TEXT NOT NULL CHECK (status IN ('ok', 'unresolved')),
+    PRIMARY KEY (note, ordinal)
+) WITHOUT ROWID;
+CREATE INDEX tabular_edge_source ON tabular_edge (source, kind);
+CREATE INDEX tabular_edge_target ON tabular_edge (target);
+
 -- Codes the Index gives: <code>, <manif>, <subcat>, <seecat> and table cells (`col` is the table
 -- column of a cell, 0 otherwise). `code` is the dotted code without a trailing '-', `partial` says
 -- the Index wrote it as incomplete, and `target` is the Tabular node it resolves to.

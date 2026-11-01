@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from text2icd.fetch import COMPLETE_MARKER
+from text2icd.graph.build import BuildReport, build_graph
 from text2icd.ontology.files import ReleaseFiles
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -16,17 +17,31 @@ def fixtures_dir() -> Path:
     return Path(__file__).parent / "fixtures"
 
 
+def _locate(release_id: str) -> ReleaseFiles:
+    files = ReleaseFiles(CMS_DIR / release_id)
+    if not any(files.root.glob(f"*/{COMPLETE_MARKER}")):
+        pytest.skip(f"CMS release {release_id} not fetched (run `text2icd data fetch`)")
+    return files
+
+
 @pytest.fixture
 def cms_release() -> Callable[[str], ReleaseFiles]:
     """Files of a release fetched into data/raw/cms; skips the test when they are absent."""
+    return _locate
 
-    def locate(release_id: str) -> ReleaseFiles:
-        files = ReleaseFiles(CMS_DIR / release_id)
-        if not any(files.root.glob(f"*/{COMPLETE_MARKER}")):
-            pytest.skip(f"CMS release {release_id} not fetched (run `text2icd data fetch`)")
-        return files
 
-    return locate
+@pytest.fixture(scope="session")
+def release_graph(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str], BuildReport]:
+    """The graph of a fetched release, built once per session; skips when it is absent."""
+    built: dict[str, BuildReport] = {}
+
+    def build(release_id: str) -> BuildReport:
+        if release_id not in built:
+            output = tmp_path_factory.mktemp(release_id) / "graph.sqlite"
+            built[release_id] = build_graph(_locate(release_id), release_id, output)
+        return built[release_id]
+
+    return build
 
 
 @pytest.fixture

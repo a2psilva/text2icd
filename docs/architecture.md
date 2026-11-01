@@ -105,11 +105,18 @@ The schema is versioned SQL in `src/text2icd/graph/schema.sql`. Tables so far:
 | `index_term` | terms of the four Index books with global ids, essential title, printed title, nonessential modifiers and full path (`Pneumonia > aspiration > due to > food`) |
 | `table_column` | column headings of the Neoplasm Table and the Table of Drugs and Chemicals |
 | `index_pointer` | the `points_to` and `manifestation` edges: every code a term gives (`code`, `manif`, `subcat`, `seecat`, table cells), as written and resolved to a Tabular node, with a status (`ok`, `corrected`, `excluded`, `unresolved`) |
+| `tabular_edge` | the `excludes1`, `excludes2`, `code_first`, `use_additional` and `code_also` edges: every code or range written in a note (any note kind), as written and as a range of code prefixes, with the Tabular node a single code names and a status (`ok`, `unresolved`) |
 
 Generated codes take their description from the order file. Billable codes in `tabular_node` must
 equal the billable rows of `order_code`. Known Index data errors are listed in
 `src/text2icd/resources/index_exceptions.toml`: entries with a correction replace the written value
 (status `corrected`), the others are kept out of the edges with a build warning (`excluded`).
+
+Code references in notes are found with a pattern, then checked against the release. A range
+resolves when at least one code lies inside it, since some ranges end at a WHO-only category
+(`K00-K93`). A bare token that matches no code is a word, not a reference (`vitamin B12`,
+`GM2 gangliosidosis`); the build log lists them. Any other reference with no code is kept as
+`unresolved` with a warning: FY2026 has one, `G31.90` in a code-first note of F02.
 
 At run time the graph is loaded into plain Python dicts and tuples (target: under 1 s and under
 300 MB), so traversal never touches disk. SQLite was chosen over networkx (memory-heavy, no full-text
