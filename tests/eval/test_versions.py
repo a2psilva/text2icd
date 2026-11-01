@@ -217,8 +217,9 @@ def test_reconcile_command_rewrites_a_dataset(data_dir: Path, tmp_path: Path) ->
     (rewritten,) = read_dataset(output)
     assert (rewritten.release, rewritten.primary.mapped_to) == ("fy2027", ("A00.0",))
     alone = runner.invoke(cli.app, ["eval", "reconcile", "--dataset", str(source)])
-    assert alone.exit_code != 0
-    assert "--dataset and --output go together" in alone.output
+    # Typer may colour option names in the usage error, so match only the plain words.
+    assert alone.exit_code == 2
+    assert "go together" in alone.output
     nothing = runner.invoke(cli.app, ["eval", "reconcile"])
     assert nothing.exit_code != 0
 
