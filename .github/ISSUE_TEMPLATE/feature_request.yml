@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a capability, a coding rule to support, or an improvement.
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data safety
+      options:
+        - label: This request contains no MIMIC-IV text, no patient data and no PHI.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, or what does text2icd get wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should happen instead? Cite the ICD-10-CM convention or guideline section if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

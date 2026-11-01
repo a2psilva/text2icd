@@ -1,0 +1,42 @@
+name: Bug report
+description: A wrong code, a crash, or behaviour that does not match the docs.
+labels: ["bug"]
+body:
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data safety
+      options:
+        - label: This report contains no MIMIC-IV text, no patient data and no PHI. Any example phrase is written by me, not copied from a record.
+          required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input phrase
+      description: The diagnosis phrase you passed in (synthetic only).
+      placeholder: type 2 DM with diabetic CKD stage 3a
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What text2icd returned
+      description: Paste the JSON result, including the trace if available.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected code(s) and why
+      description: The code(s) you expected and the Index/Tabular path or guideline that supports them.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: Output of `text2icd version`, the ICD-10-CM fiscal year, and your Python version.
+      placeholder: "text2icd 0.0.1, FY2026, Python 3.12"
+    validations:
+      required: true

@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# Restricted and large data. See docs/data-and-compliance.md.
+# Only README files and .gitkeep placeholders under data/ may be committed.
+# ---------------------------------------------------------------------------
+/data/**
+!/data/**/
+!/data/**/README.md
+!/data/**/.gitkeep
+/notebooks/local/
+TASKS.md
+
+# Safety net: MIMIC-IV ships as CSV. Committed tabular fixtures belong in tests/fixtures/.
+*.csv
+*.csv.gz
+!/tests/fixtures/**/*.csv
+
+# Built artifacts and caches produced by text2icd
+*.sqlite
+*.sqlite3
+*.db
+/.text2icd/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Tooling caches and reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.ipynb_checkpoints/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
