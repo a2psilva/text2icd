@@ -87,6 +87,18 @@ CREATE TABLE table_column (
     PRIMARY KEY (book, col)
 ) WITHOUT ROWID;
 
+-- Searchable Tabular text, linked to its code: the description of every code ('description') and
+-- its inclusion terms ('inclusion', from <inclusionTerm>; 'includes', from <includes>). The FTS5
+-- tables `fts_tabular` and `fts_index_term` are created by graph/search.py with the tokenizer
+-- recorded in meta.fts_tokenizer.
+CREATE TABLE tabular_term (
+    id   INTEGER PRIMARY KEY,
+    node TEXT NOT NULL REFERENCES tabular_node (key),
+    kind TEXT NOT NULL CHECK (kind IN ('description', 'inclusion', 'includes')),
+    text TEXT NOT NULL
+);
+CREATE INDEX tabular_term_node ON tabular_term (node);
+
 -- Code references found in note text, one row per reference in the order written. These are the
 -- excludes1, excludes2, codeFirst, useAdditionalCode and codeAlso edges (other note kinds give
 -- references too). `range_start` and `range_end` are dotted code prefixes, equal for a single code;

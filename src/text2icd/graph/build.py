@@ -21,6 +21,12 @@ from text2icd import __version__
 from text2icd.fetch import sha256_of
 from text2icd.graph.notes import CodeIndex, find_references
 from text2icd.graph.pointers import Pointer, index_pointers
+from text2icd.graph.search import (
+    DEFAULT_TOKENIZER,
+    Tokenizer,
+    create_search_tables,
+    optimize_search_tables,
+)
 from text2icd.graph.xrefs import XREF_EXCEPTIONS, CrossReference, cross_references
 from text2icd.ontology.billable import BillableCode, iter_billable
 from text2icd.ontology.codes import CODE_LENGTH_BEFORE_SEVENTH, dot, undot
@@ -38,6 +44,8 @@ PATH_SEPARATOR = " > "
 _UNHASHED_PREFIXES = ("meta", "fts_", "sqlite_")
 
 Row = tuple[object, ...]
+# Tabular note kinds that list terms classified to the code, searched with the descriptions.
+_SEARCHED_NOTES = {"inclusionTerm": "inclusion", "includes": "includes"}
 # Note kinds whose references are the edges of the graph, reported in the build log.
 EDGE_NOTE_KINDS = ("excludes1", "excludes2", "codeFirst", "useAdditionalCode", "codeAlso")
 
@@ -124,6 +132,7 @@ def build_graph(
     *,
     exceptions: Path | None = None,
     xref_exceptions: Path | None = None,
+    tokenizer: Tokenizer = DEFAULT_TOKENIZER,
 ) -> BuildReport:
     """Write the graph of one release to `output`, replacing it only once the build succeeds."""
     start = time.perf_counter()
@@ -137,9 +146,9 @@ def build_graph(
             conn.execute("PRAGMA foreign_keys = ON")
             conn.executescript(schema_sql())
             with conn:
-                log = write_graph(conn, sources)
+                log = write_graph(conn, sources, tokenizer)
                 digest = content_hash(conn)
-                _write_meta(conn, sources, digest)
+                _write_meta(conn, sources, digest, tokenizer)
             rows = row_counts(conn)
     except BaseException:
         partial.unlink(missing_ok=True)
@@ -151,13 +160,16 @@ def build_graph(
     )
 
 
-def write_graph(conn: sqlite3.Connection, sources: Sources) -> BuildLog:
+def write_graph(
+    conn: sqlite3.Connection, sources: Sources, tokenizer: Tokenizer = DEFAULT_TOKENIZER
+) -> BuildLog:
     """Insert every row and return what the build log should show."""
     log = BuildLog([], [])
     _insert(conn, "order_code", _order_rows(sources.order))
     _insert(conn, "tabular_node", _tabular_rows(sources))
     notes = list(_note_rows(sources.tabular))
     _insert(conn, "tabular_note", notes)
+    _insert(conn, "tabular_term", _term_rows(sources.tabular, notes))
     _insert(conn, "seventh_char", _seventh_rows(sources.tabular))
     _insert(conn, "index_term", _index_rows(sources.books))
     _insert(conn, "table_column", _column_rows(sources.books))
@@ -178,7 +190,26 @@ def write_graph(conn: sqlite3.Connection, sources: Sources) -> BuildLog:
     )
     log.details.append(f"cross-references: {len(xrefs.xrefs):,}; {shares}")
     log.warnings.extend(xrefs.warnings)
+    _write_search(conn, tokenizer, log)
     return log
+
+
+def _write_search(conn: sqlite3.Connection, tokenizer: Tokenizer, log: BuildLog) -> None:
+    create_search_tables(conn, tokenizer)
+    terms = conn.execute("SELECT id, title, nonessential, path FROM index_term").fetchall()
+    conn.executemany(
+        "INSERT INTO fts_index_term (rowid, title, modifiers, path) VALUES (?, ?, ?, ?)",
+        (
+            (id_, title, " ".join(json.loads(modifiers)), path)
+            for id_, title, modifiers, path in terms
+        ),
+    )
+    conn.execute("INSERT INTO fts_tabular (rowid, text) SELECT id, text FROM tabular_term")
+    optimize_search_tables(conn)
+    (texts,) = conn.execute("SELECT count(*) FROM tabular_term").fetchone()
+    log.details.append(
+        f"search ({tokenizer} tokenizer): {len(terms):,} Index terms, {texts:,} Tabular texts"
+    )
 
 
 def schema_sql() -> str:
@@ -364,6 +395,19 @@ def _note_rows(tabular: Tabular) -> Iterator[Row]:
             yield (note_id, node.key, note.kind, ordinal, note.text)
 
 
+def _term_rows(tabular: Tabular, notes: list[Row]) -> Iterator[Row]:
+    """Code descriptions in Tabular order, then inclusion terms in note order."""
+    term_id = 0
+    for node in tabular.nodes.values():
+        if node.kind == "diag":
+            term_id += 1
+            yield (term_id, node.key, "description", node.description)
+    for _, node_key, kind, _, text in notes:
+        if kind in _SEARCHED_NOTES:
+            term_id += 1
+            yield (term_id, node_key, _SEARCHED_NOTES[str(kind)], text)
+
+
 def _seventh_rows(tabular: Tabular) -> Iterator[Row]:
     for node in tabular.nodes.values():
         for ordinal, (char, meaning) in enumerate(node.seventh_characters):
@@ -398,13 +442,16 @@ def _column_rows(books: dict[IndexSource, IndexBook]) -> Iterator[Row]:
             yield (source, col, heading)
 
 
-def _write_meta(conn: sqlite3.Connection, sources: Sources, digest: str) -> None:
+def _write_meta(
+    conn: sqlite3.Connection, sources: Sources, digest: str, tokenizer: Tokenizer
+) -> None:
     meta = {
         "schema_version": str(SCHEMA_VERSION),
         "release": sources.release,
         "builder_version": __version__,
         "tabular_version": sources.tabular.version,
         "content_sha256": digest,
+        "fts_tokenizer": tokenizer,
     }
     meta.update({f"sha256:{name}": value for name, value in sorted(sources.file_hashes.items())})
     conn.executemany("INSERT INTO meta VALUES (?, ?)", sorted(meta.items()))
