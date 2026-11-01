@@ -104,9 +104,12 @@ The schema is versioned SQL in `src/text2icd/graph/schema.sql`. Tables so far:
 | `seventh_char` | 7th-character definitions on the node that declares them |
 | `index_term` | terms of the four Index books with global ids, essential title, printed title, nonessential modifiers and full path (`Pneumonia > aspiration > due to > food`) |
 | `table_column` | column headings of the Neoplasm Table and the Table of Drugs and Chemicals |
+| `index_pointer` | the `points_to` and `manifestation` edges: every code a term gives (`code`, `manif`, `subcat`, `seecat`, table cells), as written and resolved to a Tabular node, with a status (`ok`, `corrected`, `excluded`, `unresolved`) |
 
 Generated codes take their description from the order file. Billable codes in `tabular_node` must
-equal the billable rows of `order_code`.
+equal the billable rows of `order_code`. Known Index data errors are listed in
+`src/text2icd/resources/index_exceptions.toml`: entries with a correction replace the written value
+(status `corrected`), the others are kept out of the edges with a build warning (`excluded`).
 
 At run time the graph is loaded into plain Python dicts and tuples (target: under 1 s and under
 300 MB), so traversal never touches disk. SQLite was chosen over networkx (memory-heavy, no full-text

@@ -52,9 +52,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   over the sorted rows is stored in `meta` with the hash of each source file.
 - `text2icd.ontology.billable.iter_billable` tells which leaf, 7th character and definition each
   billable code comes from; `Tabular.seventh_character_owner` finds the definition that applies.
+- Index-to-Tabular pointers (`index_pointer`): every code an Index term gives, including partial
+  codes such as `C79.8-` and table cells, resolved to its Tabular node. The corrections in
+  `index_exceptions.toml` are applied (the four "pubic ramus" entries); the other listed exceptions
+  are kept out with a warning in the build log. FY2026 and FY2027 have no unresolved pointer.
+- `IndexBook.paths()` returns the joined path of every term in one pass.
 
 ### Fixed
 
 - Code validation accepts a letter in the second position, as in the `QA0`-`QA1` genetic disorder
   codes added in FY2026.
 - Neoplasm Table cells marked `-` are read as not applicable, like `--` in the Table of Drugs.
+- Code validation requires a digit in the second or third character, so words such as `HIV` or
+  `SCFE` are no longer taken for codes.
