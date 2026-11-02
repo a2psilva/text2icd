@@ -218,6 +218,14 @@ FY2027, `dev` split (67,812 phrases), 95% intervals:
 | B1 BM25 | 38.8% (38.5-39.2) | 52.0% (51.6-52.3) | 50.4% (50.0-50.7) | 40.8% (40.4-41.2) | 0% | $0 |
 | B2 embedding | 40.6% (40.2-41.0) | 55.2% (54.8-55.6) | 53.8% (53.4-54.2) | 41.6% (41.3-42.0) | 0% | $0 |
 
+## Main-term recall
+
+`text2icd eval main-terms -d <dataset>` measures the first step of the coder's workflow: whether
+Index search puts a right main term (one whose subterms lead to the gold code or a code above it)
+among the first 1, 5 or 10 found, searching main terms only or all terms
+(`text2icd.eval.main_terms`). It chose the graph's tokenizer
+([architecture](architecture.md#knowledge-graph)) and will measure main-term selection in Phase 5.
+
 ## Protocol
 
 - `text2icd eval run -d <dataset> -s <system>` runs a system on one split (`dev` by default; `test`

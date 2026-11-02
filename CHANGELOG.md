@@ -136,6 +136,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   Providers live behind one interface (`text2icd.llm.providers`, optional extra `llm`; Anthropic
   API first), and `eval run` refuses LLM systems on MIMIC-IV datasets unless the endpoint is on
   the cited allow-list and `TEXT2ICD_REQUIRE_DUA_COMPLIANT_ENDPOINT` is on.
+- Main-term recall (`text2icd eval main-terms`): the share of phrases for which Index search finds a
+  main term leading to the gold code, at 1, 5 and 10, searching main terms or all terms. It
+  confirms the `porter` tokenizer as the default: 49.6% against 45.9% for `unicode61` at 1 on
+  `mimic-silver` dev, and 88.3% against 83.6% at 10 searching all terms.
 
 ### Fixed
 
