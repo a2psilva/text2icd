@@ -163,6 +163,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `setting` (`inpatient` by default, or `outpatient`) applies the uncertain-diagnosis rule: coded
   as if established inpatient (II.H, III.C), not coded outpatient (IV.H). Resolved is a personal
   history, never remission.
+- Condition splitter and parsed phrases (`text2icd.text.split`, `text2icd.text.parse`,
+  `text2icd parse "<phrase>"`): list items, comma fragments, linking connectors (with, without, due
+  to, secondary to, complicated by, in the setting of, on) and lists (and, or, vs, /) give the
+  conditions of a phrase, their relations and their diagnoses. Index terms from the graph
+  (`text2icd.text.terms.Terms`) decide which parts name a condition, keep CMS terms and Index
+  "with" combinations whole ("nausea and vomiting"), and let a comma continue an Index path
+  ("anemia, hemolytic"). Each condition gets the cues that cover it, its status, certainty and
+  whether it is coded, in a `ParsedPhrase` with the trace of every step.
+- Modifiers: the Tabular List's 7th-character wording ("initial encounter for closed fracture") is
+  an episode of care, and may hold a fracture type.
 
 ### Fixed
 

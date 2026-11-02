@@ -70,6 +70,7 @@ from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
 from text2icd.text.abbreviations import default_lexicon
+from text2icd.text.parse import Parser, describe_parsed
 from text2icd.text.terms import vocabulary
 
 app = typer.Typer(
@@ -205,6 +206,41 @@ def data_stats(
         failed = failed or not report.ok
     if failed:
         raise typer.Exit(code=1)
+
+
+@app.command("parse")
+def parse_command(
+    phrase: Annotated[str, typer.Argument(help="A diagnosis phrase.")],
+    setting: Annotated[
+        str,
+        typer.Option(help="inpatient (uncertain diagnoses coded as if established) or outpatient."),
+    ] = "inpatient",
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the parsed phrase as JSON.")
+    ] = False,
+    no_graph: Annotated[
+        bool, typer.Option("--no-graph", help="Parse without the graph's Index terms.")
+    ] = False,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Show how text understanding reads a phrase: conditions, relations and trace."""
+    if setting not in ("inpatient", "outpatient"):
+        typer.echo("error: --setting is inpatient or outpatient", err=True)
+        raise typer.Exit(code=2)
+    if no_graph:
+        parser = Parser(setting="outpatient" if setting == "outpatient" else "inpatient")
+    else:
+        with _open_graph(release, graph_path, data_dir) as graph:
+            parser = Parser.from_graph(
+                graph, "outpatient" if setting == "outpatient" else "inpatient"
+            )
+    parsed = parser.parse(phrase)
+    if as_json:
+        typer.echo(parsed.model_dump_json(indent=2))
+        return
+    typer.echo("\n".join(describe_parsed(parsed)))
 
 
 @app.command("build-graph")

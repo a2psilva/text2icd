@@ -345,7 +345,7 @@ def _leads(segments: tuple[str, ...]) -> Iterator[tuple[str, tuple[str, ...]]]:
 def _lookup(table: Mapping[str, list[tuple[_K, int]]], text: str) -> dict[_K, int]:
     """Entries of `table` under any lenient form of `text`, each with its best rank."""
     hits: dict[_K, int] = {}
-    for form in _forms(text):
+    for form in title_forms(text):
         for key, rank in table.get(form, ()):
             hits[key] = min(rank, hits.get(key, rank))
     return hits
@@ -357,7 +357,7 @@ def _normalize(text: str) -> str:
 
 
 @lru_cache(maxsize=65536)
-def _forms(text: str) -> frozenset[str]:
+def title_forms(text: str) -> frozenset[str]:
     """Lenient forms of a title or segment: `Light-for-dates (infant)` -> `light for dates`, ..."""
     base = _normalize(text)
     forms = {base, _normalize(_PARENS.sub("", base))}
@@ -374,12 +374,12 @@ def _term_forms(term: IndexTerm) -> dict[str, int]:
     """Lenient forms of a term's title with their rank: 0 for the title and for its head, the part
     before the first comma (`Fracture, traumatic`, `Disease, diseased`); 1 for the other parts and
     the alternatives of "or" (`Abortion or miscarriage`)."""
-    exact = _forms(term.title) | _forms(term.display_title)
+    exact = title_forms(term.title) | title_forms(term.display_title)
     if "s" in term.nonessential:  # Complication(s)
-        exact |= _forms(term.title + "s")
-    heads = {form for title in exact for form in _forms(title.split(",")[0])}
+        exact |= title_forms(term.title + "s")
+    heads = {form for title in exact for form in title_forms(title.split(",")[0])}
     alternates = {
-        form for title in exact for part in re.split(r",| or ", title) for form in _forms(part)
+        form for title in exact for part in re.split(r",| or ", title) for form in title_forms(part)
     }
     alternates |= {_TRAILING_CONNECTOR.sub("", form) for form in exact | heads | alternates}
     ranked = dict.fromkeys(alternates, 1)

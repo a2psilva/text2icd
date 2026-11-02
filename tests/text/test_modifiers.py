@@ -56,6 +56,14 @@ CASES = [
     ("profound intellectual disability", [("severity", "profound")]),
     # episode of care
     ("femur fracture, initial encounter", [("episode", "initial")]),
+    (
+        "skull fracture, initial encounter for closed fracture",
+        [("episode", "initial"), ("fracture", "closed")],
+    ),
+    (
+        "fracture of tibia, subsequent encounter for open fracture type IIIA with delayed healing",
+        [("episode", "subsequent"), ("fracture", "open"), ("episode", "delayed_healing")],
+    ),
     ("burn of hand, subsequent encounter", [("episode", "subsequent")]),
     ("sequela of stroke", [("episode", "sequela")]),
     ("late effects of polio", [("episode", "sequela")]),

@@ -4,6 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from text2icd.text.abbreviations import Expansion
+from text2icd.trace import TraceStep
+
 ModifierKind = Literal[
     "laterality",  # left, right, bilateral, unilateral
     "acuity",  # acute, subacute, chronic, acute_on_chronic
@@ -74,3 +77,71 @@ class Cue(BaseModel):
     @property
     def family(self) -> CueFamily:
         return CUE_FAMILY[self.kind]
+
+
+RelationKind = Literal[
+    "with",  # with, associated with
+    "without",
+    "due_to",  # due to, secondary to, caused by, related to
+    "complicated_by",
+    "in",  # in the setting of, in the context of
+    "on",  # AKI on CKD, ESRD on hemodialysis
+    "and",
+    "or",
+    "versus",
+]
+LINKING: frozenset[RelationKind] = frozenset(
+    {"with", "without", "due_to", "complicated_by", "in", "on"}
+)
+
+
+class Relation(BaseModel):
+    """Two conditions joined by a connector. `head` and `linked` index `ParsedPhrase.conditions`:
+    in "AKI due to dehydration" the head is AKI and the linked condition dehydration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: RelationKind
+    head: int
+    linked: int
+    text: str  # the connector, as in the normalised phrase
+
+    @property
+    def links(self) -> bool:
+        """Whether the conditions belong to one diagnosis (`with`, `due to`), rather than being
+        listed side by side (`and`, `or`, `vs`)."""
+        return self.kind in LINKING
+
+
+class Condition(BaseModel):
+    """One condition of a phrase."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    text: str  # its words without cue words: what the Index walk reads
+    start: int  # its span in the normalised phrase, refinements and qualifiers included
+    end: int
+    modifiers: tuple[Modifier, ...] = ()
+    cues: tuple[Cue, ...] = ()  # the cues that cover it
+    status: Status = "current"
+    certainty: Certainty = "affirmed"
+    reportable: bool = True  # whether it leads to a code (for a history, a history code)
+    diagnosis: int = 0  # its group in ParsedPhrase.diagnoses
+
+
+class ParsedPhrase(BaseModel):
+    """A phrase as text understanding reads it: its conditions, how they relate, and every step
+    that led there."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    original: str
+    normalized: str
+    setting: Setting
+    conditions: tuple[Condition, ...]
+    relations: tuple[Relation, ...] = ()
+    diagnoses: tuple[tuple[int, ...], ...] = ()  # conditions joined by linking relations
+    expansions: tuple[Expansion, ...] = ()
+    unknown: tuple[str, ...] = ()  # abbreviation-like tokens with no lexicon entry
+    flags: tuple[str, ...] = ()
+    trace: tuple[TraceStep, ...] = ()
