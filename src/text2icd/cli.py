@@ -1,5 +1,6 @@
 """Command-line interface for text2icd."""
 
+import itertools
 import sqlite3
 from collections import Counter
 from contextlib import closing
@@ -11,18 +12,31 @@ from pydantic import JsonValue
 
 from text2icd import __version__
 from text2icd.config import Settings
+from text2icd.embeddings import EmbeddingsUnavailableError, OnnxEmbedder
 from text2icd.eval import report as eval_report
 from text2icd.eval import synthetic
 from text2icd.eval.datasets import (
     DatasetError,
     check_dataset,
     read_dataset,
+    read_manifest,
     summarize,
     write_dataset,
     write_manifest,
 )
-from text2icd.eval.mimic.files import DISCHARGE, MimicFilesMissingError, mimic_file, read_notes
+from text2icd.eval.mimic import align as mimic_align
+from text2icd.eval.mimic.files import (
+    DIAGNOSES,
+    DISCHARGE,
+    MimicFilesMissingError,
+    mimic_file,
+    read_notes,
+)
+from text2icd.eval.mimic.gold import admission_codes
 from text2icd.eval.mimic.sections import SectionStats
+from text2icd.eval.mimic.silver import SOURCE as SILVER
+from text2icd.eval.mimic.silver import build_silver
+from text2icd.eval.mimic.splits import FrozenSplitError, check_frozen, freeze
 from text2icd.eval.runner import (
     RunError,
     SplitChoice,
@@ -446,6 +460,7 @@ def eval_run(
                 limit=limit,
                 seed=seed,
                 resamples=resamples,
+                frozen_dir=settings.eval_dir(),
             )
         except (RunError, DatasetError) as exc:
             typer.echo(f"error: {exc}", err=True)
@@ -518,6 +533,92 @@ def mimic_sections(
         if limit is not None and number >= limit:
             break
     typer.echo("\n".join(stats.lines()))
+
+
+@mimic_app.command("silver")
+def mimic_silver(
+    release: ReleaseOption = None,
+    model: Annotated[
+        str, typer.Option(help="Aligner embedding model (Hugging Face repo with an ONNX export).")
+    ] = mimic_align.DEFAULT_MODEL,
+    model_file: Annotated[str, typer.Option(help="ONNX file in the repo.")] = (
+        "onnx/model_quantized.onnx"
+    ),
+    min_score: Annotated[float, typer.Option(help="Lowest similarity kept.")] = (
+        mimic_align.MIN_SCORE
+    ),
+    min_margin: Annotated[float, typer.Option(help="Lowest margin over the next code.")] = (
+        mimic_align.MIN_MARGIN
+    ),
+    limit: Annotated[int | None, typer.Option(min=1, help="Read only the first N notes.")] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Default: data/processed/eval/mimic-silver.jsonl."),
+    ] = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Build mimic-silver: discharge diagnosis items aligned to their admission's billed codes.
+    Local only; prints aggregate counts."""
+    settings = _settings(data_dir)
+    target = _full_release(release or settings.release)
+    try:
+        notes_path = mimic_file(settings, DISCHARGE)
+        codes_path = mimic_file(settings, DIAGNOSES)
+        reconciler = load_reconciler(target.id, settings)
+        embedder = OnnxEmbedder(model, model_file)
+    except (FileNotFoundError, EmbeddingsUnavailableError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    codes = admission_codes(codes_path)
+    notes = read_notes(notes_path)
+    if limit is not None:
+        notes = itertools.islice(notes, limit)
+    examples, stats = build_silver(
+        notes, codes, reconciler, embedder, min_score=min_score, min_margin=min_margin
+    )
+    target_path = output or settings.eval_dir() / f"{SILVER}.jsonl"
+    try:
+        check_frozen(settings.eval_dir(), SILVER, examples)
+    except FrozenSplitError as exc:
+        typer.echo(f"error: {exc}; not written", err=True)
+        raise typer.Exit(code=1) from exc
+    write_dataset(target_path, examples)
+    write_manifest(
+        target_path,
+        examples,
+        name=SILVER,
+        aligner=embedder.model,
+        min_score=min_score,
+        min_margin=min_margin,
+        notes_limit=limit,
+        sources={
+            "discharge": {"file": notes_path.name, "bytes": notes_path.stat().st_size},
+            "diagnoses": {"file": codes_path.name, "bytes": codes_path.stat().st_size},
+        },
+        text2icd=__version__,
+    )
+    typer.echo(str(target_path))
+    typer.echo("\n".join(stats.lines()))
+    typer.echo("\n".join(summarize(examples).lines()))
+
+
+@mimic_app.command("freeze")
+def mimic_freeze(
+    dataset: Annotated[str, typer.Option("--dataset", "-d", help="Dataset file or name.")],
+    data_dir: DataDirOption = None,
+) -> None:
+    """Freeze a dataset's test split: record its hash, so it cannot change unnoticed."""
+    settings = _settings(data_dir)
+    try:
+        path = resolve_dataset(dataset, load_registry().get(settings.release).id, settings)
+        examples = read_dataset(path)
+        name = str(read_manifest(path).get("name") or path.name.removesuffix(".jsonl"))
+        digest = freeze(settings.eval_dir(), name, examples)
+    except (RunError, DatasetError, FrozenSplitError, OSError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    tests = sum(e.split == "test" for e in examples)
+    typer.echo(f"froze the test split of {name}: {tests:,} examples, sha256 {digest}")
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:

@@ -113,3 +113,20 @@ def test_release_embedding_baseline(release_graph: Callable[[str], BuildReport])
         )
     assert diabetes.primary == "E11.22"
     assert "J69.0" in pneumonia.ranked
+
+
+@pytest.mark.slow
+def test_onnx_sapbert() -> None:
+    pytest.importorskip("onnxruntime")
+    from text2icd.embeddings import OnnxEmbedder
+    from text2icd.eval.mimic.align import DEFAULT_MODEL
+
+    embedder = OnnxEmbedder(DEFAULT_MODEL, batch_size=2)
+    vectors = embedder.encode(
+        ["HTN", "Essential (primary) hypertension", "Acute kidney failure, unspecified"]
+    )
+    assert vectors.shape == (3, embedder.dim)
+    assert np.allclose(np.linalg.norm(vectors, axis=1), 1.0, atol=1e-5)
+    similarity = vectors @ vectors.T
+    assert similarity[0, 1] > similarity[0, 2] + 0.2
+    assert embedder.encode([]).shape == (0, embedder.dim)
