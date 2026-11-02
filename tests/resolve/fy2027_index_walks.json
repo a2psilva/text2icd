@@ -1,0 +1,557 @@
+{
+ "release": "fy2027",
+ "about": "Index-walk cases drawn from the FY2027 Alphabetic Index (public domain): a seeded sample (2027) of five terms per code chapter letter, among terms with one code, no manifestation, no cross-reference and no NEC or 'specified' in their path. Each phrase is the path read as a coder would say it (eval.synthetic.index_phrase); the expected code is the one the Index gives.",
+ "cases": [
+  {
+   "phrase": "blennorrhagic cystitis",
+   "code": "A54.01",
+   "path": "Cystitis > blennorrhagic"
+  },
+  {
+   "phrase": "dementia paralysis",
+   "code": "A52.17",
+   "path": "Paralysis, paralytic > dementia"
+  },
+  {
+   "phrase": "cystitis chlamydia",
+   "code": "A56.01",
+   "path": "Chlamydia, chlamydial > cystitis"
+  },
+  {
+   "phrase": "primary tracheobronchial tuberculous adenopathy",
+   "code": "A15.7",
+   "path": "Adenopathy > tuberculous > tracheobronchial > primary"
+  },
+  {
+   "phrase": "ulcer syphilis",
+   "code": "A51.39",
+   "path": "Syphilis, syphilitic > ulcer"
+  },
+  {
+   "phrase": "chronic D hepatitis",
+   "code": "B18.0",
+   "path": "Hepatitis > D > chronic"
+  },
+  {
+   "phrase": "coxsackie pericarditis",
+   "code": "B33.23",
+   "path": "Pericarditis > coxsackie"
+  },
+  {
+   "phrase": "Dipylidium caninum infection",
+   "code": "B67.4",
+   "path": "Infection, infected, infective > Dipylidium caninum"
+  },
+  {
+   "phrase": "febrile jaundice",
+   "code": "B15.9",
+   "path": "Jaundice > febrile"
+  },
+  {
+   "phrase": "parasitic sycosis",
+   "code": "B35.0",
+   "path": "Sycosis > parasitic"
+  },
+  {
+   "phrase": "embryonal hepatoma",
+   "code": "C22.0",
+   "path": "Hepatoma > embryonal"
+  },
+  {
+   "phrase": "skin melanoma of lip",
+   "code": "C43.0",
+   "path": "Melanoma > skin > lip"
+  },
+  {
+   "phrase": "hepatocarcinoma",
+   "code": "C22.0",
+   "path": "Hepatocarcinoma"
+  },
+  {
+   "phrase": "sarcoma mast cell",
+   "code": "C96.22",
+   "path": "Mast cell > sarcoma"
+  },
+  {
+   "phrase": "dermoid tumor with malignant transformation",
+   "code": "C56",
+   "path": "Tumor > dermoid > with malignant transformation"
+  },
+  {
+   "phrase": "blood disease of forming organs",
+   "code": "D75.9",
+   "path": "Disease, diseased > blood > forming organs"
+  },
+  {
+   "phrase": "hemoglobinopathy with thalassemia",
+   "code": "D56.8",
+   "path": "Hemoglobinopathy > with thalassemia"
+  },
+  {
+   "phrase": "hypercoagulable prothrombin gene mutation",
+   "code": "D68.52",
+   "path": "Hypercoagulable > prothrombin gene mutation"
+  },
+  {
+   "phrase": "myelodysplastic anemia",
+   "code": "D46.9",
+   "path": "Anemia > myelodysplastic"
+  },
+  {
+   "phrase": "melanoma in situ, chest wall",
+   "code": "D03.59",
+   "path": "Melanoma > in situ > chest wall"
+  },
+  {
+   "phrase": "metabolism disturbance of ornithine",
+   "code": "E72.4",
+   "path": "Disturbance > metabolism > ornithine"
+  },
+  {
+   "phrase": "elevated cholesterol",
+   "code": "E78.00",
+   "path": "Cholesterol > elevated"
+  },
+  {
+   "phrase": "citrate transporter SLC13A5 disorder",
+   "code": "E74.820",
+   "path": "Disorder > citrate transporter, SLC13A5"
+  },
+  {
+   "phrase": "undeveloped testis",
+   "code": "E29.1",
+   "path": "Undeveloped, undevelopment > testis"
+  },
+  {
+   "phrase": "congenital glycosylation disorder",
+   "code": "E74.89",
+   "path": "Disorder > congenital glycosylation"
+  },
+  {
+   "phrase": "traumatic encephalopathy",
+   "code": "F07.81",
+   "path": "Encephalopathy > traumatic"
+  },
+  {
+   "phrase": "pathologic liar",
+   "code": "F60.2",
+   "path": "Liar, pathologic"
+  },
+  {
+   "phrase": "cognitive disorder due to general medical condition",
+   "code": "F09",
+   "path": "Disorder > cognitive > due to general medical condition"
+  },
+  {
+   "phrase": "psychogenic diarrhea",
+   "code": "F45.8",
+   "path": "Diarrhea, diarrheal > psychogenic"
+  },
+  {
+   "phrase": "opioid use with intoxication, with delirium",
+   "code": "F11.921",
+   "path": "Use > opioid > with > intoxication > with > delirium"
+  },
+  {
+   "phrase": "multiplex mononeuropathy",
+   "code": "G58.7",
+   "path": "Mononeuropathy > multiplex"
+  },
+  {
+   "phrase": "radiation-induced myelopathy",
+   "code": "G95.89",
+   "path": "Myelopathy > radiation-induced"
+  },
+  {
+   "phrase": "intracranial granuloma",
+   "code": "G06.0",
+   "path": "Granuloma > intracranial"
+  },
+  {
+   "phrase": "chronic pain of neoplasm related",
+   "code": "G89.3",
+   "path": "Pain > chronic > neoplasm related"
+  },
+  {
+   "phrase": "inflammatory chronic demyelinating polyneuritis",
+   "code": "G61.81",
+   "path": "Polyneuritis, polyneuritic > inflammatory, chronic demyelinating"
+  },
+  {
+   "phrase": "divergence excess",
+   "code": "H51.8",
+   "path": "Excess, excessive, excessively > divergence"
+  },
+  {
+   "phrase": "dacryocystitis",
+   "code": "H04.30",
+   "path": "Dacryocystitis"
+  },
+  {
+   "phrase": "petrificans keratitis",
+   "code": "H16.8",
+   "path": "Keratitis > petrificans"
+  },
+  {
+   "phrase": "right spastic entropion",
+   "code": "H02.043",
+   "path": "Entropion > spastic > right"
+  },
+  {
+   "phrase": "vitreoretinal dystrophy",
+   "code": "H35.51",
+   "path": "Dystrophy, dystrophia > vitreoretinal"
+  },
+  {
+   "phrase": "Raynaud's syndrome with gangrene",
+   "code": "I73.01",
+   "path": "Syndrome > Raynaud's > with gangrene"
+  },
+  {
+   "phrase": "arteriosclerosis with critical limb ischemia, bypass graft, nonautologous biological graft, leg, with rest pain",
+   "code": "I70.529",
+   "path": "Arteriosclerosis, arteriosclerotic > with > critical limb ischemia > bypass graft > nonautologous biological graft > leg > with > rest pain"
+  },
+  {
+   "phrase": "postprocedural complication of cardiac insufficiency following other surgery",
+   "code": "I97.111",
+   "path": "Complication > postprocedural > cardiac insufficiency > following other surgery"
+  },
+  {
+   "phrase": "coronary arteriosclerosis of bypass graft, autologous vein with ischemic chest pain",
+   "code": "I25.719",
+   "path": "Arteriosclerosis, arteriosclerotic > coronary > bypass graft > autologous vein > with > ischemic chest pain"
+  },
+  {
+   "phrase": "pulmonary endocarditis",
+   "code": "I37.8",
+   "path": "Endocarditis > pulmonary"
+  },
+  {
+   "phrase": "Millar's asthma",
+   "code": "J38.5",
+   "path": "Millar's asthma"
+  },
+  {
+   "phrase": "interstitial lung disease with progressive fibrotic phenotype, in diseases classified elsewhere",
+   "code": "J84.170",
+   "path": "Disease, diseased > lung > interstitial > with progressive fibrotic phenotype, in diseases classified elsewhere"
+  },
+  {
+   "phrase": "vocal cords paralysis",
+   "code": "J38.00",
+   "path": "Paralysis, paralytic > vocal cords"
+  },
+  {
+   "phrase": "bagasse disease or pneumonitis",
+   "code": "J67.1",
+   "path": "Bagasse disease or pneumonitis"
+  },
+  {
+   "phrase": "chronic obstructive pulmonary disease with acute bronchitis",
+   "code": "J44.0",
+   "path": "Disease, diseased > pulmonary > chronic obstructive > with > acute bronchitis"
+  },
+  {
+   "phrase": "edentulous irritative hyperplasia",
+   "code": "K06.2",
+   "path": "Hyperplasia, hyperplastic > irritative, edentulous"
+  },
+  {
+   "phrase": "tongue hemorrhage",
+   "code": "K14.8",
+   "path": "Hemorrhage, hemorrhagic > tongue"
+  },
+  {
+   "phrase": "eosinophilic peritonitis",
+   "code": "K65.8",
+   "path": "Peritonitis > eosinophilic"
+  },
+  {
+   "phrase": "hairy tongue black",
+   "code": "K14.3",
+   "path": "Black > hairy tongue"
+  },
+  {
+   "phrase": "dermoid cyst of mouth",
+   "code": "K09.8",
+   "path": "Cyst > dermoid > mouth"
+  },
+  {
+   "phrase": "Brocq's disease of meaning, prurigo",
+   "code": "L28.2",
+   "path": "Disease, diseased > Brocq's > meaning > prurigo"
+  },
+  {
+   "phrase": "phototoxic response",
+   "code": "L56.0",
+   "path": "Response > phototoxic"
+  },
+  {
+   "phrase": "maculatum atrophoderma of et striatum",
+   "code": "L90.8",
+   "path": "Atrophoderma, atrophodermia > maculatum > et striatum"
+  },
+  {
+   "phrase": "senile atrophy due to radiation",
+   "code": "L57.8",
+   "path": "Atrophy, atrophic > senile > due to radiation"
+  },
+  {
+   "phrase": "right upper limb ulcer of upper arm with muscle necrosis",
+   "code": "L98.A113",
+   "path": "Ulcer, ulcerated, ulcerating, ulceration, ulcerative > upper limb > upper arm > right > with > muscle necrosis"
+  },
+  {
+   "phrase": "idiopathic scoliosis of adolescent, thoracolumbar region",
+   "code": "M41.125",
+   "path": "Scoliosis > idiopathic > adolescent > thoracolumbar region"
+  },
+  {
+   "phrase": "rheumatoid carditis",
+   "code": "M05.30",
+   "path": "Rheumatoid > carditis"
+  },
+  {
+   "phrase": "acquired osteosclerosis",
+   "code": "M85.8",
+   "path": "Osteosclerosis > acquired"
+  },
+  {
+   "phrase": "villonodular synovitis",
+   "code": "M12.2",
+   "path": "Synovitis > villonodular"
+  },
+  {
+   "phrase": "hematogenous acute osteomyelitis of metacarpus",
+   "code": "M86.04",
+   "path": "Osteomyelitis > acute > hematogenous > metacarpus"
+  },
+  {
+   "phrase": "subacute nephritis",
+   "code": "N01.9",
+   "path": "Nephritis, nephritic > subacute"
+  },
+  {
+   "phrase": "previous isthmocele cesarean delivery",
+   "code": "N85.A",
+   "path": "Cesarean delivery, previous, affecting management of pregnancy > isthmocele",
+   "xfail": "the phrase drops 'affecting management of pregnancy', and the walk takes the pregnancy scar code O34.22"
+  },
+  {
+   "phrase": "granulomatous prostatitis",
+   "code": "N41.4",
+   "path": "Prostatitis > granulomatous"
+  },
+  {
+   "phrase": "development breast excess",
+   "code": "N62",
+   "path": "Excess, excessive, excessively > development, breast"
+  },
+  {
+   "phrase": "skin endometriosis",
+   "code": "N80.6",
+   "path": "Endometriosis > skin"
+  },
+  {
+   "phrase": "puerperal peritoneum abscess of postpartum, childbirth",
+   "code": "O85",
+   "path": "Abscess > peritoneum, peritoneal > puerperal, postpartum, childbirth"
+  },
+  {
+   "phrase": "complicated delivery by cord, thrombosis",
+   "code": "O69.5",
+   "path": "Delivery > complicated > by > cord > thrombosis"
+  },
+  {
+   "phrase": "pelvic perforation of floor following ectopic or molar pregnancy",
+   "code": "O08.6",
+   "path": "Perforation, perforated > pelvic > floor > following ectopic or molar pregnancy"
+  },
+  {
+   "phrase": "puerperal trauma non-obstetric",
+   "code": "O9A.23",
+   "path": "Puerperal, puerperium > trauma, non-obstetric"
+  },
+  {
+   "phrase": "failed cesarean delivery of ventouse",
+   "code": "O66.5",
+   "path": "Delivery > cesarean > failed > ventouse"
+  },
+  {
+   "phrase": "transitory neonatal thrombocytopenia due to isoimmunization",
+   "code": "P61.0",
+   "path": "Thrombocytopenia, thrombocytopenic > neonatal, transitory > due to > isoimmunization"
+  },
+  {
+   "phrase": "obstructive newborn apnea",
+   "code": "P28.42",
+   "path": "Apnea, apneic > newborn > obstructive"
+  },
+  {
+   "phrase": "newborn hemorrhagic disease",
+   "code": "P53",
+   "path": "Disease, diseased > hemorrhagic > newborn"
+  },
+  {
+   "phrase": "newborn temperature regulation disorder",
+   "code": "P81.9",
+   "path": "Disorder > temperature regulation, newborn"
+  },
+  {
+   "phrase": "subcutaneous fat necrosis of due to birth injury",
+   "code": "P15.6",
+   "path": "Necrosis, necrotic > fat, fatty > subcutaneous, due to birth injury"
+  },
+  {
+   "phrase": "Robinow-Silverman-Smith syndrome",
+   "code": "Q87.19",
+   "path": "Robinow-Silverman-Smith syndrome"
+  },
+  {
+   "phrase": "congenital intestine absence",
+   "code": "Q41.9",
+   "path": "Absence > intestine > congenital"
+  },
+  {
+   "phrase": "bilateral kidney atrophy of congenital or infantile",
+   "code": "Q60.4",
+   "path": "Atrophy, atrophic > kidney > congenital or infantile > bilateral"
+  },
+  {
+   "phrase": "accessory oviduct",
+   "code": "Q50.6",
+   "path": "Accessory > oviduct"
+  },
+  {
+   "phrase": "abnormal development central nervous system",
+   "code": "Q07.9",
+   "path": "Abnormal, abnormality, abnormalities > development, developmental > central nervous system"
+  },
+  {
+   "phrase": "localized mass of chest",
+   "code": "R22.2",
+   "path": "Mass > localized > chest"
+  },
+  {
+   "phrase": "disorientation",
+   "code": "R41.0",
+   "path": "Disorientation"
+  },
+  {
+   "phrase": "melanuria",
+   "code": "R82.998",
+   "path": "Melanuria"
+  },
+  {
+   "phrase": "elevated SGOT",
+   "code": "R74.01",
+   "path": "Elevated, elevation > SGOT"
+  },
+  {
+   "phrase": "essential microscopic benign hematuria",
+   "code": "R31.1",
+   "path": "Hematuria > benign > essential microscopic"
+  },
+  {
+   "phrase": "physeal femoral traumatic femur fracture of upper end",
+   "code": "S79.00",
+   "path": "Fracture, traumatic > femur, femoral > upper end > physeal"
+  },
+  {
+   "phrase": "mesenteric injury of artery, inferior",
+   "code": "S35.239",
+   "path": "Injury > mesenteric > artery > inferior"
+  },
+  {
+   "phrase": "traumatic thorax fracture of vertebra, eighth",
+   "code": "S22.069",
+   "path": "Fracture, traumatic > thorax > vertebra > eighth"
+  },
+  {
+   "phrase": "neck sprain of cricothyroid ligament",
+   "code": "S13.5",
+   "path": "Sprain > neck > cricothyroid ligament"
+  },
+  {
+   "phrase": "small intestine injury of laceration, duodenum",
+   "code": "S36.430",
+   "path": "Injury > intestine > small > laceration > duodenum"
+  },
+  {
+   "phrase": "first degree right palm corrosion",
+   "code": "T23.551",
+   "path": "Corrosion > palm > right > first degree"
+  },
+  {
+   "phrase": "complication of electronic stimulator device, bone, breakdown",
+   "code": "T84.310",
+   "path": "Complication > electronic stimulator device > bone > breakdown"
+  },
+  {
+   "phrase": "third degree above elbow corrosion",
+   "code": "T22.739",
+   "path": "Corrosion > above elbow > third degree"
+  },
+  {
+   "phrase": "first degree palm corrosion",
+   "code": "T23.559",
+   "path": "Corrosion > palm > first degree"
+  },
+  {
+   "phrase": "mechanical breast implant complication of protrusion",
+   "code": "T85.49",
+   "path": "Complication > breast implant > mechanical > protrusion"
+  },
+  {
+   "phrase": "COVID-19 sequelae",
+   "code": "U09.9",
+   "path": "Sequelae > COVID-19"
+  },
+  {
+   "phrase": "organ disease of vaping",
+   "code": "U07.0",
+   "path": "Disease, diseased > organ > vaping"
+  },
+  {
+   "phrase": "organ disease of dabbing",
+   "code": "U07.0",
+   "path": "Disease, diseased > organ > dabbing"
+  },
+  {
+   "phrase": "COVID-19 condition post",
+   "code": "U09.9",
+   "path": "COVID-19 > condition post"
+  },
+  {
+   "phrase": "organ disease of electronic cigarette",
+   "code": "U07.0",
+   "path": "Disease, diseased > organ > electronic cigarette"
+  },
+  {
+   "phrase": "scapegoating affecting child",
+   "code": "Z62.3",
+   "path": "Scapegoating affecting child"
+  },
+  {
+   "phrase": "metabolic malnutrition screening",
+   "code": "Z13.228",
+   "path": "Screening > malnutrition > metabolic"
+  },
+  {
+   "phrase": "problem of negative life events in childhood",
+   "code": "Z62.9",
+   "path": "Problem > negative life events in childhood"
+  },
+  {
+   "phrase": "insulin pump presence",
+   "code": "Z96.41",
+   "path": "Presence > insulin pump"
+  },
+  {
+   "phrase": "medical counseling of consanguinity",
+   "code": "Z71.89",
+   "path": "Counseling > medical > consanguinity"
+  }
+ ]
+}
