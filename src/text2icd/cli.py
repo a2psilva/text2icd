@@ -25,6 +25,7 @@ from text2icd.eval.datasets import (
     write_manifest,
 )
 from text2icd.eval.mimic import align as mimic_align
+from text2icd.eval.mimic import audit
 from text2icd.eval.mimic.files import (
     DIAGNOSES,
     DISCHARGE,
@@ -79,6 +80,11 @@ mimic_app = typer.Typer(
     no_args_is_help=True,
 )
 eval_app.add_typer(mimic_app, name="mimic")
+audit_app = typer.Typer(
+    help="Review a random sample of silver labels by hand and estimate their precision.",
+    no_args_is_help=True,
+)
+mimic_app.add_typer(audit_app, name="audit")
 
 DataDirOption = Annotated[
     Path | None,
@@ -619,6 +625,76 @@ def mimic_freeze(
         raise typer.Exit(code=1) from exc
     tests = sum(e.split == "test" for e in examples)
     typer.echo(f"froze the test split of {name}: {tests:,} examples, sha256 {digest}")
+
+
+AuditFileOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--file", "-f", help="Review file (default: data/processed/eval/audit/mimic-silver.csv)."
+    ),
+]
+
+
+def _audit_file(settings: Settings, path: Path | None) -> Path:
+    return path or settings.eval_dir() / "audit" / f"{SILVER}.csv"
+
+
+@audit_app.command("sample")
+def audit_sample(
+    size: Annotated[int, typer.Option("--size", "-n", min=1, help="Rows to review.")] = (
+        audit.SAMPLE_SIZE
+    ),
+    seed: Annotated[int, typer.Option(help="Seed of the random sample.")] = 0,
+    file: AuditFileOption = None,
+    release: ReleaseOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Draw a random sample of mimic-silver dev examples into a review file."""
+    settings = _settings(data_dir)
+    target = _audit_file(settings, file)
+    try:
+        dataset = resolve_dataset(SILVER, "", settings)
+        examples = read_dataset(dataset)
+        reconciler = load_reconciler(_full_release(release or settings.release).id, settings)
+        count = audit.write_review(
+            target,
+            audit.sample_for_review(examples, size, seed),
+            lambda code: reconciler.descriptions.get(code, ""),
+        )
+    except (RunError, DatasetError, FileNotFoundError, FileExistsError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"{target}: {count} rows to review (local only; never share this file)")
+
+
+@audit_app.command("review")
+def audit_review(file: AuditFileOption = None, data_dir: DataDirOption = None) -> None:
+    """Give a verdict on each row in the terminal; progress is saved after each answer."""
+    path = _audit_file(_settings(data_dir), file)
+    if not path.is_file():
+        typer.echo(f"error: {path} not found; run `text2icd eval mimic audit sample`", err=True)
+        raise typer.Exit(code=1)
+    rows = audit.read_review(path)
+    typer.echo(audit.REVIEW_HELP)
+    given = audit.review(
+        rows,
+        ask=lambda prompt: input(prompt),
+        say=typer.echo,
+        save=lambda current: audit.save_review(path, current),
+    )
+    typer.echo(f"{given} verdicts given; " + audit.precision(rows).line())
+
+
+@audit_app.command("score")
+def audit_score(file: AuditFileOption = None, data_dir: DataDirOption = None) -> None:
+    """The silver-label precision with a 95% interval, overall and by alignment score."""
+    path = _audit_file(_settings(data_dir), file)
+    if not path.is_file():
+        typer.echo(f"error: {path} not found; run `text2icd eval mimic audit sample`", err=True)
+        raise typer.Exit(code=1)
+    rows = audit.read_review(path)
+    typer.echo(audit.precision(rows).line())
+    typer.echo("\n".join(audit.by_score(rows, [0.70, 0.80, 0.90])))
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:
