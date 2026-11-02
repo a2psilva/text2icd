@@ -213,6 +213,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   (`seventh_character_assumed`) and placeholder `X`s; a diagnosis with no completable candidate
   gets no code (`needs_review`), never an invalid one. `text2icd code "<phrase>"` prints the code
   set and its trace, and `eval run -s coder` scores it.
+- Instructional notes in the code set (`text2icd.resolve.instructions`): `code first`, `use
+  additional code` and `code also` companions are taken from the set or found among the Index
+  paths the phrase documents in full, with a second walk of each condition ("type 2 DM with
+  diabetic CKD stage 3a" gives E11.22 and N18.31); optional instructions need words of their
+  own, and a mandatory one found nowhere is listed as `required_unresolved`. Excludes1 conflicts
+  keep the more specific code (`excludes1_conflict`, the other listed under `excluded`). The
+  codes are sequenced by the notes: `code first` before, `use additional code` after,
+  manifestations after their etiology, and a code "in diseases classified elsewhere" never
+  first. `CodeSet.sequence` gives each code's role and the code that brought it in.
 - Index-walk tests on FY2027: the worked examples of `docs/coder-workflow.md` and 110 cases drawn
   from the Index across all code chapters (`tests/resolve/fy2027_index_walks.json`).
 

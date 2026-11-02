@@ -267,9 +267,31 @@ Shared by every layer, so L2 and L3 can only propose; Tabular verification decid
 - Only billable codes come out: the coder (`text2icd.resolve.coder`) completes the Index
   candidates in rank order and keeps the first that completes; a diagnosis none completes gets no
   code and the flag `needs_review`. `text2icd code "<phrase>"` prints the code set and its trace.
-- Read notes: report Excludes1 conflicts within the code set, add `use_additional` and `code_first`
-  requirements as companion codes (resolved when the phrase supports them, otherwise listed as
-  required but unresolved), and order etiology before manifestation.
+- Read the instructional notes (`text2icd.resolve.instructions`). A code reads its own notes and
+  those of the categories above it.
+  - *Companion codes* (I.B.7): for each `code first`, `use additional code` and `code also`
+    instruction, a code of the set it names answers it; otherwise the coder looks for one among
+    the Index paths the phrase documents in full (no undocumented slot). These are the walk's
+    candidates, and for a diagnosis of several conditions a second walk of each condition alone,
+    so "type 2 DM with CKD stage 3a" gives E11.22 and then N18.31 (`use additional code to
+    identify stage of chronic kidney disease (N18.1-N18.6)`). An instruction is *mandatory*,
+    *conditional* ("if applicable", "if known", "any", or external causes only, I.C.20), or one
+    of a list of *alternatives*. An optional one is coded only when its path uses a word the
+    source's path does not, so "genetic susceptibility to malignant neoplasm" adds no neoplasm.
+    A mandatory one found nowhere is listed as `required_unresolved`: "use additional code"
+    means "if known", so it asks for review and does not invalidate the set.
+  - *Excludes1* (I.A.12.a): two codes of different diagnoses that exclude one another cannot
+    both stay; the more specific one is kept (more characters, then not an unspecified or
+    default code, then the higher score). The other code, and the codes it brought in, are
+    listed under `excluded` with the flag `excludes1_conflict`, since unrelated conditions are
+    an exception a reviewer can apply. Excludes2 pairs are allowed (I.A.12.b).
+  - *Sequencing*: `code first` puts the named code before, `use additional code` after, and
+    `code also` gives no order (I.B.7). An Index manifestation follows its etiology, and a code
+    "in diseases classified elsewhere" is never primary (I.A.13). A manifestation code with no
+    etiology coded before it lists its `code first` instructions as `required_unresolved`
+    ("anemia in neoplastic disease", D63.0).
+  The code set's `sequence` gives each code with its role (`diagnosis`, `manifestation`,
+  `code_first`, `use_additional`, `code_also`, `external_cause`) and the code that brought it in.
 - Apply guideline rules, each citing its section (for example I.A.15 "with", I.C.9.a hypertension).
 
 ### Confidence and escalation

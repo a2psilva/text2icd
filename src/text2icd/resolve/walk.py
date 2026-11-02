@@ -104,6 +104,7 @@ class Candidate(BaseModel):
     partial: bool = False
     manifestation: str | None = None  # the code in brackets, sequenced after `code` (I.A.13)
     score: float
+    penalty: float = 0.0  # what the path's undocumented slots cost (`MISSING` each)
     book: str = "index"
     column: int | None = None  # the table column of a cell
     path: str  # the deepest term reached
@@ -680,6 +681,7 @@ class IndexWalker:
             partial=code.partial,
             manifestation=manifestation.target if manifestation else None,
             score=round(state.score, 6),
+            penalty=round(state.penalty, 6),
             book=coded_at.book,
             column=coded.column,
             path=self.graph.term(state.term).path,

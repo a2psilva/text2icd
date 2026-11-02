@@ -84,7 +84,8 @@ def test_coder(graph: Graph) -> None:
     missing = coder.code("pneumonia")
     assert (missing.codes, missing.flags) == ((), (REVIEW,))
     lines = describe_code_set(coder.code("amyloid heart disease"))
-    assert lines[1].startswith("1. E85.4 [I43]  Organ-limited amyloidosis")
+    assert lines[1] == "codes: E85.4, I43 (manifestation)"
+    assert lines[2].startswith("1. E85.4 [I43]  Organ-limited amyloidosis")
     assert describe_code_set(missing)[1] == "no code"
 
 
@@ -126,7 +127,7 @@ def release(release_graph: Callable[[str], BuildReport]) -> Iterator[Graph]:
         ("malignant neoplasm of right upper lobe of lung", ("C34.11",)),
         ("malignant neoplasm of upper lobe of lung", ("C34.10",)),
         ("adverse effect of digoxin, initial encounter", ("T46.0X5A",)),
-        ("type 2 DM with diabetic CKD stage 3a", ("E11.22",)),
+        ("type 2 DM with diabetic CKD stage 3a", ("E11.22", "N18.31")),
         ("amyloid heart disease", ("E85.4", "I43")),
         (
             "mild nonproliferative diabetic retinopathy with macular edema due to underlying "
