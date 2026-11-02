@@ -590,7 +590,8 @@ def eval_main_terms(
     graph_path: GraphFileOption = None,
     data_dir: DataDirOption = None,
 ) -> None:
-    """Main-term recall of the graph's Index search on a dataset split (aggregate counts)."""
+    """Main-term recall of Index search and of the Index walk's main-term selection on a dataset
+    split (aggregate counts)."""
     settings = _settings(data_dir)
     with _open_graph(release, graph_path, data_dir) as graph:
         try:

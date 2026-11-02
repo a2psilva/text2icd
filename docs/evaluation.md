@@ -223,10 +223,24 @@ FY2027, `dev` split (67,812 phrases), 95% intervals:
 ## Main-term recall
 
 `text2icd eval main-terms -d <dataset>` measures the first step of the coder's workflow: whether
-Index search puts a right main term (one whose subterms lead to the gold code or a code above it)
-among the first 1, 5 or 10 found, searching main terms only or all terms
-(`text2icd.eval.main_terms`). It chose the graph's tokenizer
-([architecture](architecture.md#knowledge-graph)) and will measure main-term selection in Phase 5.
+a right main term (one whose subterms lead to the gold code or a code above it) is among the first
+1, 5 or 10 found (`text2icd.eval.main_terms`). Three ways are measured: Index search over main
+terms only (`main`), Index search over all terms (`any`), and the main-term selection of the Index
+walk on the normalised phrase (`coder`, main Index only). The first two chose the graph's
+tokenizer ([architecture](architecture.md#knowledge-graph)).
+
+FY2027, `cms-synthetic` dev (67,812 phrases):
+
+| Mode | Recall@1 | Recall@5 | Recall@10 |
+| --- | --- | --- | --- |
+| `main` | 38.3% | 65.1% | 75.5% |
+| `any` | 82.3% | 92.0% | 95.2% |
+| `coder` | 86.0% | 87.5% | 87.5% |
+
+`coder` searches the main Index only, so it cannot reach the 11% of phrases made from the
+Neoplasm Table and the Table of Drugs and Chemicals; on a sample of 5,000 dev phrases it ranks a
+right main term first for 97.2% of the phrases made from Index paths and 81.0% of those made from
+inclusion terms.
 
 ## Text understanding
 

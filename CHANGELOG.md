@@ -180,6 +180,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Abbreviation review (`text2icd eval mimic abbrev sample | review | score`, local only): 200
   expansions from dev discharge diagnoses, one per note, judged by hand, and the expansion
   accuracy with a 95% Wilson interval. The audit's review loop takes the lines to show.
+- Main-term selection for the Index walk (`text2icd.resolve.main_terms`): phrase and Index words
+  compared in shared forms (`text2icd.resolve.words`: singular, anatomical adjective to noun from
+  `resources/word_forms.toml`), typos corrected to the nearest Index word (`rapidfuzz`, a new
+  dependency), main terms that only say "see condition" dropped, and candidates ranked by what
+  they and their subterms can use, then by the head noun of the phrase. `text2icd eval main-terms`
+  measures it as the `coder` mode.
 
 ### Fixed
 
