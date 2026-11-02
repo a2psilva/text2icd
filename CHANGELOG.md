@@ -144,6 +144,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   spacing, clinical shorthand (`w/`, `w/o`, `s/p`, `c/b`, `2/2`, `h/o`, `r/o`, `hx`, ...), case
   folding, and Roman numerals of stages and diabetes types, with every rewrite recorded as a trace
   step (`text2icd.trace.TraceStep`).
+- Abbreviation lexicon (`src/text2icd/resources/abbreviations.toml`, `text2icd.text.abbreviations`):
+  440 clinical abbreviations written from medical knowledge, expanded before case folding.
+  Ambiguous ones (MS, ARF, PD) are resolved by hint words of the phrase or take their first meaning
+  with a flag, entries that are also English words (ALL, AS, CAP) match only in capitals, and
+  abbreviation-like tokens with no entry are listed. `normalize` takes the lexicon.
 
 ### Fixed
 
