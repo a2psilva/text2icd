@@ -1,4 +1,5 @@
-from collections.abc import Callable
+import sqlite3
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,19 @@ def fixture_release(tmp_path: Path, fixtures_dir: Path) -> ReleaseFiles:
         target.write_bytes((cms / f"{book}_sample.xml").read_bytes())
     (root / "order" / "icd10cm_order_2099.txt").write_bytes((cms / "order_sample.txt").read_bytes())
     return ReleaseFiles(root)
+
+
+@pytest.fixture
+def fixture_build(fixture_release: ReleaseFiles, tmp_path: Path) -> BuildReport:
+    """The graph of the fixture release `fy2099`."""
+    return build_graph(fixture_release, "fy2099", tmp_path / "graph" / "fy2099.sqlite")
+
+
+@pytest.fixture
+def fixture_db(fixture_build: BuildReport) -> Iterator[sqlite3.Connection]:
+    conn = sqlite3.connect(fixture_build.path)
+    yield conn
+    conn.close()
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

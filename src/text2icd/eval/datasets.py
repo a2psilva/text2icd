@@ -149,6 +149,35 @@ def to_line(example: Example) -> str:
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
+def manifest_path(path: Path) -> Path:
+    """`set.jsonl` -> `set.manifest.json`: how the dataset was made."""
+    return path.with_name(path.name.removesuffix(".jsonl") + ".manifest.json")
+
+
+def write_manifest(path: Path, examples: Sequence[Example], **made_with: JsonValue) -> Path:
+    """Write the dataset's manifest: its hash and counts, and how it was made."""
+    summary = summarize(examples)
+    manifest: dict[str, JsonValue] = {
+        "examples": summary.examples,
+        "sha256": summary.sha256,
+        "release": summary.release,
+        "splits": dict(summary.splits),
+        **made_with,
+    }
+    target = manifest_path(path)
+    target.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return target
+
+
+def read_manifest(path: Path) -> dict[str, JsonValue]:
+    """The manifest next to a dataset, or {} if there is none."""
+    target = manifest_path(path)
+    if not target.is_file():
+        return {}
+    data = json.loads(target.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {}
+
+
 def dataset_hash(examples: Iterable[Example]) -> str:
     """SHA-256 over the examples in id order, with every field: independent of line order and of
     how the file was formatted, so it identifies the content (recorded with each result)."""

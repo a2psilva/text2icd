@@ -1,0 +1,14 @@
+{
+  "examples": 1067,
+  "sha256": "0e542f5e197254b4e3a500c6afcd1e83a4be26bbc3749555605e85f1cc5e048b",
+  "release": "fy2027",
+  "splits": {
+    "dev": 536,
+    "test": 531
+  },
+  "name": "cms-synthetic",
+  "seed": 0,
+  "graph_sha256": "0f4d9e66aa9749b868cc355c48b96a8a466590ec2a1e7ddcbc06a874403d55e0",
+  "text2icd": "0.0.1",
+  "sample_of": "657463deee45f3d627db8f8db42285049acd165021046ee41244c721a769056a"
+}

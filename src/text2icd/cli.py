@@ -7,15 +7,18 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import JsonValue
 
 from text2icd import __version__
 from text2icd.config import Settings
+from text2icd.eval import synthetic
 from text2icd.eval.datasets import (
     DatasetError,
     check_dataset,
     read_dataset,
     summarize,
     write_dataset,
+    write_manifest,
 )
 from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reconcile_example
 from text2icd.fetch import FetchError, fetch_release, is_complete
@@ -323,6 +326,55 @@ def eval_reconcile(
         write_dataset(output, examples)
         typer.echo(f"{output}: {len(examples):,} examples against {target.id}")
         typer.echo("\n".join(summarize(examples).lines()))
+
+
+@eval_app.command("synth")
+def eval_synth(
+    release: ReleaseOption = None,
+    seed: Annotated[int, typer.Option(help="Seed for 7th characters and perturbations.")] = 0,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Full set (default: data/processed/eval/cms-synthetic-<release>.jsonl).",
+        ),
+    ] = None,
+    sample_output: Annotated[
+        Path | None,
+        typer.Option("--sample-output", help="Also write a stratified sample here."),
+    ] = None,
+    sample_size: Annotated[int, typer.Option(help="Examples in the sample.")] = (
+        synthetic.SAMPLE_SIZE
+    ),
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Generate the cms-synthetic dataset from a release's graph (and optionally a sample)."""
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        examples = synthetic.generate(graph, seed)
+        graph_sha256 = graph.meta.get("content_sha256", "")
+        target = output or settings.eval_dir() / f"{synthetic.SOURCE}-{graph.release}.jsonl"
+    made_with: dict[str, JsonValue] = {
+        "name": synthetic.SOURCE,
+        "seed": seed,
+        "graph_sha256": graph_sha256,
+        "text2icd": __version__,
+    }
+    write_dataset(target, examples)
+    full = summarize(examples)
+    write_manifest(target, examples, **made_with)
+    typer.echo(f"{target}")
+    typer.echo("\n".join(synthetic.describe(examples)))
+    typer.echo("\n".join(full.lines()))
+    if sample_output is not None:
+        chosen = synthetic.sample(examples, sample_size, seed)
+        write_dataset(sample_output, chosen)
+        write_manifest(sample_output, chosen, **made_with, sample_of=full.sha256)
+        typer.echo(f"{sample_output}")
+        typer.echo("\n".join(synthetic.describe(chosen)))
+        typer.echo("\n".join(summarize(chosen).lines()))
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:

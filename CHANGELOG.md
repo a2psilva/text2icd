@@ -94,6 +94,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   precision, recall and F1, invalid-code rate, calibration error, selective accuracy by coverage,
   LLM call rate, cost per 1,000 phrases and latency percentiles, with 95% bootstrap intervals,
   overall, for valid and mapped gold codes, and per group (such as chapter).
+- `cms-synthetic` (`text2icd eval synth`): diagnosis phrases generated from a release's graph (Index
+  paths read as phrases with their manifestation codes, inclusion terms, Neoplasm Table and Table
+  of Drugs rows, 7th characters stated in the phrase), each also perturbed once (nonessential
+  modifier, word order, abbreviation or typo). FY2027 gives 142,757 examples; a stratified sample
+  of 1,067 is committed in `benchmarks/cms-synthetic/`. Datasets get a manifest recording how they
+  were made. `Graph.terms()` and `Graph.tabular_texts()` iterate over Index terms and Tabular texts.
 
 ### Fixed
 
