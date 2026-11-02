@@ -154,6 +154,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   git-ignored `data/interim/`, and prints aggregate counts and only words used in 50 or more notes.
   34 lexicon entries were written from its counts. `text2icd.text.terms.vocabulary` gives the words
   of the CMS files.
+- Modifier extractors (`text2icd.text.modifiers`): laterality, acuity, stage, severity, episode of
+  care, fracture type, organism (named as the Index does), drug resistance, diabetes type, drugs
+  and control, with or without complication, pregnancy, trimester (also derived from weeks of
+  gestation), and remission, each with a canonical value and its span in the phrase.
 
 ### Fixed
 
