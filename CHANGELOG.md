@@ -205,6 +205,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   mechanism of injury adds External Cause Index codes with role `external_cause`; history,
   family history and status-post conditions are looked up under History and Status. The
   `index` evaluation system adds the external cause code after the diagnoses.
+- Index-walk tests on FY2027: the worked examples of `docs/coder-workflow.md` and 110 cases drawn
+  from the Index across all code chapters (`tests/resolve/fy2027_index_walks.json`).
 
 ### Fixed
 

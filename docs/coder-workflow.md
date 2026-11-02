@@ -33,6 +33,9 @@ The core rule is Guideline **I.B.1, Locating a code**:
 
 ## Worked examples from the FY2026 files
 
+The Index part of each example is checked against the FY2027 files by the test suite
+(`tests/resolve/test_index_cases.py`), with 110 more Index-walk cases drawn from the Index.
+
 **Default code (I.A.18).** "Appendicitis" with no further detail. Index: `Appendicitis (pneumococcal)
 (retrocecal)` lists `K37`. Tabular: K37 is *Unspecified appendicitis* and is billable. Result: K37,
 flagged `default_code_used`.
