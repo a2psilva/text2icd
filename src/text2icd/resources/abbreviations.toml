@@ -1,0 +1,577 @@
+# Clinical abbreviations of diagnosis phrases and their expansions.
+#
+# Written from medical knowledge. Never copy an entry from restricted data: the local mining tool
+# (`text2icd eval mimic abbrev mine`) only shows which abbreviations are frequent, and the
+# expansion is then written here by hand.
+#
+# An entry is `KEY = "expansion"`, or a table:
+#
+#   expansions = ["...", "..."]   more than one meaning: the abbreviation is ambiguous, and the
+#                                 first expansion is the default when no hint applies
+#   hints."<expansion>" = [...]   words of the phrase that select that expansion
+#   cased = true                  match only when written in capitals, because the lower-case
+#                                 form is an English word (ALL, AS, CAP) or a unit (MM)
+#
+# Matching ignores case, and spaces, hyphens, dots and slashes inside a key are optional: "A-fib"
+# matches "afib", "a fib" and "A-Fib". An "s" after a key written in capitals is a plural ("PEs").
+# A key never matches inside a word, before "-" and a digit ("COVID-19"), or in a phrase written
+# all in capitals for cased entries. Single-letter keys need a space after them ("R hip").
+#
+# Expansions use the wording of the Alphabetic Index where it has one (check with
+# `text2icd graph show`), and every word of an expansion is a word of the CMS files (a slow test
+# checks this, apart from procedure words, which the diagnosis files lack). Abbreviations that are
+# Index main terms themselves (AIDS, BRBPR, GERD, STEMI, TBI) have no entry: the Index finds them.
+
+schema = 1
+
+[abbreviations]
+
+# Cardiovascular
+AAA = "abdominal aortic aneurysm"
+ACS = "acute coronary syndrome"
+AF = "atrial fibrillation"
+A-fib = "atrial fibrillation"
+AFL = "atrial flutter"
+A-flutter = "atrial flutter"
+AICD = "automatic implantable cardioverter-defibrillator"
+AMI = "acute myocardial infarction"
+AR = "aortic regurgitation"
+ASCVD = "atherosclerotic cardiovascular disease"
+ASHD = "atherosclerotic heart disease"
+AVR = "aortic valve replacement"
+CABG = "coronary artery bypass graft"
+CAD = "coronary artery disease"
+CHB = "complete heart block"
+CHF = "congestive heart failure"
+CTEPH = "chronic thromboembolic pulmonary hypertension"
+CVA = "cerebrovascular accident"
+DCM = "dilated cardiomyopathy"
+DVT = "deep vein thrombosis"
+HCM = "hypertrophic cardiomyopathy"
+HF = "heart failure"
+HFmrEF = "heart failure with mildly reduced ejection fraction"
+HFpEF = "heart failure with preserved ejection fraction"
+HFrEF = "heart failure with reduced ejection fraction"
+HLD = "hyperlipidemia"
+HOCM = "hypertrophic obstructive cardiomyopathy"
+HoTN = "hypotension"
+HTN = "hypertension"
+ICM = "ischemic cardiomyopathy"
+IHD = "ischemic heart disease"
+LBBB = "left bundle branch block"
+LVAD = "left ventricular assist device"
+LVH = "left ventricular hypertrophy"
+MI = "myocardial infarction"
+MVP = "mitral valve prolapse"
+MVR = "mitral valve replacement"
+NICM = "non-ischemic cardiomyopathy"
+non-STEMI = "non-ST elevation myocardial infarction"
+NSTEMI = "non-ST elevation myocardial infarction"
+NSVT = "nonsustained ventricular tachycardia"
+PAC = "premature atrial contraction"
+PAF = "paroxysmal atrial fibrillation"
+PAH = "pulmonary arterial hypertension"
+PCI = "percutaneous coronary intervention"
+PDA = "patent ductus arteriosus"
+PE = "pulmonary embolism"
+PFO = "patent foramen ovale"
+PPM = "permanent pacemaker"
+PSVT = "paroxysmal supraventricular tachycardia"
+PTCA = "percutaneous transluminal coronary angioplasty"
+PVC = "premature ventricular contraction"
+PVD = "peripheral vascular disease"
+RBBB = "right bundle branch block"
+RVR = "rapid ventricular response"
+SSS = "sick sinus syndrome"
+SVT = "supraventricular tachycardia"
+TAA = "thoracic aortic aneurysm"
+TAVI = "transcatheter aortic valve implantation"
+TAVR = "transcatheter aortic valve replacement"
+TIA = "transient ischemic attack"
+VF = "ventricular fibrillation"
+V-fib = "ventricular fibrillation"
+VSD = "ventricular septal defect"
+VT = "ventricular tachycardia"
+V-tach = "ventricular tachycardia"
+VTE = "venous thromboembolism"
+WPW = "Wolff-Parkinson-White syndrome"
+DOE = { expansions = ["dyspnea on exertion"], cased = true }
+IE = { expansions = ["infective endocarditis"], cased = true }
+MR = { expansions = ["mitral regurgitation"], cased = true }
+PAD = { expansions = ["peripheral arterial disease"], cased = true }
+PH = { expansions = ["pulmonary hypertension"], cased = true }
+SOB = { expansions = ["shortness of breath"], cased = true }
+TR = { expansions = ["tricuspid regurgitation"], cased = true }
+
+# Pulmonary
+AECOPD = "acute exacerbation of chronic obstructive pulmonary disease"
+AHRF = "acute hypoxemic respiratory failure"
+ABPA = "allergic bronchopulmonary aspergillosis"
+ARDS = "acute respiratory distress syndrome"
+COPD = "chronic obstructive pulmonary disease"
+CSA = "central sleep apnea"
+HAP = "hospital acquired pneumonia"
+HCAP = "healthcare associated pneumonia"
+HRF = "hypoxemic respiratory failure"
+ILD = "interstitial lung disease"
+IPF = "idiopathic pulmonary fibrosis"
+LLL = "left lower lobe"
+LRTI = "lower respiratory tract infection"
+LUL = "left upper lobe"
+OSA = "obstructive sleep apnea"
+PJP = "Pneumocystis jirovecii pneumonia"
+PNA = "pneumonia"
+PTX = "pneumothorax"
+pulm = "pulmonary"
+resp = "respiratory"
+RLL = "right lower lobe"
+RML = "right middle lobe"
+RSV = "respiratory syncytial virus"
+RUL = "right upper lobe"
+TB = "tuberculosis"
+URI = "upper respiratory infection"
+VAP = "ventilator associated pneumonia"
+CAP = { expansions = ["community acquired pneumonia"], cased = true }
+CF = { expansions = ["cystic fibrosis"], cased = true }
+COP = { expansions = ["cryptogenic organizing pneumonia"], cased = true }
+
+# Kidney and urinary tract
+AKI = "acute kidney injury"
+ATN = "acute tubular necrosis"
+BPH = "benign prostatic hyperplasia"
+CAUTI = "catheter associated urinary tract infection"
+CKD = "chronic kidney disease"
+ESKD = "end stage kidney disease"
+ESRD = "end stage renal disease"
+FSGS = "focal segmental glomerulosclerosis"
+HUS = "hemolytic uremic syndrome"
+IgAN = "IgA nephropathy"
+LUTS = "lower urinary tract symptoms"
+NGB = "neurogenic bladder"
+OAB = "overactive bladder"
+pyelo = "pyelonephritis"
+RCC = "renal cell carcinoma"
+RTA = "renal tubular acidosis"
+SIADH = "syndrome of inappropriate secretion of antidiuretic hormone"
+SUI = "stress urinary incontinence"
+UTI = "urinary tract infection"
+DI = { expansions = ["diabetes insipidus"], cased = true }
+
+# Endocrine, nutrition and metabolism
+AGMA = "anion gap metabolic acidosis"
+CAH = "congenital adrenal hyperplasia"
+def = "deficiency"
+DKA = "diabetic ketoacidosis"
+DM = "diabetes mellitus"
+DM1 = "type 1 diabetes mellitus"
+DM2 = "type 2 diabetes mellitus"
+DMII = "type 2 diabetes mellitus"
+DMT1 = "type 1 diabetes mellitus"
+DMT2 = "type 2 diabetes mellitus"
+GDM = "gestational diabetes mellitus"
+HHS = "hyperosmolar hyperglycemic state"
+HPT = "hyperparathyroidism"
+HTG = "hypertriglyceridemia"
+hyperCa = "hypercalcemia"
+hyperK = "hyperkalemia"
+hyperNa = "hypernatremia"
+hypoalb = "hypoalbuminemia"
+hypoCa = "hypocalcemia"
+hypoK = "hypokalemia"
+hypomag = "hypomagnesemia"
+hypoMg = "hypomagnesemia"
+hypoNa = "hyponatremia"
+hypophos = "hypophosphatemia"
+IDDM = "insulin dependent diabetes mellitus"
+LADA = "latent autoimmune diabetes in adults"
+NAGMA = "non-anion gap metabolic acidosis"
+NIDDM = "non-insulin dependent diabetes mellitus"
+PCOS = "polycystic ovary syndrome"
+PHPT = "primary hyperparathyroidism"
+SHPT = "secondary hyperparathyroidism"
+T1D = "type 1 diabetes mellitus"
+T1DM = "type 1 diabetes mellitus"
+T2D = "type 2 diabetes mellitus"
+T2DM = "type 2 diabetes mellitus"
+vit = "vitamin"
+Fe = "iron"
+HL = { expansions = ["hyperlipidemia", "hearing loss", "Hodgkin lymphoma"], hints."hearing loss" = ["hearing", "sensorineural", "conductive", "ear", "ears"], hints."Hodgkin lymphoma" = ["hodgkin", "hodgkin's", "nodular sclerosis"] }
+
+# Digestive system and liver
+abd = "abdominal"
+AIH = "autoimmune hepatitis"
+AUD = "alcohol use disorder"
+AWS = "alcohol withdrawal syndrome"
+"C. diff" = "Clostridioides difficile"
+CDI = "Clostridioides difficile infection"
+DTs = "delirium tremens"
+EoE = "eosinophilic esophagitis"
+ESLD = "end stage liver disease"
+EtOH = "alcohol"
+FTT = "failure to thrive"
+GAVE = "gastric antral vascular ectasia"
+GI = "gastrointestinal"
+GIB = "gastrointestinal bleeding"
+HCC = "hepatocellular carcinoma"
+HRS = "hepatorenal syndrome"
+IBD = "inflammatory bowel disease"
+IBS = "irritable bowel syndrome"
+LBO = "large bowel obstruction"
+LFT = "liver function test"
+LGIB = "lower gastrointestinal bleeding"
+MASH = "metabolic dysfunction-associated steatohepatitis"
+MASLD = "metabolic dysfunction-associated steatotic liver disease"
+NAFLD = "nonalcoholic fatty liver disease"
+NASH = "nonalcoholic steatohepatitis"
+"N/V" = "nausea and vomiting"
+"N/V/D" = "nausea, vomiting and diarrhea"
+PBC = "primary biliary cholangitis"
+PSC = "primary sclerosing cholangitis"
+PUD = "peptic ulcer disease"
+SBO = "small bowel obstruction"
+SBP = "spontaneous bacterial peritonitis"
+SIBO = "small intestinal bacterial overgrowth"
+UC = "ulcerative colitis"
+UGIB = "upper gastrointestinal bleeding"
+HE = { expansions = ["hepatic encephalopathy"], cased = true }
+
+# Blood, immune system and neoplasms
+AIHA = "autoimmune hemolytic anemia"
+AML = "acute myeloid leukemia"
+APLS = "antiphospholipid syndrome"
+BCC = "basal cell carcinoma"
+BMT = "bone marrow transplant"
+CLL = "chronic lymphocytic leukemia"
+CML = "chronic myeloid leukemia"
+CMML = "chronic myelomonocytic leukemia"
+CRC = "colorectal cancer"
+DCIS = "ductal carcinoma in situ"
+DIC = "disseminated intravascular coagulation"
+DLBCL = "diffuse large B-cell lymphoma"
+FN = "febrile neutropenia"
+GBM = "glioblastoma"
+GVHD = "graft-versus-host disease"
+HLH = "hemophagocytic lymphohistiocytosis"
+HNSCC = "head and neck squamous cell carcinoma"
+HSCT = "hematopoietic stem cell transplant"
+IDA = "iron deficiency anemia"
+IDC = "invasive ductal carcinoma"
+ITP = "immune thrombocytopenic purpura"
+LCIS = "lobular carcinoma in situ"
+MDS = "myelodysplastic syndrome"
+mets = "metastasis"
+MGUS = "monoclonal gammopathy of undetermined significance"
+MPN = "myeloproliferative neoplasm"
+NHL = "non-Hodgkin lymphoma"
+NSCLC = "non-small cell lung cancer"
+PNH = "paroxysmal nocturnal hemoglobinuria"
+PTLD = "post-transplant lymphoproliferative disorder"
+SCC = "squamous cell carcinoma"
+SCLC = "small cell lung cancer"
+TLS = "tumor lysis syndrome"
+TTP = "thrombotic thrombocytopenic purpura"
+VWD = "von Willebrand disease"
+ACD = "anemia of chronic disease"
+ALL = { expansions = ["acute lymphoblastic leukemia"], cased = true }
+CA = { expansions = ["cancer"], cased = true }
+HIT = { expansions = ["heparin induced thrombocytopenia"], cased = true }
+MM = { expansions = ["multiple myeloma"], cased = true }
+PV = { expansions = ["polycythemia vera"], cased = true }
+
+# Nervous system
+AIDP = "acute inflammatory demyelinating polyneuropathy"
+ALS = "amyotrophic lateral sclerosis"
+AMS = "altered mental status"
+BPPV = "benign paroxysmal positional vertigo"
+CJD = "Creutzfeldt-Jakob disease"
+CSF = "cerebrospinal fluid"
+DDD = "degenerative disc disease"
+EDH = "epidural hemorrhage"
+GTC = "generalized tonic-clonic"
+ICH = "intracerebral hemorrhage"
+IPH = "intraparenchymal hemorrhage"
+IVH = "intraventricular hemorrhage"
+MCA = "middle cerebral artery"
+MCI = "mild cognitive impairment"
+NCSE = "non-convulsive status epilepticus"
+NMO = "neuromyelitis optica"
+periph = "peripheral"
+PML = "progressive multifocal leukoencephalopathy"
+PNES = "psychogenic non-epileptic seizures"
+RCVS = "reversible cerebral vasoconstriction syndrome"
+RLS = "restless legs syndrome"
+SAH = "subarachnoid hemorrhage"
+SCI = "spinal cord injury"
+SDH = "subdural hemorrhage"
+SZ = "seizure"
+TGA = "transient global amnesia"
+VP = "ventriculoperitoneal"
+HA = { expansions = ["headache"], cased = true }
+LOC = { expansions = ["loss of consciousness"], cased = true }
+MG = { expansions = ["myasthenia gravis"], cased = true }
+WE = { expansions = ["Wernicke's encephalopathy"], cased = true }
+
+# Mental and behavioural
+ADHD = "attention-deficit hyperactivity disorder"
+BPAD = "bipolar affective disorder"
+GAD = "generalized anxiety disorder"
+IVDA = "intravenous drug abuse"
+IVDU = "intravenous drug use"
+MDD = "major depressive disorder"
+OCD = "obsessive-compulsive disorder"
+OUD = "opioid use disorder"
+PTSD = "post-traumatic stress disorder"
+SUD = "substance use disorder"
+ADD = { expansions = ["attention deficit disorder"], cased = true }
+BAD = { expansions = ["bipolar affective disorder"], cased = true }
+HI = { expansions = ["homicidal ideation"], cased = true }
+
+# Infections and organisms
+BSI = "bloodstream infection"
+CLABSI = "central line associated bloodstream infection"
+CMV = "cytomegalovirus"
+COVID = "COVID-19"
+CRBSI = "catheter related bloodstream infection"
+CRE = "carbapenem resistant Enterobacterales"
+"E. coli" = "Escherichia coli"
+EBV = "Epstein-Barr virus"
+ESBL = "extended spectrum beta lactamase"
+GNR = "gram-negative rod"
+GPC = "gram-positive cocci"
+HAV = "hepatitis A"
+HBV = "hepatitis B"
+HCV = "hepatitis C"
+"H. flu" = "Haemophilus influenzae"
+"H. pylori" = "Helicobacter pylori"
+"Hep A" = "hepatitis A"
+"Hep B" = "hepatitis B"
+"Hep C" = "hepatitis C"
+HSV = "herpes simplex virus"
+Kleb = "Klebsiella"
+MAC = "Mycobacterium avium complex"
+PJI = "prosthetic joint infection"
+"S. aureus" = "Staphylococcus aureus"
+"S. pneumo" = "Streptococcus pneumoniae"
+SIRS = "systemic inflammatory response syndrome"
+SSI = "surgical site infection"
+SSTI = "skin and soft tissue infection"
+Staph = "Staphylococcus"
+Strep = "Streptococcus"
+VRE = "vancomycin resistant Enterococcus"
+VZV = "varicella zoster virus"
+GAS = { expansions = ["group A Streptococcus"], cased = true }
+
+# Musculoskeletal and connective tissue
+ACL = "anterior cruciate ligament"
+BKA = "below knee amputation"
+CPPD = "calcium pyrophosphate deposition disease"
+CTS = "carpal tunnel syndrome"
+DJD = "degenerative joint disease"
+fx = "fracture"
+GCA = "giant cell arteritis"
+GPA = "granulomatosis with polyangiitis"
+HSP = "Henoch-Schonlein purpura"
+JIA = "juvenile idiopathic arthritis"
+LBP = "low back pain"
+MCTD = "mixed connective tissue disease"
+MPA = "microscopic polyangiitis"
+OA = "osteoarthritis"
+ORIF = "open reduction internal fixation"
+PMR = "polymyalgia rheumatica"
+PsA = "psoriatic arthritis"
+RA = "rheumatoid arthritis"
+rhabdo = "rhabdomyolysis"
+SLE = "systemic lupus erythematosus"
+SSc = "systemic sclerosis"
+THA = "total hip arthroplasty"
+THR = "total hip replacement"
+TKA = "total knee arthroplasty"
+TKR = "total knee replacement"
+UCTD = "undifferentiated connective tissue disease"
+AKA = { expansions = ["above knee amputation"], cased = true }
+PAN = { expansions = ["polyarteritis nodosa"], cased = true }
+
+# Skin
+AK = "actinic keratosis"
+decub = "decubitus ulcer"
+DFU = "diabetic foot ulcer"
+SJS = "Stevens-Johnson syndrome"
+HS = { expansions = ["hidradenitis suppurativa"], cased = true }
+TEN = { expansions = ["toxic epidermal necrolysis"], cased = true }
+
+# Pregnancy, childbirth and newborn
+C-section = "cesarean section"
+FGR = "fetal growth restriction"
+gHTN = "gestational hypertension"
+IUFD = "intrauterine fetal death"
+IUGR = "intrauterine growth restriction"
+IUP = "intrauterine pregnancy"
+LGA = "large for gestational age"
+NAS = "neonatal abstinence syndrome"
+PIH = "pregnancy induced hypertension"
+PPROM = "preterm premature rupture of membranes"
+PTL = "preterm labor"
+ROP = "retinopathy of prematurity"
+SAB = "spontaneous abortion"
+SGA = "small for gestational age"
+TTN = "transient tachypnea of newborn"
+VBAC = "vaginal birth after cesarean"
+wk = "week"
+wks = "weeks"
+PROM = { expansions = ["premature rupture of membranes"], cased = true }
+
+# Eye and ear
+AMD = "age-related macular degeneration"
+AOM = "acute otitis media"
+ARMD = "age-related macular degeneration"
+BRVO = "branch retinal vein occlusion"
+CRAO = "central retinal artery occlusion"
+CRVO = "central retinal vein occlusion"
+DME = "diabetic macular edema"
+ETD = "Eustachian tube dysfunction"
+NPDR = "nonproliferative diabetic retinopathy"
+PDR = "proliferative diabetic retinopathy"
+POAG = "primary open-angle glaucoma"
+SNHL = "sensorineural hearing loss"
+DR = { expansions = ["diabetic retinopathy"], cased = true }
+
+# Sites, sides and injuries
+BLE = "bilateral lower extremities"
+BUE = "bilateral upper extremities"
+GSW = "gunshot wound"
+LLE = "left lower extremity"
+LLQ = "left lower quadrant"
+LUE = "left upper extremity"
+LUQ = "left upper quadrant"
+MVA = "motor vehicle accident"
+MVC = "motor vehicle collision"
+RLE = "right lower extremity"
+RLQ = "right lower quadrant"
+RUE = "right upper extremity"
+RUQ = "right upper quadrant"
+UE = "upper extremity"
+L = { expansions = ["left"], cased = true }
+R = { expansions = ["right"], cased = true }
+
+# Procedures and devices, for "status post" and "history of"
+appy = "appendectomy"
+AVF = "arteriovenous fistula"
+AVG = "arteriovenous graft"
+BSO = "bilateral salpingo-oophorectomy"
+CCY = "cholecystectomy"
+CEA = "carotid endarterectomy"
+chemo = "chemotherapy"
+DDRT = "deceased donor renal transplant"
+EVAR = "endovascular aneurysm repair"
+G-tube = "gastrostomy tube"
+J-tube = "jejunostomy tube"
+OHT = "orthotopic heart transplant"
+OLT = "orthotopic liver transplant"
+PEG = "percutaneous endoscopic gastrostomy"
+TAH = "total abdominal hysterectomy"
+trach = "tracheostomy"
+TURP = "transurethral resection of prostate"
+XRT = "radiation therapy"
+TIPS = { expansions = ["transjugular intrahepatic portosystemic shunt"], cased = true }
+
+# Ambiguous abbreviations: the first expansion is the default. Hints are words or phrases of the
+# whole phrase, the abbreviation included ("left AMA").
+[abbreviations.AD]
+expansions = ["Alzheimer's disease", "atopic dermatitis"]
+hints."atopic dermatitis" = ["eczema", "atopic", "rash", "skin", "flare"]
+
+[abbreviations.AS]
+expansions = ["aortic stenosis", "ankylosing spondylitis"]
+cased = true
+hints."aortic stenosis" = ["aortic", "valve", "valvular", "murmur", "tavr", "avr", "severe", "critical"]
+hints."ankylosing spondylitis" = ["spine", "spinal", "spondylitis", "sacroiliitis", "hla-b27", "uveitis"]
+
+[abbreviations.AI]
+expansions = ["aortic insufficiency", "adrenal insufficiency"]
+cased = true
+hints."adrenal insufficiency" = ["adrenal", "cortisol", "steroid", "steroids", "addison", "addison's", "glucocorticoid"]
+
+[abbreviations.AMA]
+expansions = ["advanced maternal age", "against medical advice"]
+hints."advanced maternal age" = ["pregnancy", "pregnant", "gestation", "weeks", "prenatal", "antepartum", "multigravida", "primigravida"]
+hints."against medical advice" = ["left ama", "leaving", "signed out", "eloped"]
+
+[abbreviations.ARF]
+expansions = ["acute renal failure", "acute respiratory failure"]
+hints."acute respiratory failure" = ["respiratory", "hypoxic", "hypoxemic", "hypercapnic", "hypercarbic", "hypoxia", "intubated", "intubation", "ventilator", "ventilation"]
+
+[abbreviations.ASD]
+expansions = ["atrial septal defect", "autism spectrum disorder"]
+hints."autism spectrum disorder" = ["autism", "autistic", "developmental", "behavioral", "intellectual"]
+
+[abbreviations.BPD]
+expansions = ["borderline personality disorder", "bronchopulmonary dysplasia"]
+hints."bronchopulmonary dysplasia" = ["preterm", "premature", "prematurity", "infant", "newborn", "neonatal"]
+
+[abbreviations.CP]
+expansions = ["chest pain", "cerebral palsy"]
+hints."cerebral palsy" = ["spastic", "quadriplegic", "diplegic", "hemiplegic", "quadriplegia", "contracture", "contractures"]
+
+[abbreviations.CRF]
+expansions = ["chronic renal failure", "chronic respiratory failure"]
+hints."chronic respiratory failure" = ["respiratory", "hypoxic", "hypoxemic", "hypercapnic", "hypercarbic", "oxygen", "trach", "tracheostomy", "ventilator"]
+
+[abbreviations.CVD]
+expansions = ["cardiovascular disease", "cerebrovascular disease"]
+hints."cerebrovascular disease" = ["cerebrovascular", "stroke", "cerebral", "carotid"]
+
+[abbreviations.ED]
+expansions = ["erectile dysfunction", "eating disorder"]
+cased = true
+hints."eating disorder" = ["anorexia", "bulimia", "eating", "binge"]
+
+[abbreviations.GBS]
+expansions = ["Guillain-Barre syndrome", "group B Streptococcus"]
+hints."group B Streptococcus" = ["bacteriuria", "pregnancy", "pregnant", "carrier", "colonization", "bacteremia", "positive", "sepsis", "uti"]
+
+[abbreviations.HD]
+expansions = ["hemodialysis", "Huntington's disease"]
+hints.hemodialysis = ["esrd", "eskd", "dialysis", "renal", "kidney", "fistula", "catheter"]
+hints."Huntington's disease" = ["huntington", "huntington's", "chorea"]
+
+[abbreviations.LE]
+expansions = ["lower extremity", "lupus erythematosus"]
+cased = true
+hints."lupus erythematosus" = ["lupus", "discoid", "cutaneous", "systemic"]
+
+[abbreviations.MS]
+expansions = ["multiple sclerosis", "mitral stenosis", "mental status"]
+cased = true
+hints."multiple sclerosis" = ["flare", "relapsing", "remitting", "progressive", "demyelinating"]
+hints."mitral stenosis" = ["mitral", "valve", "valvular", "rheumatic", "murmur"]
+hints."mental status" = ["altered", "change", "changes", "depressed", "decreased"]
+
+[abbreviations.NPH]
+expansions = ["normal pressure hydrocephalus", "NPH insulin"]
+cased = true
+hints."NPH insulin" = ["insulin", "units"]
+
+[abbreviations.OM]
+expansions = ["osteomyelitis", "otitis media"]
+hints."otitis media" = ["ear", "tympanic", "otorrhea", "effusion"]
+
+[abbreviations.PCP]
+expansions = ["Pneumocystis pneumonia", "phencyclidine"]
+hints.phencyclidine = ["abuse", "use", "intoxication", "dependence", "overdose", "positive"]
+
+[abbreviations.PD]
+expansions = ["Parkinson's disease", "peritoneal dialysis"]
+hints."peritoneal dialysis" = ["esrd", "eskd", "dialysis", "peritoneal", "catheter", "peritonitis"]
+
+[abbreviations.PPH]
+expansions = ["postpartum hemorrhage", "primary pulmonary hypertension"]
+hints."primary pulmonary hypertension" = ["pulmonary", "idiopathic", "right heart", "cor pulmonale"]
+
+[abbreviations.SCD]
+expansions = ["sickle cell disease", "sudden cardiac death"]
+hints."sudden cardiac death" = ["arrest", "cardiac", "aborted", "resuscitated"]
+
+[abbreviations.SI]
+expansions = ["suicidal ideation", "sacroiliac"]
+cased = true
+hints.sacroiliac = ["joint", "joints", "dysfunction", "sacroiliitis", "arthritis", "arthropathy"]

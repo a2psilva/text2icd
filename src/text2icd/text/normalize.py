@@ -6,8 +6,11 @@ Steps, in order; each rewrite is recorded in the trace:
    punctuation, whitespace, and punctuation at the ends.
 2. `shorthand`: clinical shorthand written with slashes or short forms (`w/`, `w/o`, `s/p`, `c/b`,
    `2/2`, `h/o`, `r/o`, `hx`, ...) replaced by words.
-3. Case folding.
-4. `numeral`: Roman numerals of stages (`stage IIIb` to `stage 3b`, the form the CMS files use),
+3. `abbreviation`: expansions from the lexicon (`text.abbreviations`), when one is given, before
+   case folding so that `ALL` and `all` differ. Ambiguous ones are flagged in the trace
+   (`ambiguous_abbreviation`), and abbreviation-like tokens with no entry are listed.
+4. Case folding.
+5. `numeral`: Roman numerals of stages (`stage IIIb` to `stage 3b`, the form the CMS files use),
    CKD stages written without the word (`CKD 3` to `CKD stage 3`), and diabetes types
    (`type II diabetes`, `diabetes mellitus 2` to `type 2`). Other Roman numerals stay: the Index
    writes `class I`, `factor VIII` and `type I` glycogen storage disease that way.
@@ -17,9 +20,10 @@ The original string is kept unchanged alongside the normalised text.
 
 import re
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Container, Sequence
 from dataclasses import dataclass
 
+from text2icd.text.abbreviations import Expansion, Lexicon
 from text2icd.trace import TraceStep, change, text_step
 
 _DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2043\u2212\ufe58\ufe63\uff0d"
@@ -32,7 +36,7 @@ _TRANSLATION = {
     **dict.fromkeys(map(ord, _DOUBLE_QUOTES), '"'),
     **dict.fromkeys(map(ord, _INVISIBLE), None),
 }
-_LIST_MARKER = re.compile(r"^\s*(?:[-*\u2022\u00b7#>]+|\(?\d{1,2}[.)]|\(?[a-z][.)])\s+", re.I)
+_LIST_MARKER = re.compile(r"^\s*(?:[-*\u2022\u00b7#>]+|\(?\d{1,2}[.)]|\(?[a-z]\))\s+", re.I)
 _SPACE_BEFORE = re.compile(r"\s+([,;:)])")
 _SPACE_AFTER_PAREN = re.compile(r"\(\s+")
 _SEPARATOR = re.compile(r"([,;])(?=\S)")
@@ -61,6 +65,7 @@ _SHORTHAND_TABLE: tuple[tuple[str, str], ...] = (
     (_word(r"assoc\.?"), "associated"),
     (_word(r"w/o(?:ut)?"), "without"),
     (_lead(r"w/"), "with "),
+    (_word(r"w"), "with"),
     (_word(r"c/b"), "complicated by"),
     (_word(r"s/p|s\.p\.|status[\s-]+post"), "status post"),
     (_word(r"f/h|fhx|fam(?:ily)?\.?\s+hx"), "family history"),
@@ -77,9 +82,13 @@ _SHORTHAND_TABLE: tuple[tuple[str, str], ...] = (
     (r"(?<=\s)&(?=\s)", "and"),
     (_word(r"neg\.?"), "negative"),
 )
-SHORTHAND: tuple[Rule, ...] = tuple(
-    (re.compile(pattern, re.IGNORECASE), _fixed(replacement))
-    for pattern, replacement in _SHORTHAND_TABLE
+SHORTHAND: tuple[Rule, ...] = (
+    *(
+        (re.compile(pattern, re.IGNORECASE), _fixed(replacement))
+        for pattern, replacement in _SHORTHAND_TABLE
+    ),
+    # A CKD stage written onto the abbreviation (`CKD3`, `CKD-4`), so that the lexicon sees CKD.
+    (re.compile(r"(?<![A-Za-z0-9])(ckd)-?(?=[1-5][ab]?\b)", re.IGNORECASE), lambda m: m[1] + " "),
 )
 
 _ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4", "v": "5"}
@@ -126,16 +135,34 @@ class Normalized:
     original: str
     text: str
     trace: tuple[TraceStep, ...]
+    expansions: tuple[Expansion, ...] = ()
+    unknown: tuple[str, ...] = ()  # abbreviation-like tokens the lexicon does not know
 
 
-def normalize(phrase: str) -> Normalized:
+def normalize(
+    phrase: str,
+    abbreviations: Lexicon | None = None,
+    vocabulary: Container[str] | None = None,
+) -> Normalized:
+    """`vocabulary`, the case-folded words of the CMS files, keeps abbreviations the Index lists
+    as written (GERD, STEMI) out of the unknown ones."""
     trace: list[TraceStep] = []
     text = clean(phrase)
     if text != phrase:
         trace.append(text_step("clean", change(phrase, text)))
     text = clean(rewrite(text, SHORTHAND, "shorthand", trace))
+    expansions: list[Expansion] = []
+    unknown: tuple[str, ...] = ()
+    if abbreviations is not None:
+        # Judged on the phrase as written: the shorthand step adds lower-case words.
+        shouting = abbreviations.shouting(clean(phrase))
+        unknown = abbreviations.unknown(text, shouting=shouting, vocabulary=vocabulary)
+        text, expansions = abbreviations.expand(text, shouting=shouting)
+        text = clean(text)
+        trace.extend(expansion.step() for expansion in expansions)
+        trace.extend(text_step("unknown_abbreviation", f'"{token}"') for token in unknown)
     text = rewrite(text.casefold(), NUMERALS, "numeral", trace)
-    return Normalized(original=phrase, text=text, trace=tuple(trace))
+    return Normalized(phrase, text, tuple(trace), tuple(expansions), unknown)
 
 
 def clean(text: str) -> str:
