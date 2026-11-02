@@ -66,8 +66,8 @@ class Mined:
                 if re.search(rf"(?<![A-Za-z0-9]){re.escape(word.upper())}(?![A-Za-z0-9])", text):
                     self.token_capitals[word] += 1
             tokens |= unknown
-        self.key_notes.update(keys)
-        self.token_notes.update(tokens)
+        self.key_notes.update(sorted(keys))
+        self.token_notes.update(sorted(tokens))
 
     def lines(self, min_notes: int = MIN_NOTES, top: int = 60) -> list[str]:
         def share(n: int, total: int) -> str:
@@ -84,20 +84,26 @@ class Mined:
             f"items with a word unknown to the CMS files and the lexicon {self.with_unknown:,} "
             f"({share(self.with_unknown, self.items)}); distinct words {len(self.token_notes):,}",
             "most used lexicon keys (notes): "
-            + ", ".join(f"{key} {n:,}" for key, n in self.key_notes.most_common(25)),
+            + ", ".join(f"{key} {n:,}" for key, n in _most_used(self.key_notes, 25)),
             "ambiguous keys (by hint / by default): "
             + ", ".join(
                 f"{key} {self.chosen[(key, 'hint')]:,}/{self.chosen[(key, 'default')]:,}"
                 for key in ambiguous
             ),
         ]
-        shown = [(t, n) for t, n in self.token_notes.most_common() if n >= min_notes][:top]
+        shown = [(t, n) for t, n in _most_used(self.token_notes) if n >= min_notes][:top]
         lines.append(f"unknown words used in {min_notes}+ notes (notes, share in capitals):")
         lines += [
             f"  {token:<16} {n:>7,}  {share(self.token_capitals[token], self.token_items[token])}"
             for token, n in shown
         ]
         return lines
+
+
+def _most_used(counts: Counter[str], top: int | None = None) -> list[tuple[str, int]]:
+    """Most used first, ties in alphabetical order, so that summaries do not vary between runs."""
+    ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return ordered if top is None else ordered[:top]
 
 
 def _candidate(word: str, known: Collection[str]) -> bool:
@@ -155,7 +161,7 @@ def expansion_words(lexicon: Lexicon) -> frozenset[str]:
 def write_candidates(path: Path, mined: Mined, min_notes: int = FILE_MIN_NOTES) -> int:
     """The unknown words used in `min_notes` or more notes, most used first."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = [(t, n) for t, n in mined.token_notes.most_common() if n >= min_notes]
+    rows = [(t, n) for t, n in _most_used(mined.token_notes) if n >= min_notes]
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh, delimiter="\t")
         writer.writerow(["token", "notes", "items", "items_in_capitals"])

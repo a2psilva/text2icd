@@ -55,7 +55,7 @@ def test_lines_show_only_frequent_words() -> None:
     shown = "\n".join(mined.lines(min_notes=2))
     assert "zorbex" in shown
     assert "qlt" not in shown
-    assert "most used lexicon keys (notes): HTN 2, A-fib 1" in shown
+    assert "most used lexicon keys (notes): HTN 2, A-fib 1, RVR 1" in shown
     assert "dev notes 3; items 7" in shown
 
 
