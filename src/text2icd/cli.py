@@ -26,6 +26,7 @@ from text2icd.eval.datasets import (
     write_dataset,
     write_manifest,
 )
+from text2icd.eval.index import index_stats
 from text2icd.eval.main_terms import main_term_recall
 from text2icd.eval.mimic import abbreviations as mimic_abbreviations
 from text2icd.eval.mimic import align as mimic_align
@@ -71,6 +72,7 @@ from text2icd.ontology.index import IndexSource
 from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
+from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.text.abbreviations import default_lexicon
 from text2icd.text.parse import Parser, describe_parsed
 from text2icd.text.terms import vocabulary
@@ -243,6 +245,34 @@ def parse_command(
         typer.echo(parsed.model_dump_json(indent=2))
         return
     typer.echo("\n".join(describe_parsed(parsed)))
+
+
+@app.command("walk")
+def walk_command(
+    phrase: Annotated[str, typer.Argument(help="A diagnosis phrase.")],
+    setting: Annotated[
+        str,
+        typer.Option(help="inpatient (uncertain diagnoses coded as if established) or outpatient."),
+    ] = "inpatient",
+    top: Annotated[int, typer.Option(min=1, help="Candidates shown per diagnosis.")] = 5,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the walk as JSON.")] = False,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Show how the Alphabetic Index walk codes a phrase: candidates, paths and trace."""
+    if setting not in ("inpatient", "outpatient"):
+        typer.echo("error: --setting is inpatient or outpatient", err=True)
+        raise typer.Exit(code=2)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        walker = IndexWalker.from_graph(
+            graph, "outpatient" if setting == "outpatient" else "inpatient"
+        )
+        result = walker.walk(phrase)
+    if as_json:
+        typer.echo(result.model_dump_json(indent=2))
+        return
+    typer.echo("\n".join(describe_walk(result, top)))
 
 
 @app.command("build-graph")
@@ -604,6 +634,42 @@ def eval_main_terms(
         results = main_term_recall(graph, chosen)
     typer.echo(f"{path.name} ({split}), tokenizer {tokenizer}, {len(chosen):,} examples")
     typer.echo("\n".join(result.line() for result in results))
+
+
+@eval_app.command("index")
+def eval_index(
+    dataset: Annotated[str, typer.Option("--dataset", "-d", help="Dataset file or name.")],
+    split: Annotated[SplitChoice, typer.Option(help="Split to measure on.")] = "dev",
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Measure on a seeded random sample of this many.")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Seed for --limit.")] = 0,
+    show: Annotated[
+        int,
+        typer.Option(min=0, help="Show this many missed phrases (public datasets only)."),
+    ] = 0,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """How often the Index walk's first candidate is a prefix of the gold code, before Tabular
+    verification (aggregate counts, by generator)."""
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            path = resolve_dataset(dataset, graph.release, settings)
+            chosen = select(read_dataset(path), split, limit, seed)
+        except (RunError, DatasetError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        if show and is_restricted(chosen):
+            typer.echo("error: --show is refused for restricted (MIMIC-IV) datasets", err=True)
+            raise typer.Exit(code=2)
+        stats = index_stats(chosen, IndexWalker.from_graph(graph), keep=show)
+    typer.echo(f"{path.name} ({split}), {len(chosen):,} examples")
+    typer.echo("\n".join(stats.lines()))
+    for miss in stats.misses:
+        typer.echo(f"  {miss.id}: {miss.phrase} | gold {miss.gold} | {miss.found}")
 
 
 @eval_app.command("parse")

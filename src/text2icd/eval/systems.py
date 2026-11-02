@@ -1,4 +1,5 @@
-"""Systems the evaluation runner can score: the baselines now, the text2icd resolver later.
+"""Systems the evaluation runner can score: the baselines, and the text2icd resolver as it is
+built (`index`: the Alphabetic Index walk).
 
 A system turns one phrase into a `Prediction` (the code set, ranked alternates, a confidence and
 what it cost). It never sees the gold codes. Systems are built by name from `SYSTEMS`, with
@@ -17,6 +18,7 @@ from text2icd.config import Settings
 from text2icd.embeddings import Embedder, StaticEmbedder, VectorIndex
 from text2icd.eval.predictions import Prediction
 from text2icd.graph.model import Graph
+from text2icd.resolve.walk import WIDTH, IndexWalker
 
 Options = Mapping[str, str]
 
@@ -157,12 +159,55 @@ class EmbeddingSystem(System):
         return {"model": self.embedder.model, "k": self.k, "top": self.top}
 
 
+class IndexSystem(System):
+    """The Index walk alone (`resolve.walk`), before Tabular verification: for each diagnosis
+    of the phrase its first candidate (with the manifestation code, if any), and the other
+    candidates of the first diagnosis as alternates. Codes may be partial or not billable until
+    the Tabular List completes them (Phase 6). No confidence yet (Phase 7)."""
+
+    name = "index"
+
+    def __init__(self, graph: Graph, options: Options) -> None:
+        self.width = option(options, "width", WIDTH)
+        setting = options.get("setting", "inpatient")
+        unknown = set(options) - {"width", "setting"}
+        if unknown:
+            raise SystemSetupError(f"unknown options for index: {', '.join(sorted(unknown))}")
+        if setting not in ("inpatient", "outpatient"):
+            raise SystemSetupError(
+                f"option setting must be inpatient or outpatient, got {setting!r}"
+            )
+        self.setting = setting
+        self.walker = IndexWalker.from_graph(
+            graph, "outpatient" if setting == "outpatient" else "inpatient", self.width
+        )
+
+    def predict(self, phrase: str) -> Prediction:
+        result = self.walker.walk(phrase)
+        codes: list[str] = []
+        for walk in result.diagnoses:
+            if walk.best is not None:
+                codes.append(walk.best.code)
+                if walk.best.manifestation:
+                    codes.append(walk.best.manifestation)
+        first = result.diagnoses[0].candidates[1:] if result.diagnoses else ()
+        return Prediction(
+            id="",
+            codes=tuple(dict.fromkeys(codes)),
+            alternates=tuple(dict.fromkeys(candidate.code for candidate in first)),
+        )
+
+    def settings(self) -> dict[str, JsonValue]:
+        return {"width": self.width, "setting": self.setting}
+
+
 Factory = Callable[[Graph, Settings, Options], System]
 
 SYSTEMS: dict[str, Factory] = {
     "bm25": lambda graph, settings, options: BM25System(graph, options),
     "embedding": lambda graph, settings, options: EmbeddingSystem(graph, options),
     "llm": lambda graph, settings, options: _llm(graph, settings, options),
+    "index": lambda graph, settings, options: IndexSystem(graph, options),
 }
 
 

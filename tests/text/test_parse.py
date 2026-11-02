@@ -255,6 +255,20 @@ def test_cue_words_leave_the_condition_text() -> None:
     assert [cue.text for cue in condition.cues] == ["possible", "ruled out"]
 
 
+def test_not_inside_a_condition_qualifies_what_follows() -> None:
+    (epilepsy,) = PARSER.parse("epilepsy not intractable").conditions
+    assert (epilepsy.text, epilepsy.certainty, epilepsy.reportable) == (
+        "epilepsy not intractable",
+        "affirmed",
+        True,
+    )
+    (hernia,) = PARSER.parse("inguinal hernia not specified as recurrent").conditions
+    assert hernia.reportable
+    assert "not specified" in hernia.text
+    # A `not` before the condition still negates it.
+    assert [c.certainty for c in PARSER.parse("not pneumonia").conditions] == ["negated"]
+
+
 def test_modifiers_belong_to_their_condition() -> None:
     parsed = PARSER.parse("left hip fracture, initial encounter; DM2")
     fracture, diabetes = parsed.conditions

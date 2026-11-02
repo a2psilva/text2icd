@@ -210,9 +210,21 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
    wins over the anatomical site. Candidates are ranked by what the main term uses plus what its
    subterms could still use (`text2icd.resolve.profiles`), then by whether the main term holds the
    head noun of the phrase. Follow `see` redirects.
-3. **Descend** subterms with a small beam search. A child's score is the share of the remaining
-   modifiers it uses up. Connector subterms ("with", "due to", "in") consume linked conditions. When
-   no child matches, stop and use the code at the current node (the default code, Guideline I.A.18).
+3. **Descend** subterms (`text2icd.resolve.walk`) with a beam search of width 5 from the five
+   best main terms. Each diagnosis of the parsed phrase is walked on its own, without the wording
+   only a 7th character carries ("initial encounter"); two neighbouring diagnoses are joined when
+   one path uses every word their separate walks use ("abuse with psychosis, delusions"). A
+   subterm is taken when it uses phrase words not used yet: 1 for each essential word, 0.8 for
+   each word of a nonessential modifier, minus 0.6 for each essential word the phrase does not
+   document. A subterm can take a word a nonessential modifier above it used, so when the two are
+   mutually exclusive the subentry wins (I.A.7). Connector subterms with no words of their own
+   ("with", "due to") are passed through; a "without" subterm needs "without" in the phrase, and
+   under "with" no subterm may use a word the phrase puts after "without". Every state is a
+   candidate, coded by its own term or the nearest term above it with a code; the main term's
+   code, or that of an "unspecified" subterm of a term without one, is the default code
+   (Guideline I.A.18), flagged `default_code_used`. A subterm that only says "see" gives no
+   default code. The result is ranked candidates (code, possibly partial; score; path; flags;
+   trace); `text2icd walk "<phrase>"` prints them.
 4. **Pick the table column** for Neoplasm (behaviour) and Drug (intent: accidental, self-harm,
    assault, undetermined, adverse effect, underdosing) entries.
 

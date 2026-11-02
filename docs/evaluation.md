@@ -219,6 +219,11 @@ FY2027, `dev` split (67,812 phrases), 95% intervals:
 | --- | --- | --- | --- | --- | --- | --- |
 | B1 BM25 | 38.8% (38.5-39.2) | 52.0% (51.6-52.3) | 50.4% (50.0-50.7) | 40.8% (40.4-41.2) | 0% | $0 |
 | B2 embedding | 40.6% (40.2-41.0) | 55.2% (54.8-55.6) | 53.8% (53.4-54.2) | 41.6% (41.3-42.0) | 0% | $0 |
+| `index` (Index walk, before Tabular) | 76.1% (75.8-76.4) | 76.8% (76.4-77.1) | 86.1% (85.8-86.3) | 78.0% (77.7-78.3) | 15.3% | $0 |
+
+The `index` row is the Index walk alone: its codes are often partial (`S72.9-`) or not billable,
+counted as invalid, until Tabular verification completes them (Phase 6); the Neoplasm and Drug
+tables are not walked yet.
 
 ## Main-term recall
 
@@ -241,6 +246,32 @@ FY2027, `cms-synthetic` dev (67,812 phrases):
 Neoplasm Table and the Table of Drugs and Chemicals; on a sample of 5,000 dev phrases it ranks a
 right main term first for 97.2% of the phrases made from Index paths and 81.0% of those made from
 inclusion terms.
+
+## Index walk
+
+`text2icd eval index -d <dataset>` measures the Alphabetic Index walk alone, before Tabular
+verification (`text2icd.eval.index`): how often the first candidate of the first diagnosis is a
+prefix of the primary gold code (the Index often gives a partial code, `S72.9-`, which the Tabular
+List completes), how often a right candidate is among the first five, how often the first
+candidate is in the gold category, uses the default code, or is missing. Counts are given in total
+and by `cms-synthetic` generator; `--show N` lists missed phrases, for public datasets only. The
+same walk runs in `eval run` as the `index` system (`-O width=5`, `-O setting=outpatient`), whose
+codes may be partial or not billable until Phase 6 completes them.
+
+Phase 5 target: the gold code is the top candidate (prefix match) for at least 95% of
+`cms-synthetic` phrases. FY2027, `cms-synthetic` dev (67,812 phrases), Index only:
+
+| Generator | Phrases | Top-1 | Top-5 | Category | Default code | No candidate |
+| --- | --- | --- | --- | --- | --- | --- |
+| `index` | 53,730 | 98.2% | 98.5% | 98.8% | 10.1% | 0.2% |
+| `inclusion` | 6,561 | 72.8% | 76.9% | 78.4% | 23.1% | 2.2% |
+| `neoplasm` | 2,482 | 0.3% | 0.4% | 2.5% | 55.8% | 3.5% |
+| `drug` | 5,039 | 1.0% | 1.0% | 1.0% | 38.4% | 58.3% |
+| all | 67,812 | 84.9% | 85.6% | 86.1% | 15.2% | 4.8% |
+
+The Neoplasm Table and the Table of Drugs and Chemicals are not walked yet (tasks 5.8 and 5.9).
+Inclusion terms follow the Tabular List's wording, not the Index's; most misses there are
+neoplasm wording ("malignant neoplasm of ...") and cross-references not yet followed (task 5.6).
 
 ## Text understanding
 

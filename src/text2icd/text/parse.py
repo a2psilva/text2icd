@@ -7,7 +7,9 @@
    coded in the setting (`cues.judge`).
 5. Group the conditions that linking relations join into diagnoses.
 
-Which conditions a cue covers: one inside a condition's span covers it. A cue before conditions
+Which conditions a cue covers: one inside a condition's span covers it, except a bare `not` after
+the condition's first words, which qualifies what follows ("epilepsy not intractable": the
+epilepsy is affirmed, and "not" stays in its words for the Index). A cue before conditions
 also covers those after it in its comma fragment, and a cue after them those before it, until a
 cue of the same family (status, or certainty) takes over. Status cues stop at linking
 connectors: in "status post fall with hip fracture" the fracture is current. Conditions listed
@@ -128,7 +130,9 @@ def parse(
 def _covering(piece: Piece, fragment: Fragment, cues: Sequence[Cue]) -> list[Cue]:
     """The cues of the fragment that cover the piece: its own, and those before or after it
     with no cue of the same family in between (and, for status cues, no linking connector)."""
-    inside = [c for c in cues if fragment.start <= c.start < fragment.end]
+    inside = [
+        c for c in cues if fragment.start <= c.start < fragment.end and not _qualifies(c, piece)
+    ]
     connectors = [
         (link.start, link.end) for link in fragment.links if link.kind not in COMPARATIVE | {"and"}
     ]
@@ -152,6 +156,12 @@ def _covering(piece: Piece, fragment: Fragment, cues: Sequence[Cue]) -> list[Cue
             continue
         covering.append(cue)
     return covering
+
+
+def _qualifies(cue: Cue, piece: Piece) -> bool:
+    """A bare `not` after the first words of a condition qualifies what follows it, not the
+    condition: "epilepsy not intractable", "hernia not specified as recurrent"."""
+    return cue.kind == "negated" and cue.text == "not" and piece.start < cue.start < piece.end
 
 
 def _implied(piece: Piece, fragment: Fragment) -> list[Cue]:

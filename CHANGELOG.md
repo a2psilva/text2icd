@@ -186,8 +186,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   dependency), main terms that only say "see condition" dropped, and candidates ranked by what
   they and their subterms can use, then by the head noun of the phrase. `text2icd eval main-terms`
   measures it as the `coder` mode.
+- Subterm walk of the Alphabetic Index (`text2icd.resolve.walk`): a beam search from the best main
+  terms, per diagnosis, with nonessential modifiers as a small bonus (the subentry wins, I.A.7),
+  connector subterms passed through, `without` honoured, and the default code (I.A.18) flagged
+  `default_code_used`. It returns ranked candidates with their paths, flags and trace.
+  `text2icd walk "<phrase>"` shows them, `text2icd eval index` measures the walk alone (prefix
+  match of the gold code, by generator), and `eval run -s index` scores it like the baselines.
 
 ### Fixed
+
+- A bare `not` after a condition's first words ("epilepsy not intractable", "hernia not specified
+  as recurrent") qualifies what follows it: the condition is no longer judged negated, and "not"
+  stays in its text.
 
 - Code validation accepts a letter in the second position, as in the `QA0`-`QA1` genetic disorder
   codes added in FY2026.
