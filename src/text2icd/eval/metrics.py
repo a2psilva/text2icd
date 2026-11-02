@@ -12,9 +12,11 @@ code cannot be scored and are counted, not scored.
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
+from pydantic import JsonValue
 
 from text2icd.eval.datasets import Example, GoldCode
 from text2icd.eval.predictions import Prediction
@@ -352,3 +354,44 @@ _FORMULAS: dict[str, Formula] = {
     "LLM calls per phrase": _ratio("llm_calls", "one"),
     "cost per 1,000 phrases": _ratio("cost", "one", 1000.0),
 }
+
+
+def report_to_json(report: Report) -> dict[str, JsonValue]:
+    """A report as plain JSON: each estimate as `[value, low, high]` (NaN as null)."""
+
+    def estimate(e: Estimate) -> list[JsonValue]:
+        return [None if math.isnan(x) else x for x in (e.value, e.low, e.high)]
+
+    return {
+        "examples": report.examples,
+        "scored": report.scored,
+        "unmappable": report.unmappable,
+        "mapped": report.mapped,
+        "missing": report.missing,
+        "errors": report.errors,
+        "metrics": {name: estimate(e) for name, e in report.metrics.items()},
+        "selective": {str(c): estimate(e) for c, e in report.selective.items()},
+        "latency_ms": dict(report.latency_ms),
+        "subsets": {name: report_to_json(sub) for name, sub in report.subsets.items()},
+        "groups": {name: report_to_json(sub) for name, sub in report.groups.items()},
+    }
+
+
+def report_from_json(data: Mapping[str, Any]) -> Report:
+    def estimate(values: Sequence[float | None]) -> Estimate:
+        value, low, high = (math.nan if x is None else float(x) for x in values)
+        return Estimate(value, low, high)
+
+    return Report(
+        examples=int(data["examples"]),
+        scored=int(data["scored"]),
+        unmappable=int(data["unmappable"]),
+        mapped=int(data["mapped"]),
+        missing=int(data["missing"]),
+        errors=int(data["errors"]),
+        metrics={name: estimate(v) for name, v in data["metrics"].items()},
+        selective={float(c): estimate(v) for c, v in data["selective"].items()},
+        latency_ms={k: float(v) for k, v in data["latency_ms"].items()},
+        subsets={name: report_from_json(sub) for name, sub in data["subsets"].items()},
+        groups={name: report_from_json(sub) for name, sub in data["groups"].items()},
+    )

@@ -100,6 +100,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   modifier, word order, abbreviation or typo). FY2027 gives 142,757 examples; a stratified sample
   of 1,067 is committed in `benchmarks/cms-synthetic/`. Datasets get a manifest recording how they
   were made. `Graph.terms()` and `Graph.tabular_texts()` iterate over Index terms and Tabular texts.
+- Evaluation runner: `text2icd eval run -d <dataset> -s <system>` scores a system on a dataset split
+  and writes a result file with its provenance (git commit, release, graph and dataset hashes,
+  system settings) and its metrics; `text2icd eval report` renders a markdown comparison, with
+  per-chapter tables on request. First system: the B1 BM25 baseline (`-s bm25`). The CI
+  integration job runs it on the committed `cms-synthetic` sample and now also fetches the FY2016
+  to FY2025 code lists.
 
 ### Fixed
 

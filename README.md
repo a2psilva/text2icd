@@ -104,6 +104,7 @@ uv run text2icd build-graph  # builds the knowledge graph (data/processed/, abou
 uv run text2icd graph show "Pneumonia > aspiration"   # an Index term, its codes and subterms
 uv run text2icd graph code E11.22                     # a code, its notes, edges and Index terms
 uv run text2icd graph check  # runs the integrity checks on the built graph
+uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all   # the BM25 baseline
 make check                   # lint, format check, type check, tests
 ```
 
