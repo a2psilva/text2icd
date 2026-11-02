@@ -28,7 +28,7 @@ from text2icd.config import Settings
 from text2icd.eval.datasets import CodeStatus, Example, GoldCode
 from text2icd.ontology.codes import CodeReference, dot, is_code, parse_reference, undot
 from text2icd.ontology.files import ReleaseFiles
-from text2icd.ontology.order import billable_codes, parse_order_file
+from text2icd.ontology.order import OrderEntry, billable_codes, parse_order_file
 from text2icd.releases import Registry, Release, load_registry
 
 _HEADER = "current code assignment"
@@ -111,6 +111,8 @@ class Reconciler:
     target: str
     billable: dict[str, frozenset[str]]
     conversions: Sequence[Conversion]
+    # Long descriptions from the order files, the newest release's wording for each code.
+    descriptions: dict[str, str] = field(default_factory=dict)
     _successors: dict[str, set[str]] = field(init=False, repr=False)
     _ranges: list[tuple[CodeReference, str]] = field(init=False, repr=False)
     _sorted: list[str] = field(init=False, repr=False)
@@ -229,23 +231,27 @@ def load_reconciler(
         key=lambda r: r.effective,
     )
     billable: dict[str, frozenset[str]] = {}
+    descriptions: dict[str, str] = {}
     conversions: list[Conversion] = []
     for entry in history:
-        codes = _billable(entry, settings, required=entry.id == release.id)
-        if codes is not None:
-            billable[entry.id] = codes
+        order = _order(entry, settings, required=entry.id == release.id)
+        if order is not None:
+            billable[entry.id] = billable_codes(order)
+            descriptions.update((e.code, e.long_description) for e in order)
         for path in conversion_files(settings.cms_raw_dir(entry.id)):
             conversions += parse_conversion_table(path)
     # The target last, so `billable` reads oldest first.
     billable[release.id] = billable.pop(release.id)
-    return Reconciler(release.id, billable, conversions)
+    return Reconciler(release.id, billable, conversions, descriptions)
 
 
-def _billable(release: Release, settings: Settings, *, required: bool) -> frozenset[str] | None:
+def _order(
+    release: Release, settings: Settings, *, required: bool
+) -> tuple[OrderEntry, ...] | None:
     try:
         order = ReleaseFiles(settings.cms_raw_dir(release.id)).order
     except FileNotFoundError:
         if required:
             raise
         return None
-    return billable_codes(parse_order_file(order))
+    return parse_order_file(order)

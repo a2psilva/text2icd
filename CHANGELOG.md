@@ -118,6 +118,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   discharge summary split into items, with primary or secondary group labels, bullets, numbering,
   underlines and leading labels handled; `text2icd eval mimic sections` prints aggregate counts
   only. Tests use hand-written synthetic notes.
+- `mimic-silver` (`text2icd eval mimic silver`, local only): discharge diagnosis items aligned to
+  their admission's billed ICD-10 codes by SapBERT similarity (run through ONNX, optional extra
+  `embeddings`), one-to-one per admission above a score and a margin, with each code's status
+  against the release and a patient-level dev/test split. `text2icd eval mimic freeze` records a
+  set's test split, and rebuilds or test runs that would change it are refused. The reconciler now
+  keeps each code's description.
 
 ### Fixed
 

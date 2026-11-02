@@ -25,6 +25,7 @@ from text2icd import __version__
 from text2icd.config import Settings
 from text2icd.eval.datasets import Example, dataset_hash, read_dataset, read_manifest
 from text2icd.eval.metrics import Report, report_from_json, report_to_json, score
+from text2icd.eval.mimic.splits import FrozenSplitError, check_frozen
 from text2icd.eval.predictions import Prediction
 from text2icd.eval.systems import System
 from text2icd.graph.model import Graph
@@ -233,8 +234,10 @@ def evaluate(
     seed: int = 0,
     resamples: int = 1000,
     progress: Callable[[int], None] | None = None,
+    frozen_dir: Path | None = None,
 ) -> tuple[Run, Report]:
-    """Run a system over a dataset split and score it."""
+    """Run a system over a dataset split and score it. With `frozen_dir`, a test run on a
+    dataset whose frozen test split has changed is refused."""
     dataset = read_dataset(dataset_path)
     releases = {e.release for e in dataset}
     if releases and releases != {graph.release}:
@@ -246,6 +249,12 @@ def evaluate(
     chosen = select(dataset, split, limit, seed)
     if not chosen:
         raise RunError(f"no {split} examples in {dataset_path}")
+    if frozen_dir is not None and split != "dev":
+        name = _dataset_name(dataset_path, read_manifest(dataset_path))
+        try:
+            check_frozen(frozen_dir, name, dataset)
+        except FrozenSplitError as exc:
+            raise RunError(str(exc)) from exc
     started = datetime.now(UTC)
     predictions = predict(system, chosen, progress)
     header = provenance(
