@@ -17,6 +17,7 @@ from text2icd.eval import report as eval_report
 from text2icd.eval import synthetic
 from text2icd.eval.datasets import (
     DatasetError,
+    Example,
     check_dataset,
     read_dataset,
     read_manifest,
@@ -25,7 +26,7 @@ from text2icd.eval.datasets import (
     write_manifest,
 )
 from text2icd.eval.mimic import align as mimic_align
-from text2icd.eval.mimic import audit
+from text2icd.eval.mimic import annotate, audit
 from text2icd.eval.mimic.files import (
     DIAGNOSES,
     DISCHARGE,
@@ -41,6 +42,8 @@ from text2icd.eval.mimic.splits import FrozenSplitError, check_frozen, freeze
 from text2icd.eval.runner import (
     RunError,
     SplitChoice,
+    billable_in,
+    chapter_of,
     default_output,
     evaluate,
     read_metrics,
@@ -85,6 +88,11 @@ audit_app = typer.Typer(
     no_args_is_help=True,
 )
 mimic_app.add_typer(audit_app, name="audit")
+gold_app = typer.Typer(
+    help="Code a stratified sample of phrases by hand (docs/annotation-guide.md).",
+    no_args_is_help=True,
+)
+mimic_app.add_typer(gold_app, name="gold")
 
 DataDirOption = Annotated[
     Path | None,
@@ -695,6 +703,130 @@ def audit_score(file: AuditFileOption = None, data_dir: DataDirOption = None) ->
     rows = audit.read_review(path)
     typer.echo(audit.precision(rows).line())
     typer.echo("\n".join(audit.by_score(rows, [0.70, 0.80, 0.90])))
+
+
+def _annotation_dir(settings: Settings) -> Path:
+    return settings.eval_dir() / "annotation"
+
+
+@gold_app.command("sample")
+def gold_sample(
+    size: Annotated[int, typer.Option("--size", "-n", min=3, help="Phrases to code.")] = (
+        annotate.SAMPLE_SIZE
+    ),
+    seed: Annotated[int, typer.Option(help="Seed of the sample.")] = 0,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Draw the phrases to code from mimic-silver, stratified by code frequency and chapter."""
+    settings = _settings(data_dir)
+    folder = _annotation_dir(settings)
+    if annotate.read_answers(folder / "answers.jsonl"):
+        typer.echo(f"error: {folder / 'answers.jsonl'} already has answers; keep it", err=True)
+        raise typer.Exit(code=1)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            examples = read_dataset(resolve_dataset(SILVER, graph.release, settings))
+            reconciler = load_reconciler(graph.release, settings)
+            billed = admission_codes(
+                mimic_file(settings, DIAGNOSES), {str(e.meta["hadm_id"]) for e in examples}
+            )
+        except (RunError, DatasetError, FileNotFoundError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        def choices(example: Example) -> list[tuple[str, str]]:
+            found: dict[str, str] = {}
+            for code in billed.get(str(example.meta["hadm_id"]), []):
+                result = reconciler.reconcile(code.code)
+                for current in (code.code,) if result.status == "valid" else result.mapped_to:
+                    found.setdefault(current, graph.code(current).description)
+            return list(found.items())
+
+        candidates = annotate.sample_candidates(
+            examples, choices, chapter_of(graph), size=size, seed=seed
+        )
+    annotate.write_jsonl(folder / "candidates.jsonl", candidates)
+    bands = Counter(c.band for c in candidates)
+    typer.echo(
+        f"{folder / 'candidates.jsonl'}: {len(candidates)} phrases "
+        f"(head {bands['head']}, torso {bands['torso']}, tail {bands['tail']}; "
+        f"{len({c.chapter for c in candidates})} chapters). Local only."
+    )
+
+
+@gold_app.command("annotate")
+def gold_annotate(
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Code the sampled phrases in the terminal; answers are saved after each phrase."""
+    settings = _settings(data_dir)
+    folder = _annotation_dir(settings)
+    if not (folder / "candidates.jsonl").is_file():
+        typer.echo("error: no candidates; run `text2icd eval mimic gold sample`", err=True)
+        raise typer.Exit(code=1)
+    candidates = annotate.read_candidates(folder / "candidates.jsonl")
+    with _open_graph(release, graph_path, data_dir) as graph:
+
+        def lookup(words: str) -> list[str]:
+            hits = graph.search_index(words, 8)
+            lines = []
+            for hit in hits:
+                term = graph.term(hit.term)
+                codes = ", ".join(p.written for p in graph.pointers(hit.term)) or "-"
+                lines.append(f"{term.book}: {term.path}  [{codes}]")
+            return lines or ["no Index term found"]
+
+        def show(code: str) -> list[str]:
+            if code not in graph:
+                return [f"{code} is not a code of {graph.release}"]
+            return show_code(graph, graph.code(code))[:30]
+
+        typer.echo(annotate.HELP)
+        session = annotate.Session(
+            candidates=candidates,
+            answers=annotate.read_answers(folder / "answers.jsonl"),
+            billable=billable_in(graph),
+            save=annotate.answers_to_jsonl(folder / "answers.jsonl"),
+            lookup=lookup,
+            show=show,
+            ask=lambda prompt: input(prompt),
+            say=typer.echo,
+        )
+        given = session.run()
+    typer.echo(f"{given} phrases answered this time; {len(session.answers)} of {len(candidates)}")
+
+
+@gold_app.command("build")
+def gold_build(
+    release: ReleaseOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Write mimic-gold.jsonl from the answers so far."""
+    settings = _settings(data_dir)
+    target_release = _full_release(release or settings.release).id
+    folder = _annotation_dir(settings)
+    if not (folder / "candidates.jsonl").is_file():
+        typer.echo("error: no candidates; run `text2icd eval mimic gold sample`", err=True)
+        raise typer.Exit(code=1)
+    candidates = annotate.read_candidates(folder / "candidates.jsonl")
+    answers = annotate.read_answers(folder / "answers.jsonl")
+    examples, verdicts = annotate.build_gold(candidates, answers, target_release)
+    try:
+        check_frozen(settings.eval_dir(), annotate.SOURCE, examples)
+    except FrozenSplitError as exc:
+        typer.echo(f"error: {exc}; not written", err=True)
+        raise typer.Exit(code=1) from exc
+    target = settings.eval_dir() / f"{annotate.SOURCE}.jsonl"
+    write_dataset(target, examples)
+    write_manifest(target, examples, name=annotate.SOURCE, text2icd=__version__)
+    counts = ", ".join(f"{k} {verdicts[k]}" for k in ("coded", "skip", "unsure", "unanswered"))
+    typer.echo(f"{target}: {len(examples)} examples ({counts})")
+    typer.echo(annotate.agreement_with_silver(examples))
+    typer.echo("\n".join(summarize(examples).lines()))
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:
