@@ -124,6 +124,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   against the release and a patient-level dev/test split. `text2icd eval mimic freeze` records a
   set's test split, and rebuilds or test runs that would change it are refused. The reconciler now
   keeps each code's description.
+- Silver-label audit (`text2icd eval mimic audit sample | review | score`): a seeded sample of
+  `mimic-silver` dev alignments reviewed in the terminal, and the label precision with a 95%
+  Wilson interval, overall and by alignment score.
 
 ### Fixed
 
