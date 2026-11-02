@@ -157,11 +157,39 @@ CMS content is public domain.
 
 ### Text understanding
 
-`text` turns the phrase into a `ParsedPhrase`: one or more conditions, each with a head term,
-modifiers (laterality, acuity, stage, episode of care, organism, pregnancy, site) and flags
-(`negated`, `history_of`, `uncertain`, `ambiguous_abbreviation`). Splitting handles "c/b", "with",
-"due to", "secondary to" and lists. A `setting` option (`inpatient` or `outpatient`) controls the
-uncertain-diagnosis rule (Guidelines II.H, III.C, IV.H).
+`text.parse` turns the phrase into a `ParsedPhrase` (`text.model`), and every step is a trace
+entry (`text2icd.trace.TraceStep`). `text2icd parse "<phrase>"` shows the result.
+
+1. **Normalise** (`text.normalize`): Unicode NFKC, dashes, quotes and spacing; clinical shorthand
+   (`w/`, `w/o`, `s/p`, `c/b`, `2/2`, `h/o`, `r/o`); abbreviations from the lexicon
+   `resources/abbreviations.toml` (`text.abbreviations`), before case folding so that `ALL` and
+   `all` differ, with hint words for ambiguous ones (`altered MS` is mental status) and a flag
+   when none applies; case folding; Roman numerals of stages and diabetes types.
+2. **Modifiers** (`text.modifiers`): laterality, acuity, stage, severity, episode of care, fracture
+   type, organism (named as the Index does), drug resistance, diabetes type and drugs, control,
+   with or without complication, pregnancy and trimester, remission. Each has a canonical value
+   and a span; the words stay in the phrase for the Index walk.
+3. **Cues** (`text.cues`): history, family history, status post and resolved; negation; the
+   uncertainty terms of Guideline II.H, before or after the condition they qualify.
+4. **Split** (`text.split`): `;` and `,` separate items and fragments; linking connectors (`with`,
+   `without`, `due to`, `secondary to`, `complicated by`, `in the setting of`, `on`) join conditions
+   into one diagnosis, as relations the Index's connector subterms will use (I.A.15); `and`, `or`,
+   `vs` and `/` list conditions side by side. Parts that name no condition (no word forming a
+   condition main-term title of the Index, apart from body sites, modifiers and cues) refine or
+   qualify the condition next to them: `pneumonia, right lower lobe`, `UTI due to E. coli`. CMS
+   terms written with "and" (`hand, foot and mouth disease`) and pairs the Index lists under
+   "with" (`nausea and vomiting`) stay whole. Modifier and cue spans are never cut.
+5. **Judge** each condition from the cues that cover it: its status, certainty, and whether it is
+   coded in the `setting`. Inpatient (the default), an uncertain diagnosis is coded as if
+   established (II.H, III.C) and comparative ones are both coded (II.D); outpatient, it is not
+   coded and the symptoms are (IV.H). Negated conditions are not coded. "Resolved" is a personal
+   history, never "in remission" (I.C.4.a.1(b)).
+
+A `ParsedPhrase` holds the original and normalised text, the conditions (text without cue words,
+span, modifiers, cues, status, certainty, reportable), the relations, the diagnoses (conditions
+joined by linking relations), the abbreviation expansions, unknown abbreviation-like tokens, flags
+and the trace. The graph's terms (`text.terms.Terms`) are optional: without them, any words
+besides modifiers and cues name a condition.
 
 ### L0: result cache
 

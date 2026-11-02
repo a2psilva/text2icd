@@ -5,7 +5,8 @@ words the Index walk uses up.
 values and spans: laterality, acuity, stage, severity, episode of care, fracture type, organism,
 drug resistance, diabetes type and drugs, control, with or without complication, pregnancy,
 trimester and weeks of gestation, and remission. Where two matches overlap the longer wins, so
-`acute on chronic` is one acuity and `non-displaced` is not `displaced`.
+`acute on chronic` is one acuity and `non-displaced` is not `displaced`. 7th-character wording
+may hold other modifiers (`closed` in `initial encounter for closed fracture`).
 
 Words stay in the phrase: a modifier says what they mean, it does not remove them. Some rules
 apply only in context: fracture types and healing only when the phrase names a fracture, and
@@ -50,6 +51,11 @@ def _rule(kind: ModifierKind, pattern: str, value: Value, when: str | None = Non
 
 
 _FRACTURE = r"fractur|(?<![a-z])fx(?![a-z])"
+_GUSTILO = r"(?:i{1,3}|[1-3])[abc]?"  # open fracture types: I, II, IIIA, ...
+_FOR_FRACTURE = (
+    rf"(?: for (?:open |closed )?fracture"
+    rf"(?: type {_GUSTILO}(?:,? {_GUSTILO})*(?: or {_GUSTILO})?)?)?"
+)
 _DIABETES = r"diabet|(?<![a-z])dm(?![a-z])"
 _BEFORE_DIABETES = r"\s+(?:diabetes|dm)\b"
 _PREGNANCY = r"pregnan|gestation|intrauterine|gravid|antepartum|trimester|(?<![a-z])ga(?![a-z])"
@@ -174,8 +180,11 @@ RULES: tuple[Rule, ...] = (
     _rule("severity", r"profound", "profound"),
     _rule("severity", r"morbid(?:ly)?", "morbid"),
     # episode of care (7th characters)
-    _rule("episode", r"initial (?:encounter|visit|episode of care)", "initial"),
-    _rule("episode", r"subsequent (?:encounter|visit|episode of care)", "subsequent"),
+    # 7th-character wording of the Tabular List: "initial encounter for closed fracture"
+    _rule("episode", rf"initial (?:encounter|visit|episode of care){_FOR_FRACTURE}", "initial"),
+    _rule(
+        "episode", rf"subsequent (?:encounter|visit|episode of care){_FOR_FRACTURE}", "subsequent"
+    ),
     _rule("episode", r"sequelae?|late effects? of|late effects?", "sequela"),
     _rule("episode", r"(?:with )?routine healing", "routine_healing", _FRACTURE),
     _rule("episode", r"(?:with )?delayed healing", "delayed_healing", _FRACTURE),
@@ -284,7 +293,9 @@ RULES: tuple[Rule, ...] = (
 
 
 def modifiers(text: str) -> tuple[Modifier, ...]:
-    """The modifiers of a normalised phrase, in order, without overlaps (longer matches win)."""
+    """The modifiers of a normalised phrase, in order. Longer matches win over shorter ones they
+    overlap, except inside 7th-character wording, which may hold modifiers of other kinds
+    ("closed" in "initial encounter for closed fracture")."""
     candidates = [
         (start, end, order, rule.kind, value)
         for order, rule in enumerate(RULES)
@@ -293,7 +304,13 @@ def modifiers(text: str) -> tuple[Modifier, ...]:
     candidates.sort(key=lambda c: (-(c[1] - c[0]), c[0], c[2]))
     taken: list[tuple[int, int, int, ModifierKind, str]] = []
     for candidate in candidates:
-        if all(candidate[1] <= other[0] or candidate[0] >= other[1] for other in taken):
+        start, end, _, kind, _ = candidate
+        if all(
+            end <= other[0]
+            or start >= other[1]
+            or (other[0] <= start and end <= other[1] and other[3] == "episode" != kind)
+            for other in taken
+        ):
             taken.append(candidate)
     found = [
         Modifier(kind=kind, value=value, text=text[start:end], start=start, end=end)
