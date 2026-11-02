@@ -129,6 +129,13 @@ resolves when at least one code lies inside it, since some ranges end at a WHO-o
 `GM2 gangliosidosis`); the build log lists them. Any other reference with no code is kept as
 `unresolved` with a warning: FY2026 has one, `G31.90` in a code-first note of F02.
 
+The search tables use the `porter` tokenizer (English stemming) by default. It was chosen by
+main-term recall (`text2icd eval main-terms`), the share of phrases for which Index search puts a
+main term leading to the gold code among the first results. On 10,000 `mimic-silver` dev phrases
+against FY2027, `porter` reaches 49.6% at 1 searching main terms (`unicode61`: 45.9%) and 88.3% at
+10 searching all terms (83.6%). On `cms-synthetic` dev, whose wording follows the Index, the two
+are within each other's intervals.
+
 `text2icd graph check` runs the integrity checks on a built file: the content hash still matches,
 both trees have no missing parent, bad depth or cycle, the billable codes equal the order file,
 every Index pointer resolves (apart from the listed exceptions), every unresolved cross-reference

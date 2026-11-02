@@ -26,6 +26,7 @@ from text2icd.eval.datasets import (
     write_dataset,
     write_manifest,
 )
+from text2icd.eval.main_terms import main_term_recall
 from text2icd.eval.mimic import align as mimic_align
 from text2icd.eval.mimic import annotate, audit
 from text2icd.eval.mimic.files import (
@@ -49,6 +50,7 @@ from text2icd.eval.runner import (
     evaluate,
     read_metrics,
     resolve_dataset,
+    select,
     write_run,
 )
 from text2icd.eval.systems import SYSTEMS, SystemSetupError, build_system
@@ -528,6 +530,33 @@ def eval_report_command(
         typer.echo(str(output))
     else:
         typer.echo(text, nl=False)
+
+
+@eval_app.command("main-terms")
+def eval_main_terms(
+    dataset: Annotated[str, typer.Option("--dataset", "-d", help="Dataset file or name.")],
+    split: Annotated[SplitChoice, typer.Option(help="Split to measure on.")] = "dev",
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Measure on a seeded random sample of this many.")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Seed for --limit.")] = 0,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Main-term recall of the graph's Index search on a dataset split (aggregate counts)."""
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            path = resolve_dataset(dataset, graph.release, settings)
+            chosen = select(read_dataset(path), split, limit, seed)
+        except (RunError, DatasetError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        tokenizer = graph.meta.get("fts_tokenizer", "unknown")
+        results = main_term_recall(graph, chosen)
+    typer.echo(f"{path.name} ({split}), tokenizer {tokenizer}, {len(chosen):,} examples")
+    typer.echo("\n".join(result.line() for result in results))
 
 
 def _progress(every: int = 50) -> Callable[[int], None]:
