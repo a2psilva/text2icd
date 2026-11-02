@@ -56,8 +56,9 @@ More detail is in [docs/architecture.md](docs/architecture.md) and
 
 ## Target output
 
-This example is illustrative; the resolver is not implemented yet. The codes and paths come from the
-FY2026 CMS files.
+The deterministic coder already gives the codes, roles and trace of this example
+(`text2icd code "type 2 DM with diabetic CKD stage 3a" --json`); the first code is the primary
+one. Confidence, the answering layer and the cost come with Phases 7 to 9.
 
 ```json
 {
@@ -66,13 +67,14 @@ FY2026 CMS files.
     {
       "code": "E11.22",
       "description": "Type 2 diabetes mellitus with diabetic chronic kidney disease",
-      "role": "primary",
+      "role": "diagnosis",
       "confidence": 0.97
     },
     {
       "code": "N18.31",
       "description": "Chronic kidney disease, stage 3a",
       "role": "use_additional",
+      "source": "E11.22",
       "confidence": 0.95
     }
   ],

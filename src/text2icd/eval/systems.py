@@ -209,9 +209,10 @@ class IndexSystem(System):
 
 class CoderSystem(System):
     """The deterministic coder (L1, `resolve.coder`): the Index walk, then Tabular verification,
-    so every code is billable. The code set is each diagnosis's code (with its manifestation)
-    and the external cause codes; the alternates, the other completed candidates of the first
-    diagnosis. No confidence yet (Phase 7)."""
+    so every code is billable. The code set is the coder's sequence: the diagnoses with their
+    manifestations and companion codes, in the order the notes give, then the external causes;
+    the alternates, the other completed candidates of the first diagnosis. No confidence yet
+    (Phase 7)."""
 
     name = "coder"
 
