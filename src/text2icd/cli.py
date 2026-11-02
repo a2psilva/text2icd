@@ -3,6 +3,7 @@
 import itertools
 import sqlite3
 from collections import Counter
+from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
 from typing import Annotated
@@ -58,6 +59,8 @@ from text2icd.graph.integrity import check_graph, failed
 from text2icd.graph.model import Graph, GraphError, graph_file, load
 from text2icd.graph.search import DEFAULT_TOKENIZER, Tokenizer
 from text2icd.graph.show import show_code, show_term
+from text2icd.llm.cost import PriceError
+from text2icd.llm.providers import LLMUnavailableError
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.index import IndexSource
 from text2icd.ontology.order import billable_codes, parse_order_file
@@ -462,7 +465,13 @@ def eval_run(
         try:
             path = resolve_dataset(dataset, graph.release, settings)
             runner_system = build_system(system, graph, settings, options)
-        except (RunError, SystemSetupError) as exc:
+        except (
+            RunError,
+            SystemSetupError,
+            LLMUnavailableError,
+            PriceError,
+            EmbeddingsUnavailableError,
+        ) as exc:
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
         try:
@@ -474,7 +483,9 @@ def eval_run(
                 limit=limit,
                 seed=seed,
                 resamples=resamples,
+                progress=_progress() if runner_system.uses_llm else None,
                 frozen_dir=settings.eval_dir(),
+                require_compliant_endpoint=settings.require_dua_compliant_endpoint,
             )
         except (RunError, DatasetError) as exc:
             typer.echo(f"error: {exc}", err=True)
@@ -517,6 +528,18 @@ def eval_report_command(
         typer.echo(str(output))
     else:
         typer.echo(text, nl=False)
+
+
+def _progress(every: int = 50) -> Callable[[int], None]:
+    """Report progress on stderr every `every` phrases, for slow (LLM) runs."""
+    done = [0]
+
+    def step(n: int) -> None:
+        done[0] += n
+        if done[0] % every == 0:
+            typer.echo(f"  {done[0]:,} phrases", err=True)
+
+    return step
 
 
 def _options(pairs: list[str]) -> dict[str, str]:
