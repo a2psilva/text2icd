@@ -2,6 +2,7 @@
 
 import re
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,8 @@ class Settings(BaseSettings):
     require_dua_compliant_endpoint: bool = True
     llm_max_calls_per_phrase: int = Field(default=4, ge=0)
     llm_budget_usd: float = Field(default=1.0, ge=0)
+    # The 7th character's episode of care when an injury phrase states none.
+    default_episode: Literal["initial", "subsequent", "sequela"] = "initial"
 
     @field_validator("release", "llm_api_key", mode="before")
     @classmethod

@@ -253,11 +253,20 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
 
 Shared by every layer, so L2 and L3 can only propose; Tabular verification decides.
 
-- Descend from a category or partial code to a billable code, matching modifiers against child
-  descriptions and inclusion terms. If the phrase gives no further detail, choose the "unspecified"
-  child and add a flag.
-- Apply the 7th character from the inherited definition and pad placeholders.
-- Check the code exists in the release's billable set.
+- Descend from a category or partial code to a billable code (`text2icd.resolve.tabular`): each
+  child is scored by the words that set it apart from its parent, in its description or an
+  inclusion term (1 for each the phrase holds, minus 0.6 for each it does not). If the phrase
+  gives no further detail, take the child whose description adds "unspecified" (I.A.9.b, I.B.18),
+  flagged `unspecified_chosen`; with no such child, the best one, flagged `needs_review`. A
+  fracture not stated as displaced is coded as displaced (I.C.19.c.1).
+- Apply the 7th character from the inherited definition (I.A.5): for injuries, the episode of care
+  the phrase states (initial, subsequent, sequela; for fractures also open or closed, closed by
+  default, and the healing, routine by default), or `TEXT2ICD_DEFAULT_EPISODE`, flagged
+  `seventh_character_assumed`; other 7th characters (eye, fetus) by their words. The generated
+  codes carry their `X` placeholders (I.A.4).
+- Only billable codes come out: the coder (`text2icd.resolve.coder`) completes the Index
+  candidates in rank order and keeps the first that completes; a diagnosis none completes gets no
+  code and the flag `needs_review`. `text2icd code "<phrase>"` prints the code set and its trace.
 - Read notes: report Excludes1 conflicts within the code set, add `use_additional` and `code_first`
   requirements as companion codes (resolved when the phrase supports them, otherwise listed as
   required but unresolved), and order etiology before manifestation.

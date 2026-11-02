@@ -72,6 +72,7 @@ from text2icd.ontology.index import IndexSource
 from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
+from text2icd.resolve.coder import Coder, describe_code_set
 from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.text.abbreviations import default_lexicon
 from text2icd.text.parse import Parser, describe_parsed
@@ -245,6 +246,36 @@ def parse_command(
         typer.echo(parsed.model_dump_json(indent=2))
         return
     typer.echo("\n".join(describe_parsed(parsed)))
+
+
+@app.command("code")
+def code_command(
+    phrase: Annotated[str, typer.Argument(help="A diagnosis phrase.")],
+    setting: Annotated[
+        str,
+        typer.Option(help="inpatient (uncertain diagnoses coded as if established) or outpatient."),
+    ] = "inpatient",
+    as_json: Annotated[bool, typer.Option("--json", help="Print the code set as JSON.")] = False,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Code a phrase with the deterministic coder: Index walk, then Tabular verification."""
+    if setting not in ("inpatient", "outpatient"):
+        typer.echo("error: --setting is inpatient or outpatient", err=True)
+        raise typer.Exit(code=2)
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        coder = Coder.from_graph(
+            graph,
+            "outpatient" if setting == "outpatient" else "inpatient",
+            settings.default_episode,
+        )
+        code_set = coder.code(phrase)
+    if as_json:
+        typer.echo(code_set.model_dump_json(indent=2))
+        return
+    typer.echo("\n".join(describe_code_set(code_set)))
 
 
 @app.command("walk")
