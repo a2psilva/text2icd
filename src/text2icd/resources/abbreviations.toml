@@ -338,6 +338,7 @@ EBV = "Epstein-Barr virus"
 ESBL = "extended spectrum beta lactamase"
 GNR = "gram-negative rod"
 GPC = "gram-positive cocci"
+HAART = "highly active antiretroviral therapy"
 HAV = "hepatitis A"
 HBV = "hepatitis B"
 HCV = "hepatitis C"
@@ -453,8 +454,42 @@ UE = "upper extremity"
 L = { expansions = ["left"], cased = true }
 R = { expansions = ["right"], cased = true }
 
+# Vessels, chambers and measures
+ACA = "anterior cerebral artery"
+AVM = "arteriovenous malformation"
+CBD = "common bile duct"
+CNS = "central nervous system"
+EF = "ejection fraction"
+ICA = "internal carotid artery"
+INR = "international normalized ratio"
+LCx = "left circumflex artery"
+LIMA = "left internal mammary artery"
+LV = "left ventricular"
+LVEF = "left ventricular ejection fraction"
+MDR = "multiple drug resistant"
+O2 = "oxygen"
+PCA = "posterior cerebral artery"
+RCA = "right coronary artery"
+RV = "right ventricular"
+SFA = "superficial femoral artery"
+SMV = "superior mesenteric vein"
+SVC = "superior vena cava"
+SVG = "saphenous vein graft"
+MV = { expansions = ["mitral valve"], cased = true }
+PEA = { expansions = ["pulseless electrical activity"], cased = true }
+
+# Clinical words and truncations the CMS files write differently
+fem = "femoral"
+hypercarbic = "hypercapnia"
+orthostasis = "orthostatic hypotension"
+pacer = "pacemaker"
+post-op = "postoperative"
+tachy = "tachycardia"
+transaminitis = "elevated transaminase"
+
 # Procedures and devices, for "status post" and "history of"
 appy = "appendectomy"
+BMS = "bare metal stent"
 AVF = "arteriovenous fistula"
 AVG = "arteriovenous graft"
 BSO = "bilateral salpingo-oophorectomy"
@@ -462,6 +497,8 @@ CCY = "cholecystectomy"
 CEA = "carotid endarterectomy"
 chemo = "chemotherapy"
 DDRT = "deceased donor renal transplant"
+EGD = "esophagogastroduodenoscopy"
+ERCP = "endoscopic retrograde cholangiopancreatography"
 EVAR = "endovascular aneurysm repair"
 G-tube = "gastrostomy tube"
 J-tube = "jejunostomy tube"
@@ -471,6 +508,7 @@ PEG = "percutaneous endoscopic gastrostomy"
 TAH = "total abdominal hysterectomy"
 trach = "tracheostomy"
 TURP = "transurethral resection of prostate"
+VATS = "video-assisted thoracoscopic surgery"
 XRT = "radiation therapy"
 TIPS = { expansions = ["transjugular intrahepatic portosystemic shunt"], cased = true }
 
@@ -552,8 +590,9 @@ cased = true
 hints."NPH insulin" = ["insulin", "units"]
 
 [abbreviations.OM]
-expansions = ["osteomyelitis", "otitis media"]
+expansions = ["osteomyelitis", "otitis media", "obtuse marginal artery"]
 hints."otitis media" = ["ear", "tympanic", "otorrhea", "effusion"]
+hints."obtuse marginal artery" = ["svg", "lima", "cabg", "lad", "rca", "lcx", "graft", "stent", "coronary", "cad", "vessel"]
 
 [abbreviations.PCP]
 expansions = ["Pneumocystis pneumonia", "phencyclidine"]
