@@ -21,6 +21,8 @@ from text2icd.eval.datasets import (
     write_dataset,
     write_manifest,
 )
+from text2icd.eval.mimic.files import DISCHARGE, MimicFilesMissingError, mimic_file, read_notes
+from text2icd.eval.mimic.sections import SectionStats
 from text2icd.eval.runner import (
     RunError,
     SplitChoice,
@@ -58,6 +60,11 @@ graph_app = typer.Typer(help="Inspect a built knowledge graph.", no_args_is_help
 app.add_typer(graph_app, name="graph")
 eval_app = typer.Typer(help="Evaluation datasets, runs and reports.", no_args_is_help=True)
 app.add_typer(eval_app, name="eval")
+mimic_app = typer.Typer(
+    help="Build the local MIMIC-IV evaluation sets. Prints aggregate counts only.",
+    no_args_is_help=True,
+)
+eval_app.add_typer(mimic_app, name="mimic")
 
 DataDirOption = Annotated[
     Path | None,
@@ -491,6 +498,26 @@ def _options(pairs: list[str]) -> dict[str, str]:
             raise typer.BadParameter(f"expected key=value, got {pair!r}", param_hint="--option")
         options[key.strip()] = value.strip()
     return options
+
+
+@mimic_app.command("sections")
+def mimic_sections(
+    limit: Annotated[int | None, typer.Option(min=1, help="Read only the first N notes.")] = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Count the discharge diagnosis sections and items the extractor finds (no note text)."""
+    settings = _settings(data_dir)
+    try:
+        path = mimic_file(settings, DISCHARGE)
+    except MimicFilesMissingError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    stats = SectionStats()
+    for number, note in enumerate(read_notes(path), start=1):
+        stats.add(note.text)
+        if limit is not None and number >= limit:
+            break
+    typer.echo("\n".join(stats.lines()))
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:
