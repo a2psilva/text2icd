@@ -111,6 +111,31 @@ def test_joining_needs_a_presumed_link(graph: Graph) -> None:
     assert len(walker.join([first, second])) == 2  # "due to" is not presumed
 
 
+@pytest.mark.parametrize(
+    ("phrase", "code", "book", "column"),
+    [
+        ("malignant neoplasm of abdomen", "C76.2", "neoplasm", 2),
+        ("benign neoplasm of abdominal cavity", "D36.7", "neoplasm", 5),
+        ("accidental poisoning by 1-propanol", "T51.3X1", "drug", 2),
+        ("intentional self-poisoning with 1-propanol", "T51.3X2", "drug", 3),
+        ("assault by poisoning with 1-propanol", "T51.3X3", "drug", 4),
+        ("poisoning by 1-propanol, undetermined intent", "T51.3X4", "drug", 5),
+    ],
+)
+def test_routed_to_a_table(graph: Graph, phrase: str, code: str, book: str, column: int) -> None:
+    found = best(IndexWalker(graph), phrase)
+    assert (found.code, found.book, found.column) == (code, book, column)
+    assert found.trace[0].action == "route"
+    assert DEFAULT_CODE not in found.flags or book == "neoplasm"
+
+
+def test_unknown_intent_is_accidental(graph: Graph) -> None:
+    found = best(IndexWalker(graph), "1-propanol overdose")
+    assert found.code == "T51.3X1"
+    assert "intent_unknown_accidental" in found.flags
+    assert found.trace[0].guideline == "I.C.19.e.5(b)"
+
+
 def test_manifestation(graph: Graph) -> None:
     found = best(IndexWalker(graph), "amyloid heart")
     assert (found.code, found.manifestation) == ("E85.4", "I43")
@@ -258,6 +283,34 @@ def test_release_presumed_link(release_walker: IndexWalker) -> None:
     food = release_walker.walk("pneumonia, food").diagnoses[0].best
     assert food is not None
     assert food.code == "J18.9"
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("phrase", "code"),
+    [
+        ("malignant neoplasm of upper lobe of lung", "C34.1"),
+        ("secondary malignant neoplasm of liver", "C78.7"),
+        ("carcinoma in situ of cervix", "D06.9"),
+        ("adverse effect of digoxin", "T46.0X5"),
+        ("underdosing of insulin", "T38.3X6"),
+        ("aspirin overdose", "T39.011"),
+        ("advrrse effect of amitriptyline", "T43.015"),  # a typo in the cue still routes
+        ("family history of colonic polyps", "Z83.71"),
+        ("hip fracture", "S72.00"),  # Fracture, traumatic > hip - see Fracture, femur, neck
+    ],
+)
+def test_release_routes(release_walker: IndexWalker, phrase: str, code: str) -> None:
+    assert best(release_walker, phrase).code.startswith(code)
+
+
+@pytest.mark.slow
+def test_release_external_cause(release_walker: IndexWalker) -> None:
+    (walk,) = release_walker.walk("hip fracture due to fall").diagnoses
+    assert walk.external_causes
+    cause = walk.external_causes[0]
+    assert (cause.code, cause.role, cause.book) == ("W19", "external_cause", "eindex")
+    assert release_walker.walk("hip fracture").diagnoses[0].external_causes == ()
 
 
 @pytest.mark.slow

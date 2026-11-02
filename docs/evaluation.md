@@ -219,11 +219,11 @@ FY2027, `dev` split (67,812 phrases), 95% intervals:
 | --- | --- | --- | --- | --- | --- | --- |
 | B1 BM25 | 38.8% (38.5-39.2) | 52.0% (51.6-52.3) | 50.4% (50.0-50.7) | 40.8% (40.4-41.2) | 0% | $0 |
 | B2 embedding | 40.6% (40.2-41.0) | 55.2% (54.8-55.6) | 53.8% (53.4-54.2) | 41.6% (41.3-42.0) | 0% | $0 |
-| `index` (Index walk, before Tabular) | 77.9% (77.6-78.3) | 78.7% (78.4-79.0) | 87.9% (87.6-88.1) | 79.8% (79.4-80.1) | 15.7% | $0 |
+| `index` (Index walk, before Tabular) | 80.8% (80.5-81.1) | 81.6% (81.3-81.9) | 98.1% (98.0-98.2) | 80.8% (80.5-81.1) | 17.5% | $0 |
 
 The `index` row is the Index walk alone: its codes are often partial (`S72.9-`) or not billable,
-counted as invalid, until Tabular verification completes them (Phase 6); the Neoplasm Table is
-reached only through cross-references so far, and the Table of Drugs and Chemicals not at all.
+counted as invalid, until Tabular verification completes them (Phase 6): Drug Table codes still
+lack their 7th character, for one.
 
 ## Main-term recall
 
@@ -263,17 +263,17 @@ Phase 5 target: the gold code is the top candidate (prefix match) for at least 9
 
 | Generator | Phrases | Top-1 | Top-5 | Category | Default code | No candidate |
 | --- | --- | --- | --- | --- | --- | --- |
-| `index` | 53,730 | 98.2% | 98.6% | 98.9% | 10.1% | 0.2% |
-| `inclusion` | 6,561 | 77.8% | 82.6% | 83.5% | 21.3% | 1.0% |
-| `neoplasm` | 2,482 | 37.3% | 37.6% | 38.1% | 15.3% | 0.0% |
-| `drug` | 5,039 | 1.0% | 1.0% | 1.0% | 38.6% | 57.1% |
-| all | 67,812 | 86.7% | 87.5% | 87.9% | 13.5% | 4.5% |
+| `index` | 53,730 | 98.4% | 98.8% | 99.1% | 10.0% | 0.2% |
+| `inclusion` | 6,561 | 82.4% | 87.1% | 88.2% | 17.7% | 1.0% |
+| `neoplasm` | 2,482 | 99.5% | 99.8% | 99.8% | 0.3% | 0.0% |
+| `drug` | 5,039 | 99.6% | 99.9% | 99.8% | 0.0% | 0.0% |
+| all | 67,812 | 96.9% (96.8-97.1) | 97.8% | 98.1% | 9.6% | 0.2% |
 
-Following cross-references (task 5.6) raised inclusion terms from 72.8% and neoplasm phrases
-from 0.3%: morphology words reach the Neoplasm Table through their references (`Adenocarcinoma` -
-see also `Neoplasm, malignant, by site`). Phrases that name only a behaviour ("malignant
-neoplasm of ...") and the Table of Drugs and Chemicals wait for the Index router (tasks 5.1, 5.8,
-5.9). Inclusion terms follow the Tabular List's wording, not the Index's.
+The target is met on `cms-synthetic` dev. How it got there: main terms and subterms (tasks
+5.2-5.4) gave 84.9%, cross-references (5.6) 86.7%, and the Index router with the Neoplasm Table
+and the Table of Drugs and Chemicals (5.1, 5.8, 5.9) 96.9%. Inclusion terms follow the Tabular
+List's wording rather than the Index's, and are the largest remaining gap. The `mimic-gold`
+target (category accuracy above B1 and B2) waits for the annotation.
 
 ## Text understanding
 

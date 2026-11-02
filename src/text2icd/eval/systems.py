@@ -161,9 +161,10 @@ class EmbeddingSystem(System):
 
 class IndexSystem(System):
     """The Index walk alone (`resolve.walk`), before Tabular verification: for each diagnosis
-    of the phrase its first candidate (with the manifestation code, if any), and the other
-    candidates of the first diagnosis as alternates. Codes may be partial or not billable until
-    the Tabular List completes them (Phase 6). No confidence yet (Phase 7)."""
+    of the phrase its first candidate (with the manifestation code, if any), then any external
+    cause code the phrase calls for, and the other candidates of the first diagnosis as
+    alternates. Codes may be partial or not billable until the Tabular List completes them
+    (Phase 6). No confidence yet (Phase 7)."""
 
     name = "index"
 
@@ -190,6 +191,9 @@ class IndexSystem(System):
                 codes.append(walk.best.code)
                 if walk.best.manifestation:
                     codes.append(walk.best.manifestation)
+        for walk in result.diagnoses:  # external causes after the diagnoses (I.C.20)
+            if walk.external_causes:
+                codes.append(walk.external_causes[0].code)
         first = result.diagnoses[0].candidates[1:] if result.diagnoses else ()
         return Prediction(
             id="",

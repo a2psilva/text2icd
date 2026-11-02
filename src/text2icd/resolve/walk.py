@@ -2,10 +2,14 @@
 take, as ranked candidates with their paths (Guidelines I.A.7, I.A.18).
 
 A phrase is parsed first (`text.parse`); each diagnosis, the conditions that linking relations
-join, is walked on its own. Wording a 7th character carries ("initial encounter", a trailing
-", sequela") is left to the Tabular List and not walked. Two neighbouring diagnoses are joined
-when one walk of both uses every word their separate walks use: the parser takes a comma before a
-subterm for a list ("drug abuse with psychosis, delusions"), the coder does not.
+join, is walked on its own. A condition that is not current is looked up under History or
+Status ("family history of ...", I.C.21.c). The router (`route`) adds start states in the
+Neoplasm Table and the Table of Drugs and Chemicals, in the column the phrase calls for, and an
+External Cause Index walk when the phrase states a mechanism of injury (`external_causes`).
+Wording a 7th character carries ("initial encounter", a trailing ", sequela") is left to the
+Tabular List and not walked. Two neighbouring diagnoses are joined when one walk of both uses
+every word their separate walks use: the parser takes a comma before a subterm for a list
+("drug abuse with psychosis, delusions"), the coder does not.
 
 The walk starts from the best main terms (`main_terms.MainTermFinder`) and descends with a beam
 search (`WIDTH` states per level). A state is a term with the phrase words its path has used:
@@ -39,21 +43,21 @@ subterm's, is the default code (I.A.18), flagged `default_code_used`. A subterm 
 "see" gives no candidate of its own: the coder must follow it. Candidates are ranked by score,
 then by fewer cross-references, then by the rank of their main term, then deeper first.
 
-The Index router, the behaviour column of the Neoplasm Table and the Table of Drugs and Chemicals
-come with tasks 5.1, 5.8 and 5.9; codes are completed and verified in the Tabular List in Phase 6.
+Codes are completed and verified in the Tabular List in Phase 6.
 """
 
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from itertools import pairwise
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
 from text2icd.graph.model import Graph, Pointer
 from text2icd.resolve.main_terms import Entry, MainTermFinder, PhraseWords, index_speller
 from text2icd.resolve.profiles import MISSING, NONESSENTIAL, OTHER_PART, Profile, match
+from text2icd.resolve.route import Route, route
 from text2icd.text.model import Condition, ParsedPhrase, Setting
 from text2icd.text.parse import Parser
 from text2icd.trace import TraceStep, change
@@ -65,6 +69,19 @@ MAX_JUMPS = 3  # cross-references followed per path
 CODE_FIELDS = ("code", "subcategory", "see_category")  # pointers that give the code itself
 SEVENTH_ONLY = frozenset({"initial", "subsequent"})  # episode values only a 7th character carries
 DEFAULT_CODE = "default_code_used"
+BOOKS = {
+    "index": "Index",
+    "neoplasm": "Neoplasm Table",
+    "drug": "Table of Drugs and Chemicals",
+    "eindex": "External Cause Index",
+}
+# How a coder looks up a condition that is not current: under History or Status (I.C.21.c).
+STATUS_LOOKUP = {
+    "history": ("personal history of", "I.C.21.c.4"),
+    "resolved": ("personal history of", "I.C.21.c.4"),
+    "family_history": ("family history of", "I.C.21.c.4"),
+    "status_post": ("status post", "I.C.21.c.3"),
+}
 WITH = frozenset({"with", "associated with", "complicated by"})  # connectors a `without` undoes
 PRESUMED = frozenset({"with", "in", "associated with"})  # links the Index presumes (I.A.15)
 CAUSAL = frozenset({"due to", "secondary to", "resulting from"})  # links the phrase must state
@@ -95,6 +112,7 @@ class Candidate(BaseModel):
     unused: tuple[str, ...] = ()
     flags: tuple[str, ...] = ()
     trace: tuple[TraceStep, ...] = ()
+    role: Literal["diagnosis", "external_cause"] = "diagnosis"
 
     @property
     def written(self) -> str:
@@ -110,6 +128,7 @@ class DiagnosisWalk(BaseModel):
     text: str  # what was walked
     words: tuple[str, ...]  # its words in the forms the walk compares
     candidates: tuple[Candidate, ...] = ()
+    external_causes: tuple[Candidate, ...] = ()  # when the phrase states one (I.C.20)
     trace: tuple[TraceStep, ...] = ()
 
     @property
@@ -132,6 +151,7 @@ class _Context:
     absent: frozenset[str]  # words the phrase puts after `without`
     causal: bool  # whether the phrase says one condition causes another ("due to", "from")
     said: frozenset[str]  # the presumed-link connectors the phrase writes
+    routes: tuple[Route, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +182,7 @@ class _State:
     linked: bool = False  # under a `with` connector
     given: frozenset[str] = frozenset()  # words a partial cross-reference leaves to continue with
     jumps: int = 0  # cross-references followed
+    route: int = -1  # the table route it started from, or -1 for the main Index
 
     @property
     def score(self) -> float:
@@ -206,8 +227,22 @@ class IndexWalker:
             if not any(parsed.conditions[i].reportable for i in members):
                 continue
             text = diagnosis_text(parsed, members)
-            if text:
+            if not text:
+                continue
+            status = parsed.conditions[members[0]].status
+            lookup = STATUS_LOOKUP.get(status)
+            if lookup is None:
                 walks.append(self.walk_text(text, members))
+                continue
+            words, guideline = lookup
+            walk = self.walk_text(f"{words} {text}", members)
+            step = TraceStep(
+                layer="index",
+                action="status",
+                detail=f'{status.replace("_", " ")}: looked up as "{words} {text}"',
+                guideline=guideline,
+            )
+            walks.append(walk.model_copy(update={"trace": (step, *walk.trace)}))
         return WalkResult(parsed=parsed, diagnoses=tuple(self.join(walks)))
 
     def join(self, walks: Sequence[DiagnosisWalk]) -> list[DiagnosisWalk]:
@@ -240,6 +275,7 @@ class IndexWalker:
             TraceStep(layer="index", action="spelling", detail=change(c.written, c.corrected))
             for c in phrase.corrections
         ]
+        routes = tuple(route(_corrected(text, phrase)))
         entries = self.finder.candidates(phrase)[: self.width]
         if entries:
             considered = ", ".join(f"{e.term.title} ({e.score:g})" for e in entries)
@@ -249,16 +285,94 @@ class IndexWalker:
             absent=self._absent(text),
             causal=bool(_CAUSAL.search(text.casefold())),
             said=frozenset(_CONNECTOR_WORDS.findall(text.casefold())),
+            routes=routes,
         )
-        states = self._search(entries, context)
+        starts = self._starts(entries)
+        external: list[Candidate] = []
+        for number, found in enumerate(routes):
+            trace.append(self._route_step(found))
+            if found.book == "eindex":
+                external = self._external(phrase, found, number, context)
+            else:
+                starts += self._routed(phrase, found, number)
+        states = self._search(starts, context)
         candidates = self._candidates(phrase, states, context)
         return DiagnosisWalk(
             conditions=conditions,
             text=text,
             words=phrase.forms,
             candidates=tuple(candidates),
+            external_causes=tuple(external),
             trace=tuple(trace),
         )
+
+    def _route_step(self, found: Route) -> TraceStep:
+        heading = self.graph.column_heading(found.book, found.column) if found.column else None
+        into = BOOKS[found.book] + (f" [{heading}]" if heading else "")
+        return TraceStep(
+            layer="index",
+            action="route",
+            detail=f'"{found.cue}": {into}',
+            guideline=found.guideline,
+        )
+
+    def _starts(self, entries: Sequence[Entry], route: int = -1) -> list[_State]:
+        return [
+            _State(
+                term=entry.term.id,
+                essential=entry.match.used,
+                nonessential=entry.match.nonessential,
+                penalty=MISSING * entry.match.missing + OTHER_PART * entry.match.empty_parts,
+                path=(_Step(entry.term.id, tuple(sorted(entry.match.consumed))),),
+                entry=rank,
+                route=route,
+            )
+            for rank, entry in enumerate(entries)
+        ]
+
+    def _routed(self, phrase: PhraseWords, found: Route, number: int) -> list[_State]:
+        """Start states in a table: the Neoplasm Table's main term, or the substances of the
+        Table of Drugs and Chemicals the rest of the phrase names. The cue words count as used."""
+        cue = frozenset(self.finder.forms.content(found.cue)) & phrase.remaining
+        if found.book == "neoplasm":
+            main = self.graph.main_terms("neoplasm")[0].id
+            terms = [(main, cue | (match(self.profiles[main], phrase.remaining).used), 0.0)]
+        else:
+            substance = self.finder.phrase_words(found.text)
+            terms = [
+                (
+                    entry.term.id,
+                    cue | entry.match.used,
+                    MISSING * entry.match.missing + OTHER_PART * entry.match.empty_parts,
+                )
+                for entry in self.finder.candidates(substance, found.book)[: self.width]
+            ]
+        return [
+            _State(
+                term=term,
+                essential=essential,
+                nonessential=frozenset(),
+                penalty=penalty,
+                path=(_Step(term, tuple(sorted(essential)), column=found.column),),
+                entry=-1,  # a routed start goes first at equal scores
+                route=number,
+            )
+            for term, essential, penalty in terms
+        ]
+
+    def _external(
+        self, phrase: PhraseWords, found: Route, number: int, context: _Context
+    ) -> list[Candidate]:
+        """External cause codes for the mechanism the phrase states, from the External Cause
+        Index; only candidates that use the mechanism's words."""
+        cue = frozenset(self.finder.forms.content(found.cue))
+        entries = self.finder.candidates(phrase, "eindex")[: self.width]
+        states = self._search(self._starts(entries, number), context)
+        return [
+            candidate.model_copy(update={"role": "external_cause"})
+            for candidate in self._candidates(phrase, states, context)
+            if cue & set(candidate.used)
+        ]
 
     # -- search ---------------------------------------------------------------------------------
 
@@ -270,19 +384,9 @@ class IndexWalker:
             found.update(self.finder.forms.content(segment.group(1)))
         return frozenset(found)
 
-    def _search(self, entries: Sequence[Entry], context: _Context) -> list[_State]:
+    def _search(self, starts: Sequence[_State], context: _Context) -> list[_State]:
         words = context.words
-        frontier = [
-            _State(
-                term=entry.term.id,
-                essential=entry.match.used,
-                nonessential=entry.match.nonessential,
-                penalty=MISSING * entry.match.missing + OTHER_PART * entry.match.empty_parts,
-                path=(_Step(entry.term.id, tuple(sorted(entry.match.consumed))),),
-                entry=rank,
-            )
-            for rank, entry in enumerate(entries)
-        ]
+        frontier = list(starts)
         visited = list(frontier)
         expanded = 0
         while frontier and expanded < MAX_EXPANSIONS:
@@ -336,9 +440,11 @@ class IndexWalker:
                 linked=linked,
                 given=state.given - found.used,
                 jumps=state.jumps,
+                route=state.route,
             )
             follows = bool(found.used & state.given)  # the words a cross-reference gives
-            if new.score > state.score or follows or self._leads_on(profile, available - used):
+            onward = (available - used) | (state.given - found.used)
+            if new.score > state.score or follows or self._leads_on(profile, onward):
                 yield new
 
     def _jumps(self, state: _State, words: frozenset[str]) -> Iterable[_State]:
@@ -370,12 +476,19 @@ class IndexWalker:
             found = match(self.profiles[target.id], words | given)
             used = (found.used - state.essential) & words
             essential = state.essential | used
+            # A `see` from a term the phrase documents, or that a `see` led to, names the same
+            # thing; a `see also`, or a `see` from a term the phrase only partly documents, is
+            # charged for what the target adds.
+            source = match(self.profiles[state.term], words | state.given)
+            partly = bool(source.missing or source.empty_parts) and state.path[-1].via != "see"
+            charged = xref.kind == "see_also" or partly
+            cost = MISSING * found.missing * charged + OTHER_PART * found.empty_parts
             yield replace(
                 state,
                 term=target.id,
                 essential=essential,
                 nonessential=state.nonessential - essential,
-                penalty=state.penalty + MISSING * found.missing + OTHER_PART * found.empty_parts,
+                penalty=state.penalty + cost,
                 path=(
                     *state.path,
                     _Step(target.id, tuple(sorted(used)), xref.kind, column, xref.written),
@@ -414,28 +527,32 @@ class IndexWalker:
             if at is None or (at < len(state.path) - 1 and self._sends_on(state.term)):
                 continue  # a "see" the coder must follow, not a default code (task 5.6)
             direct = at == len(state.path) - 1
-            # At equal scores: a code given directly before one a cross-reference leads to.
+            # At equal scores: the better main term, then a code given directly before one a
+            # cross-reference leads to.
             key = (
                 -round(state.score, 6),
-                state.jumps,
                 state.entry,
+                state.jumps,
                 not direct,
                 -len(state.path),
                 state.term,
             )
             ranked.append((key, state, at))
         ranked.sort(key=lambda item: item[0])
-        out: list[Candidate] = []
-        seen: set[tuple[str, str | None]] = set()
-        for _, state, at in ranked:
-            candidate = self._candidate(phrase, state, at, context)
-            if (candidate.code, candidate.manifestation) in seen:
-                continue
-            seen.add((candidate.code, candidate.manifestation))
-            out.append(candidate)
-            if len(out) == TOP:
-                break
-        return out
+        # One candidate per code, in rank order; of the paths to a code at its best score, the
+        # one with the fewest cross-references.
+        chosen: dict[tuple[str, str | None], tuple[_State, int]] = {}
+        for key, state, at in ranked:
+            coded = self._code_of(state.path[at].term, state.path[at].column)
+            assert coded is not None
+            code = (str(coded.code.target), coded.manifestation and coded.manifestation.target)
+            first = chosen.get(code)
+            fewer = first is not None and state.jumps < first[0].jumps
+            if first is None or (fewer and round(first[0].score, 6) == -key[0]):
+                chosen[code] = (state, at)
+        return [
+            self._candidate(phrase, state, at, context) for state, at in list(chosen.values())[:TOP]
+        ]
 
     def _coded_term(self, state: _State) -> int | None:
         """The position on the path of the deepest term that gives a code, itself or through its
@@ -500,6 +617,10 @@ class IndexWalker:
         coded_at = self.graph.term(coded.term)
         flags: list[str] = []
         trace: list[TraceStep] = []
+        if state.route >= 0 and context.routes[state.route].book != "eindex":
+            routed = context.routes[state.route]
+            flags.extend(routed.flags)
+            trace.append(self._route_step(routed))
         for depth, step in enumerate(state.path):
             term = self.graph.term(step.term)
             if step.via:
@@ -535,7 +656,7 @@ class IndexWalker:
                 )
         if any(step.via for step in state.path):
             flags.append("cross_reference")
-        if coded_at.parent is None or coded.unspecified:
+        if (coded_at.parent is None and coded_at.book != "drug") or coded.unspecified:
             flags.append(DEFAULT_CODE)
             source = self.graph.term(state.path[at].term)
             detail = (
@@ -568,6 +689,15 @@ class IndexWalker:
             flags=tuple(flags),
             trace=tuple(trace),
         )
+
+
+def _corrected(text: str, phrase: PhraseWords) -> str:
+    """The text with its typos corrected, so that misspelled cue words still route."""
+    for correction in phrase.corrections:
+        text = re.sub(
+            rf"\b{re.escape(correction.written)}\b", correction.corrected, text, flags=re.IGNORECASE
+        )
+    return text
 
 
 def _covers(joined: DiagnosisWalk, first: DiagnosisWalk, second: DiagnosisWalk) -> bool:
@@ -625,6 +755,8 @@ def describe_walk(result: WalkResult, top: int = 5) -> list[str]:
                 code += f" [{candidate.manifestation}]"
             flags = f"  [{', '.join(candidate.flags)}]" if candidate.flags else ""
             lines.append(f"  {rank}. {code:<16} {candidate.score:5.2f}  {candidate.path}{flags}")
+        for candidate in walk.external_causes[:1]:
+            lines.append(f"  external cause: {candidate.written}  {candidate.path}")
         best = walk.candidates[0]
         lines.append("  trace of 1:")
         for step in best.trace:
