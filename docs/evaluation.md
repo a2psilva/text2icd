@@ -109,7 +109,20 @@ their subdivisions) and 83 assignments (38 distinct codes) unmappable.
 | Cost | US dollars per 1,000 phrases, from the provider `usage` fields |
 | Latency | p50 and p95 per phrase, with and without the LLM |
 
-All metrics are reported with 95% bootstrap confidence intervals, overall and per chapter.
+All metrics except latency are reported with 95% bootstrap confidence intervals (1,000 resamples
+of the examples, fixed seed), overall, for the `valid` and `mapped` examples separately, and per
+chapter. They are computed by `text2icd.eval.metrics.score`:
+
+- A system returns, per example, a code set (primary code first), ranked alternates, an optional
+  confidence, and its LLM calls, cost and latency (`text2icd.eval.predictions.Prediction`). An
+  example with no prediction counts as wrong.
+- Accuracy@5 reads the primary code then the alternates. Code-set precision, recall and F1 are
+  pooled over all examples (micro), each predicted code matching at most one gold code.
+- Examples with an `unmappable` gold code are counted and left out of the accuracy and code-set
+  metrics; the invalid-code rate counts every predicted code, alternates included.
+- Selective accuracy is accuracy@1 on the most confident 100%, 90%, ..., 50% of the examples; once
+  a system reports any confidence, an example without one counts as 0. Calibration uses ten
+  equal-width bins.
 
 ## Baselines
 
