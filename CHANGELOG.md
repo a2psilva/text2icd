@@ -158,6 +158,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   care, fracture type, organism (named as the Index does), drug resistance, diabetes type, drugs
   and control, with or without complication, pregnancy, trimester (also derived from weeks of
   gestation), and remission, each with a canonical value and its span in the phrase.
+- Status, negation and uncertainty (`text2icd.text.cues`): history, family history, status post and
+  resolved, negation, and the uncertainty terms of Guideline II.H, before or after a condition. A
+  `setting` (`inpatient` by default, or `outpatient`) applies the uncertain-diagnosis rule: coded
+  as if established inpatient (II.H, III.C), not coded outpatient (IV.H). Resolved is a personal
+  history, never remission.
 
 ### Fixed
 

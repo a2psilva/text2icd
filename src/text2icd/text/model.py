@@ -35,3 +35,42 @@ class Modifier(BaseModel):
     text: str  # the words, as in the normalised phrase
     start: int
     end: int
+
+
+CueKind = Literal[
+    "history",  # personal history of a condition that no longer exists
+    "family_history",
+    "status_post",  # after a procedure (a status) or an event
+    "resolved",  # no longer present; not the same as "in remission"
+    "negated",  # absent or ruled out
+    "uncertain",  # probable, suspected, possible, rule out, ...
+]
+CueFamily = Literal["status", "certainty"]
+Status = Literal["current", "history", "family_history", "status_post", "resolved"]
+Certainty = Literal["affirmed", "negated", "uncertain"]
+Setting = Literal["inpatient", "outpatient"]
+CUE_FAMILY: dict[CueKind, CueFamily] = {
+    "history": "status",
+    "family_history": "status",
+    "status_post": "status",
+    "resolved": "status",
+    "negated": "certainty",
+    "uncertain": "certainty",
+}
+
+
+class Cue(BaseModel):
+    """Words that qualify a condition: `before` it (`possible pneumonia`, `history of MI`) or
+    `after` it (`PE ruled out`, `pneumonia, resolved`)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: CueKind
+    text: str
+    start: int
+    end: int
+    position: Literal["before", "after"]
+
+    @property
+    def family(self) -> CueFamily:
+        return CUE_FAMILY[self.kind]
