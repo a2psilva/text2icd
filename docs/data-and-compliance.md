@@ -60,6 +60,13 @@ text2icd therefore:
 - enforces `TEXT2ICD_REQUIRE_DUA_COMPLIANT_ENDPOINT=true` for MIMIC-IV runs, which allows only the
   providers in an explicit allow-list kept in code and reviewed when PhysioNet updates its guidance.
 
+The allow-list is `ALLOW_LIST` in `src/text2icd/llm/providers.py`; each entry quotes its basis in
+the PhysioNet guidance and the date it was checked. It holds the providers that text2icd implements
+and that the guidance names, currently only `anthropic` (the guidance, checked 2026-11-01, says
+Claude does not train on prompts or responses by default and that routine human review is not
+performed). `text2icd eval run` refuses an LLM system on a MIMIC-IV dataset when the flag is off or
+the provider is not on the list.
+
 Re-read the PhysioNet page before running MIMIC-IV experiments with an LLM. It may have changed since
 this document was written.
 

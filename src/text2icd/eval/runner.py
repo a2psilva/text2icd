@@ -29,6 +29,7 @@ from text2icd.eval.mimic.splits import FrozenSplitError, check_frozen
 from text2icd.eval.predictions import Prediction
 from text2icd.eval.systems import System
 from text2icd.graph.model import Graph
+from text2icd.llm.providers import EndpointNotAllowedError, check_endpoint
 
 SplitChoice = Literal["dev", "test", "all"]
 RESTRICTED_SOURCES = ("mimic",)
@@ -235,9 +236,11 @@ def evaluate(
     resamples: int = 1000,
     progress: Callable[[int], None] | None = None,
     frozen_dir: Path | None = None,
+    require_compliant_endpoint: bool = True,
 ) -> tuple[Run, Report]:
     """Run a system over a dataset split and score it. With `frozen_dir`, a test run on a
-    dataset whose frozen test split has changed is refused."""
+    dataset whose frozen test split has changed is refused. A system that sends phrases to a
+    hosted service may run on restricted data (MIMIC-IV) only through an approved endpoint."""
     dataset = read_dataset(dataset_path)
     releases = {e.release for e in dataset}
     if releases and releases != {graph.release}:
@@ -254,6 +257,15 @@ def evaluate(
         try:
             check_frozen(frozen_dir, name, dataset)
         except FrozenSplitError as exc:
+            raise RunError(str(exc)) from exc
+    if system.endpoint is not None:
+        try:
+            check_endpoint(
+                system.endpoint,
+                restricted=is_restricted(dataset),
+                require_compliant=require_compliant_endpoint,
+            )
+        except EndpointNotAllowedError as exc:
             raise RunError(str(exc)) from exc
     started = datetime.now(UTC)
     predictions = predict(system, chosen, progress)

@@ -43,6 +43,11 @@ class System(ABC):
         """What the result depends on besides the code (model ids, k), for provenance."""
         return {}
 
+    @property
+    def endpoint(self) -> str | None:
+        """The hosted service the system sends phrases to, or None if it runs locally."""
+        return None
+
     def close(self) -> None:  # noqa: B027  (optional hook)
         """Release what the system holds (clients, models)."""
 
@@ -157,7 +162,14 @@ Factory = Callable[[Graph, Settings, Options], System]
 SYSTEMS: dict[str, Factory] = {
     "bm25": lambda graph, settings, options: BM25System(graph, options),
     "embedding": lambda graph, settings, options: EmbeddingSystem(graph, options),
+    "llm": lambda graph, settings, options: _llm(graph, settings, options),
 }
+
+
+def _llm(graph: Graph, settings: Settings, options: Options) -> System:
+    from text2icd.eval.llm_baseline import LLMChoiceSystem  # imports this module
+
+    return LLMChoiceSystem(graph, settings, options)
 
 
 def build_system(name: str, graph: Graph, settings: Settings, options: Options) -> System:

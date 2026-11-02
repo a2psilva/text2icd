@@ -187,6 +187,23 @@ B1 and B2 rank the billable codes whose description or inclusion term is closest
 Codes made by adding a 7th character have no text of their own, so neither baseline can return
 them; that is part of what they measure.
 
+B3 and B4 (`-s llm`, `text2icd.eval.llm_baseline`) give the phrase and the top 20 codes of B2, with
+their descriptions, to an LLM, which answers with candidate numbers through a JSON schema (one
+primary code, optional companions, a confidence): it chooses, it never writes a code. One call per
+phrase, with thinking off where the model allows it and low effort otherwise; each call's usage is
+priced from `prices.toml`, and the run stops calling once its budget is spent (`-O budget=` or
+`TEXT2ICD_LLM_BUDGET_USD`). The provider and model come from `TEXT2ICD_LLM_PROVIDER` and
+`TEXT2ICD_LLM_MODEL` or `-O provider=... -O model=...`; the only provider implemented so far is
+`anthropic`. B4 runs the same system with a large model on a sample:
+
+```bash
+uv run text2icd eval run -d cms-synthetic -s llm -O model=<small model> --limit 1000 -O budget=1
+uv run text2icd eval run -d cms-synthetic -s llm -O model=<large model> --limit 200 -O budget=5
+```
+
+On MIMIC-IV sets, an LLM system runs only through an approved endpoint
+([data and compliance](data-and-compliance.md#llm-endpoints-and-mimic-iv)).
+
 B2 runs locally with a static embedding model (`text2icd.embeddings`, installed with
 `uv sync --extra embeddings`); the default, `NeuML/pubmedbert-base-embeddings-8M`, was trained on
 biomedical text. `-O model=<id>` selects another model2vec model. The MIMIC-IV aligner uses a

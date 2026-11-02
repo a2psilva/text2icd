@@ -131,6 +131,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   (`docs/annotation-guide.md`): phrases drawn from `mimic-silver` by code frequency band and chapter,
   coded by hand in a terminal session with Index lookups and code views, every code checked against
   the release, and the answers built into a dataset with its agreement with the silver labels.
+- B3/B4 LLM baselines (`-s llm`): the model chooses among B2's top 20 codes through a JSON schema
+  of candidate numbers, one call per phrase, priced per call and stopped at the run's budget.
+  Providers live behind one interface (`text2icd.llm.providers`, optional extra `llm`; Anthropic
+  API first), and `eval run` refuses LLM systems on MIMIC-IV datasets unless the endpoint is on
+  the cited allow-list and `TEXT2ICD_REQUIRE_DUA_COMPLIANT_ENDPOINT` is on.
 
 ### Fixed
 
