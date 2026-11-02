@@ -22,6 +22,7 @@ evaluated (FY2027). Type the codes with the primary code first, then any compani
 | --- | --- |
 | `2` or `2 5` | candidate numbers |
 | `E11.22 N18.30` | codes, with or without the dot; mixing numbers and codes is fine |
+| `I10, E78.5` | the codes of different diagnoses, separated by a comma (rule 12) |
 | `s` *comment* | skip: not a codable diagnosis (a procedure, a plan, a fragment) |
 | `?` *comment* | unsure: the phrase could mean different things |
 | `l` *words* | look up Alphabetic Index terms |
@@ -56,6 +57,15 @@ after each phrase, so you can stop at any time and resume later.
    different things and the phrase does not settle it ("MS"), mark it `?`.
 10. **Several diagnoses in one phrase** ("HTN, HLD"): code them all, the first one named first.
 11. **Negated or non-diagnoses** ("no evidence of PE", "discharge planning"): skip with `s`.
+12. **Diagnoses, separated by commas.** Type a comma between the codes of different diagnoses
+    and keep the codes of one diagnosis together. One diagnosis is a code and the companion codes
+    it requires (`E11.22 N18.31`), an etiology and its manifestation (`E85.4 I43`), the codes of
+    conditions the phrase links with "with", "due to", "secondary to", "complicated by", "in the
+    setting of" or "on" (`N17.9 E86.0` for "AKI due to dehydration"), and conditions one code
+    covers ("nausea and vomiting" is `R11.2`). Conditions the phrase lists with commas,
+    semicolons, "and", "/" or "vs" are separate diagnoses (`I10, E78.5` for "HTN, HLD"), unless
+    the classification combines them ("HTN and CKD" is `I12.9 N18.9`, one diagnosis). The count
+    measures how well text2icd splits phrases into diagnoses; it does not change the codes.
 
 ## Steps
 

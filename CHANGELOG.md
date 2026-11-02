@@ -173,6 +173,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   whether it is coded, in a `ParsedPhrase` with the trace of every step.
 - Modifiers: the Tabular List's 7th-character wording ("initial encounter for closed fracture") is
   an episode of care, and may hold a fracture type.
+- `text2icd eval parse -d <dataset>`: how text understanding reads a dataset split, in aggregate
+  counts, and the share of phrases split into the expected number of diagnoses (one per
+  `cms-synthetic` phrase, or `meta.diagnoses`). The `mimic-gold` annotation now records it: commas
+  separate the codes of different diagnoses (annotation guide rule 12).
+- Abbreviation review (`text2icd eval mimic abbrev sample | review | score`, local only): 200
+  expansions from dev discharge diagnoses, one per note, judged by hand, and the expansion
+  accuracy with a 95% Wilson interval. The audit's review loop takes the lines to show.
 
 ### Fixed
 

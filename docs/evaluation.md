@@ -100,7 +100,9 @@ the evaluated release (`text2icd.eval.mimic.annotate`):
   admission's billed codes as candidates (replaced codes shown as their current replacements).
 - `text2icd eval mimic gold annotate` is the coding session in the terminal: candidate numbers or
   codes, primary first, checked against the release's billable codes as they are typed, with
-  Index lookups and code views from the graph; answers are saved after each phrase.
+  Index lookups and code views from the graph; answers are saved after each phrase. Commas
+  separate the codes of different diagnoses, and their number (`meta.diagnoses`) measures the
+  condition splitter.
 - `text2icd eval mimic gold build` writes `mimic-gold.jsonl` and reports how many phrases were
   coded, skipped and unsure, and how often the hand-coded primary code equals the silver one.
 
@@ -225,6 +227,31 @@ Index search puts a right main term (one whose subterms lead to the gold code or
 among the first 1, 5 or 10 found, searching main terms only or all terms
 (`text2icd.eval.main_terms`). It chose the graph's tokenizer
 ([architecture](architecture.md#knowledge-graph)) and will measure main-term selection in Phase 5.
+
+## Text understanding
+
+`text2icd eval parse -d <dataset>` reads every phrase of a split with `text2icd.text.parse` and
+reports aggregate counts (`text2icd.eval.parsing`): diagnoses per phrase, phrases with an
+abbreviation expanded, flags, relations and modifiers. Where the number of diagnoses is known
+(`meta.diagnoses` in `mimic-gold`, and one for every `cms-synthetic` phrase), it reports the share
+of phrases split into that many, with a Wilson interval. `--show N` lists mismatched phrases, for
+public datasets only.
+
+The accuracy of abbreviation expansion is measured by hand on MIMIC-IV dev discharge diagnoses
+(`text2icd eval mimic abbrev sample | review | score`): one expansion drawn at random from each
+note that has one, a seeded sample of 200, judged right or wrong in the terminal, and the accuracy
+with a Wilson interval, overall and by how the meaning was chosen (the only one, a hint, or the
+default of an ambiguous abbreviation).
+
+Phase 4 targets: at least 95% of `mimic-gold` dev phrases split into the annotated number of
+diagnoses, and at least 95% of expansions right. Results so far, FY2027:
+
+| Measure | Result |
+| --- | --- |
+| `cms-synthetic` dev, one diagnosis per phrase | 95.7% of 67,812 |
+| `mimic-silver` dev, phrases with an abbreviation expanded | 8.9% of 88,590 |
+| `mimic-gold` dev, number of diagnoses | waits for the annotation |
+| Abbreviation expansion accuracy | waits for the review |
 
 ## Protocol
 

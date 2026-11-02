@@ -42,6 +42,7 @@ from text2icd.eval.mimic.sections import SectionStats
 from text2icd.eval.mimic.silver import SOURCE as SILVER
 from text2icd.eval.mimic.silver import build_silver
 from text2icd.eval.mimic.splits import FrozenSplitError, check_frozen, freeze
+from text2icd.eval.parsing import parse_stats
 from text2icd.eval.runner import (
     RunError,
     SplitChoice,
@@ -49,6 +50,7 @@ from text2icd.eval.runner import (
     chapter_of,
     default_output,
     evaluate,
+    is_restricted,
     read_metrics,
     resolve_dataset,
     select,
@@ -103,7 +105,7 @@ gold_app = typer.Typer(
 )
 mimic_app.add_typer(gold_app, name="gold")
 abbrev_app = typer.Typer(
-    help="Abbreviations in MIMIC-IV discharge diagnoses: mining (local only).",
+    help="Abbreviations in MIMIC-IV discharge diagnoses: mining and a hand review of expansions.",
     no_args_is_help=True,
 )
 mimic_app.add_typer(abbrev_app, name="abbrev")
@@ -603,6 +605,50 @@ def eval_main_terms(
     typer.echo("\n".join(result.line() for result in results))
 
 
+@eval_app.command("parse")
+def eval_parse(
+    dataset: Annotated[str, typer.Option("--dataset", "-d", help="Dataset file or name.")],
+    split: Annotated[SplitChoice, typer.Option(help="Split to measure on.")] = "dev",
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Measure on a seeded random sample of this many.")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Seed for --limit.")] = 0,
+    setting: Annotated[str, typer.Option(help="inpatient or outpatient.")] = "inpatient",
+    show: Annotated[
+        int,
+        typer.Option(min=0, help="Show this many mismatched phrases (public datasets only)."),
+    ] = 0,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """How text understanding reads a dataset split: aggregate counts, and agreement with the
+    expected number of diagnoses (mimic-gold annotations; one per cms-synthetic phrase)."""
+    if setting not in ("inpatient", "outpatient"):
+        typer.echo("error: --setting is inpatient or outpatient", err=True)
+        raise typer.Exit(code=2)
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            path = resolve_dataset(dataset, graph.release, settings)
+            chosen = select(read_dataset(path), split, limit, seed)
+        except (RunError, DatasetError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        if show and is_restricted(chosen):
+            typer.echo("error: --show is refused for restricted (MIMIC-IV) datasets", err=True)
+            raise typer.Exit(code=2)
+        parser = Parser.from_graph(graph, "outpatient" if setting == "outpatient" else "inpatient")
+    stats = parse_stats(chosen, parser, keep=show)
+    typer.echo(f"{path.name} ({split}), {setting}, {len(chosen):,} examples")
+    typer.echo("\n".join(stats.lines()))
+    for mismatch in stats.mismatches:
+        found = " | ".join(mismatch.conditions)
+        typer.echo(
+            f"  {mismatch.id}: expected {mismatch.expected}, found {mismatch.found}: {found}"
+        )
+
+
 def _progress(every: int = 50) -> Callable[[int], None]:
     """Report progress on stderr every `every` phrases, for slow (LLM) runs."""
     done = [0]
@@ -956,6 +1002,78 @@ def abbrev_mine(
     written = mimic_abbreviations.write_candidates(target, mined)
     typer.echo("\n".join(mined.lines(min_notes)))
     typer.echo(f"{target}: {written:,} words used in 2 or more notes (local only)")
+
+
+AbbrevFileOption = Annotated[
+    Path | None,
+    typer.Option("--file", help="Review file (default: <eval dir>/audit/abbreviations.csv)."),
+]
+
+
+def _abbrev_file(settings: Settings, path: Path | None) -> Path:
+    return path or settings.eval_dir() / "audit" / mimic_abbreviations.REVIEW
+
+
+@abbrev_app.command("sample")
+def abbrev_sample(
+    size: Annotated[int, typer.Option("--size", "-n", min=1, help="Rows to review.")] = (
+        mimic_abbreviations.REVIEW_SIZE
+    ),
+    seed: Annotated[int, typer.Option(help="Seed of the random sample.")] = 0,
+    file: AbbrevFileOption = None,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Draw expansions from dev discharge diagnoses into a review file (one per note)."""
+    settings = _settings(data_dir)
+    target = _abbrev_file(settings, file)
+    try:
+        path = mimic_file(settings, DISCHARGE)
+    except MimicFilesMissingError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    with _open_graph(release, graph_path, data_dir) as graph:
+        known = vocabulary(graph)
+    rows = mimic_abbreviations.sample_expansions(
+        read_notes(path), default_lexicon(), known, size, seed
+    )
+    try:
+        count = mimic_abbreviations.write_expansion_review(target, rows)
+    except FileExistsError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"{target}: {count} rows to review (local only; never share this file)")
+
+
+@abbrev_app.command("review")
+def abbrev_review(file: AbbrevFileOption = None, data_dir: DataDirOption = None) -> None:
+    """Judge each expansion in the terminal; progress is saved after each answer."""
+    path = _abbrev_file(_settings(data_dir), file)
+    if not path.is_file():
+        typer.echo(f"error: {path} not found; run `text2icd eval mimic abbrev sample`", err=True)
+        raise typer.Exit(code=1)
+    rows = audit.read_review(path)
+    typer.echo(mimic_abbreviations.REVIEW_HELP)
+    given = audit.review(
+        rows,
+        ask=lambda prompt: input(prompt),
+        say=typer.echo,
+        save=lambda current: audit.save_review(path, current, mimic_abbreviations.REVIEW_COLUMNS),
+        describe=mimic_abbreviations.describe_expansion,
+        help_text=mimic_abbreviations.REVIEW_HELP,
+    )
+    typer.echo(f"{given} verdicts given; " + audit.precision(rows).line("accuracy"))
+
+
+@abbrev_app.command("score")
+def abbrev_score(file: AbbrevFileOption = None, data_dir: DataDirOption = None) -> None:
+    """Expansion accuracy with a 95% interval, overall and by how the meaning was chosen."""
+    path = _abbrev_file(_settings(data_dir), file)
+    if not path.is_file():
+        typer.echo(f"error: {path} not found; run `text2icd eval mimic abbrev sample`", err=True)
+        raise typer.Exit(code=1)
+    typer.echo("\n".join(mimic_abbreviations.accuracy(audit.read_review(path))))
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:

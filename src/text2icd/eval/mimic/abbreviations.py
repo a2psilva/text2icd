@@ -10,15 +10,22 @@ medical knowledge (`resources/abbreviations.toml`).
 
 The summary is aggregate: counts, lexicon keys (which are not MIMIC-IV text), and only the
 tokens used in at least `min_notes` notes, which are vocabulary rather than note content.
+
+The accuracy of the expansions is measured on a labelled sample (Phase 4 exit criterion: at
+least 95%): one expansion drawn at random from each dev note that has one, then a seeded sample
+of them, reviewed by a person in the terminal (`y` right, `n` wrong, `?` cannot tell). The
+review file holds MIMIC-IV phrases and stays under the data directory.
 """
 
 import csv
+import random
 import re
 from collections import Counter
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from text2icd.eval.mimic.audit import precision, read_review
 from text2icd.eval.mimic.files import Note
 from text2icd.eval.mimic.sections import diagnosis_items
 from text2icd.eval.mimic.splits import split_of_subject
@@ -27,6 +34,22 @@ from text2icd.text.normalize import normalize
 from text2icd.text.terms import words
 
 CANDIDATES = "abbreviation-candidates.tsv"
+REVIEW = "abbreviations.csv"  # under the eval directory's audit folder
+REVIEW_SIZE = 200
+REVIEW_COLUMNS = (
+    "id",
+    "phrase",
+    "abbreviation",
+    "expansion",
+    "others",
+    "chosen_by",
+    "verdict",
+    "comment",
+)
+REVIEW_HELP = (
+    "y: the expansion is right for the phrase, n: wrong (add the right meaning after a space),"
+    " ?: cannot tell. b: back, q: save and quit."
+)
 MIN_NOTES = 50  # a token is shown only when this many notes use it
 FILE_MIN_NOTES = 2  # tokens used in fewer notes are left out of the local file
 
@@ -168,3 +191,73 @@ def write_candidates(path: Path, mined: Mined, min_notes: int = FILE_MIN_NOTES) 
         for token, notes in rows:
             writer.writerow([token, notes, mined.token_items[token], mined.token_capitals[token]])
     return len(rows)
+
+
+def sample_expansions(
+    notes: Iterable[Note],
+    lexicon: Lexicon,
+    known: Collection[str],
+    size: int = REVIEW_SIZE,
+    seed: int = 0,
+) -> list[dict[str, str]]:
+    """Review rows: one expansion drawn at random from each dev note that has one, then a
+    seeded sample of `size`, in id order."""
+    pool: list[dict[str, str]] = []
+    for note in notes:
+        if split_of_subject(note.subject_id) != "dev":
+            continue
+        found = []
+        for item in diagnosis_items(note.text):
+            result = normalize(item.text, lexicon, known)
+            found += [(item, k, e) for k, e in enumerate(result.expansions)]
+        if not found:
+            continue
+        item, k, expansion = random.Random(f"{seed}:{note.note_id}").choice(found)
+        pool.append(
+            {
+                "id": f"{note.note_id}:{item.position}:{k}",
+                "phrase": item.text,
+                "abbreviation": expansion.written,
+                "expansion": expansion.expansion,
+                "others": "; ".join(expansion.alternatives),
+                "chosen_by": expansion.chosen_by,
+                "verdict": "",
+                "comment": "",
+            }
+        )
+    chosen = random.Random(f"{seed}:abbreviations").sample(pool, min(size, len(pool)))
+    return sorted(chosen, key=lambda row: row["id"])
+
+
+def write_expansion_review(path: Path, rows: Sequence[Mapping[str, str]]) -> int:
+    """Write the review file; refuses to overwrite one that already has verdicts."""
+    if path.is_file() and any(row["verdict"].strip() for row in read_review(path)):
+        raise FileExistsError(f"{path} already has verdicts; review or move it first")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, REVIEW_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+    return len(rows)
+
+
+def describe_expansion(row: Mapping[str, str]) -> list[str]:
+    lines = [
+        f"chosen: {row['chosen_by']}",
+        f"  phrase:       {row['phrase']}",
+        f"  abbreviation: {row['abbreviation']} -> {row['expansion']}",
+    ]
+    if row.get("others"):
+        lines.append(f"  other meanings: {row['others']}")
+    return lines
+
+
+def accuracy(rows: Sequence[Mapping[str, str]]) -> list[str]:
+    """Expansion accuracy with a 95% Wilson interval, overall and by how the meaning was chosen
+    (the only one, by a hint, by default)."""
+    lines = [precision(rows).line("accuracy")]
+    for how in ("only", "hint", "default"):
+        group = [row for row in rows if row.get("chosen_by") == how]
+        if group:
+            lines.append(precision(group).line(f"  chosen {how}"))
+    return lines

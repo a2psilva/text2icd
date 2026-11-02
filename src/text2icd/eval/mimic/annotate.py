@@ -3,9 +3,10 @@
 1. `sample_candidates`: silver items sampled by frequency band of their code (head, torso, tail)
    and by chapter, each with its admission's billed codes as candidates.
 2. `annotate`: a terminal session in which a person codes each phrase (docs/annotation-guide.md):
-   candidate numbers or codes, primary first; `s` skips a phrase that cannot be coded, `?` marks
-   it unsure; lookups search the Alphabetic Index and show a code. Answers are saved after each
-   phrase, so a session can stop and resume.
+   candidate numbers or codes, primary first, with commas between the codes of different
+   diagnoses; `s` skips a phrase that cannot be coded, `?` marks it unsure; lookups search the
+   Alphabetic Index and show a code. Answers are saved after each phrase, so a session can stop
+   and resume. The number of diagnoses measures the condition splitter (Phase 4).
 3. `build_gold`: the answered phrases as a dataset.
 
 Every file holds MIMIC-IV phrases and stays under the git-ignored data directory.
@@ -57,6 +58,7 @@ class Answer(BaseModel):
     verdict: Verdict
     codes: tuple[str, ...] = ()  # primary first
     comment: str = ""
+    diagnoses: int | None = None  # groups of codes typed apart with commas (coded answers)
 
 
 def frequency_bands(examples: Sequence[Example]) -> dict[str, str]:
@@ -170,7 +172,8 @@ class Parsed:
 
 
 HELP = """Enter the codes for the phrase, primary first: candidate numbers (1 3) or codes
-(E11.22 N18.30), or both. Then:
+(E11.22 N18.30), or both. Separate the codes of different diagnoses with a comma
+(I10, E78.5); the codes of one diagnosis go together (E11.22 N18.31). Then:
   s [comment]   skip: not a codable diagnosis        ? [comment]  unsure
   l <words>     look up Index terms                  c <code>     show a code
   b             back to the previous phrase          q            save and quit
@@ -194,21 +197,27 @@ def parse_answer(text: str, candidate: Candidate, billable: Callable[[str], bool
         verdict: Verdict = "skip" if key == "s" else "unsure"
         return Parsed(answer=Answer(id=candidate.id, verdict=verdict, comment=rest.strip()))
     codes: list[str] = []
-    for token in line.replace(",", " ").split():
-        if token.isdigit():
-            number = int(token)
-            if not 1 <= number <= len(candidate.choices):
-                return Parsed(error=f"no candidate {number}")
-            code = candidate.choices[number - 1][0]
-        elif is_code(token):
-            code = dot(token)
-        else:
-            return Parsed(error=f"{token!r} is neither a candidate number nor a code")
-        if not billable(code):
-            return Parsed(error=f"{code} is not a billable code of the release")
-        if code not in codes:
-            codes.append(code)
-    return Parsed(answer=Answer(id=candidate.id, verdict="coded", codes=tuple(codes)))
+    diagnoses = 0  # comma groups that add a code
+    for group in (group.split() for group in line.split(",")):
+        before = len(codes)
+        for token in group:
+            if token.isdigit():
+                number = int(token)
+                if not 1 <= number <= len(candidate.choices):
+                    return Parsed(error=f"no candidate {number}")
+                code = candidate.choices[number - 1][0]
+            elif is_code(token):
+                code = dot(token)
+            else:
+                return Parsed(error=f"{token!r} is neither a candidate number nor a code")
+            if not billable(code):
+                return Parsed(error=f"{code} is not a billable code of the release")
+            if code not in codes:
+                codes.append(code)
+        diagnoses += len(codes) > before
+    return Parsed(
+        answer=Answer(id=candidate.id, verdict="coded", codes=tuple(codes), diagnoses=diagnoses)
+    )
 
 
 @dataclass
@@ -273,6 +282,8 @@ class Session:
         previous = self.answers.get(candidate.id)
         if previous is not None:
             shown = " ".join(previous.codes) if previous.codes else previous.verdict
+            if previous.diagnoses and previous.diagnoses > 1:
+                shown += f"; {previous.diagnoses} diagnoses"
             self.say(f"  (answered: {shown})")
 
 
@@ -309,6 +320,7 @@ def build_gold(
                     "chapter": candidate.chapter,
                     "silver": candidate.silver,
                     "comment": answer.comment,
+                    **({"diagnoses": answer.diagnoses} if answer.diagnoses else {}),
                 },
             )
         )
