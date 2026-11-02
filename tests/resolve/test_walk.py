@@ -78,6 +78,39 @@ def test_without_undoes_with(graph: Graph) -> None:
     assert "N13.6" not in {candidate.code for candidate in found.candidates}
 
 
+def test_causal_connectors_need_the_phrase_to_say_so(graph: Graph) -> None:
+    walker = IndexWalker(graph)
+    stated = walker.walk_text("aspiration pneumonia due to food").best
+    assert stated is not None
+    assert (stated.code, stated.score, stated.flags) == ("J69.0", 3, ())
+    listed = walker.walk_text("aspiration pneumonia, food").best
+    assert listed is not None
+    assert listed.code == "J69.0"
+    assert listed.score == 2.4  # "due to" undocumented costs like a missing word
+    assert "undocumented_link" in listed.flags
+    step = next(step for step in listed.trace if step.action == "undocumented_link")
+    assert step.guideline == "I.A.15"
+
+
+def test_with_presumes_a_link(graph: Graph) -> None:
+    walker = IndexWalker(graph)
+    listed = walker.walk_text("pyelitis, contracted kidney").best
+    assert listed is not None
+    assert listed.code == "N11.9"
+    presumed = [step for step in listed.trace if step.action == "presumed_link"]
+    assert [step.guideline for step in presumed] == ["I.A.15"]
+    stated = walker.walk_text("pyelitis with contracted kidney").best
+    assert stated is not None
+    assert not any(step.action == "presumed_link" for step in stated.trace)
+
+
+def test_joining_needs_a_presumed_link(graph: Graph) -> None:
+    walker = IndexWalker(graph)
+    first = walker.walk_text("aspiration pneumonia", (0,))
+    second = walker.walk_text("food", (1,))
+    assert len(walker.join([first, second])) == 2  # "due to" is not presumed
+
+
 def test_manifestation(graph: Graph) -> None:
     found = best(IndexWalker(graph), "amyloid heart")
     assert (found.code, found.manifestation) == ("E85.4", "I43")
@@ -176,6 +209,55 @@ def release_walker(release_graph: Callable[[str], BuildReport]) -> Iterator[Inde
 def test_release_walks(release_walker: IndexWalker, phrase: str, code: str, path: str) -> None:
     found = best(release_walker, phrase)
     assert (found.code, found.path) == (code, path)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("phrase", "code", "path", "via"),
+    [
+        ("beef tapeworm", "B68.1", "Infestation > tapeworm > beef", "see"),
+        ("dwarf tapeworm infection", "B71.0", "Infestation > tapeworm > dwarf", "see"),
+        ("Sydenham's chorea", "I02.9", "Chorea > Sydenham's", "see"),
+        ("thrush", "B37.9", "Candidiasis, candidal", "see_also"),
+        (
+            "tuberculous fibrosis of lung",
+            "A15.0",
+            "Tuberculosis, tubercular, tuberculous > pulmonary",
+            "see",
+        ),
+        ("diabetes with retinopathy", "E11.319", "Diabetes, diabetic > with > retinopathy", ""),
+        ("pulmonary collapse", "J98.19", "Collapse > lung", ""),  # not "see also Atelectasis"
+        ("dementia in niacin deficiency", "E52", "Dementia > in > niacin deficiency", ""),
+    ],
+)
+def test_release_cross_references(
+    release_walker: IndexWalker, phrase: str, code: str, path: str, via: str
+) -> None:
+    found = best(release_walker, phrase)
+    assert (found.code, found.path) == (code, path)
+    actions = {step.action for step in found.trace}
+    assert (via in actions) if via else not actions & {"see", "see_also"}
+
+
+@pytest.mark.slow
+def test_release_neoplasm_column(release_walker: IndexWalker) -> None:
+    found = best(release_walker, "adenocarcinoma of stomach")
+    assert (found.code, found.book, found.column) == ("C16.9", "neoplasm", 2)
+    see_also = next(step for step in found.trace if step.action == "see_also")
+    assert see_also.detail.endswith("[Malignant Primary]")
+
+
+@pytest.mark.slow
+def test_release_presumed_link(release_walker: IndexWalker) -> None:
+    result = release_walker.walk("type 2 diabetes, chronic kidney disease")
+    (walk,) = result.diagnoses
+    assert walk.best is not None
+    assert walk.best.code == "E11.22"
+    assert walk.trace[0].action == "joined"
+    assert any(step.action == "presumed_link" for step in walk.best.trace)
+    food = release_walker.walk("pneumonia, food").diagnoses[0].best
+    assert food is not None
+    assert food.code == "J18.9"
 
 
 @pytest.mark.slow

@@ -20,23 +20,34 @@ search (`WIDTH` states per level). A state is a term with the phrase words its p
   it hold a phrase word; one that says `without` needs `without` in the phrase, and under `with`
   no subterm may use a word the phrase puts after `without`;
 - a subterm the phrase does not document is passed through, at its cost, when terms under it hold
-  a phrase word.
+  a phrase word;
+- a connector the Index presumes, "with" or "in", links the conditions even when the phrase only
+  lists them (I.A.15: "diabetes, CKD" -> `Diabetes > with > chronic kidney disease`), traced as
+  `presumed_link`; a causal one, "due to", needs the phrase to say so ("due to", "secondary to",
+  "from", "-induced"), and costs `MISSING` otherwise, flagged `undocumented_link`. Diagnoses are
+  not joined through an undocumented link;
+- cross-references are followed (I.A.16): a `see` jumps to its target, a `see also` adds the
+  target as another branch, and the walk goes on there with the words not used yet and those a
+  partial reference leaves. The target's title costs what the phrase does not document, and at
+  equal scores a code given directly wins. A reference into the Neoplasm Table carries its
+  column, whose cells give the codes. No term is visited twice; at most `MAX_JUMPS` per path.
 
 The beam keeps the states whose score plus the phrase words still below them is highest. Every
 state is a candidate, coded by its own term or the nearest term above it that gives a code; a term
 without a code gives that of its "unspecified" subterm. The main term's code, or an "unspecified"
 subterm's, is the default code (I.A.18), flagged `default_code_used`. A subterm that only says
-"see" gives no candidate: the coder must follow it. Candidates are ranked by score, then by the
-rank of their main term, then deeper first.
+"see" gives no candidate of its own: the coder must follow it. Candidates are ranked by score,
+then by fewer cross-references, then by the rank of their main term, then deeper first.
 
-Following cross-references, the I.A.15 "with" presumption and the Neoplasm and Drug tables come
-with tasks 5.5-5.9; codes are completed and verified in the Tabular List in Phase 6.
+The Index router, the behaviour column of the Neoplasm Table and the Table of Drugs and Chemicals
+come with tasks 5.1, 5.8 and 5.9; codes are completed and verified in the Tabular List in Phase 6.
 """
 
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import pairwise
+from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict
 
@@ -50,10 +61,18 @@ from text2icd.trace import TraceStep, change
 WIDTH = 5  # states kept per level, and main terms walked from
 MAX_EXPANSIONS = 400  # states expanded per diagnosis
 TOP = 10  # candidates kept per diagnosis
+MAX_JUMPS = 3  # cross-references followed per path
 CODE_FIELDS = ("code", "subcategory", "see_category")  # pointers that give the code itself
 SEVENTH_ONLY = frozenset({"initial", "subsequent"})  # episode values only a 7th character carries
 DEFAULT_CODE = "default_code_used"
 WITH = frozenset({"with", "associated with", "complicated by"})  # connectors a `without` undoes
+PRESUMED = frozenset({"with", "in", "associated with"})  # links the Index presumes (I.A.15)
+CAUSAL = frozenset({"due to", "secondary to", "resulting from"})  # links the phrase must state
+_CAUSAL = re.compile(
+    r"\b(?:due to|secondary to|resulting from|result of|caused by|because of|related to|"
+    r"attributed to|from|induced by)\b|-induced\b"
+)
+_CONNECTOR_WORDS = re.compile(r"\b(?:associated with|with|in)\b")
 _WITHOUT = re.compile(r"\bwithout\b([^,;]*?)(?=[,;]|\b(?:with|due to|secondary to|and)\b|$)")
 _UNSPECIFIED = re.compile(r"unspecified\b|NOS$", re.IGNORECASE)
 
@@ -106,11 +125,30 @@ class WalkResult(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
+class _Context:
+    """What the walk of one diagnosis compares against."""
+
+    words: frozenset[str]  # the phrase words, in the forms the walk compares
+    absent: frozenset[str]  # words the phrase puts after `without`
+    causal: bool  # whether the phrase says one condition causes another ("due to", "from")
+    said: frozenset[str]  # the presumed-link connectors the phrase writes
+
+
+@dataclass(frozen=True, slots=True)
 class _Coded:
     code: Pointer
     manifestation: Pointer | None
     term: int  # the term that gives it
+    column: int | None = None  # the table column of a cell
     unspecified: bool = False  # given by an "unspecified" subterm of a term without a code
+
+
+class _Step(NamedTuple):
+    term: int
+    took: tuple[str, ...]  # phrase words the term uses
+    via: str = ""  # "see" or "see_also" when a cross-reference led here
+    column: int | None = None  # the table column the walk reads, in the Neoplasm Table
+    note: str = ""  # the cross-reference as written
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,13 +157,19 @@ class _State:
     essential: frozenset[str]  # phrase words essential titles on the path use
     nonessential: frozenset[str]  # phrase words only nonessential modifiers use
     penalty: float
-    path: tuple[tuple[int, tuple[str, ...]], ...]  # (term, words it took) from the main term
+    path: tuple[_Step, ...]  # from the main term
     entry: int  # the rank of the main term walked from
     linked: bool = False  # under a `with` connector
+    given: frozenset[str] = frozenset()  # words a partial cross-reference leaves to continue with
+    jumps: int = 0  # cross-references followed
 
     @property
     def score(self) -> float:
         return len(self.essential) + NONESSENTIAL * len(self.nonessential) - self.penalty
+
+    @property
+    def column(self) -> int | None:
+        return self.path[-1].column
 
 
 class IndexWalker:
@@ -147,7 +191,7 @@ class IndexWalker:
         self.profiles = finder.profiles
         self.width = width
         self._reaching: dict[int, dict[str, tuple[int, ...]]] = {}
-        self._coded: dict[int, _Coded | None] = {}
+        self._coded: dict[tuple[int, int | None], _Coded | None] = {}
 
     @classmethod
     def from_graph(
@@ -200,8 +244,14 @@ class IndexWalker:
         if entries:
             considered = ", ".join(f"{e.term.title} ({e.score:g})" for e in entries)
             trace.append(TraceStep(layer="index", action="main_terms", detail=considered))
-        states = self._search(phrase, entries, self._absent(text))
-        candidates = self._candidates(phrase, states)
+        context = _Context(
+            words=phrase.remaining,
+            absent=self._absent(text),
+            causal=bool(_CAUSAL.search(text.casefold())),
+            said=frozenset(_CONNECTOR_WORDS.findall(text.casefold())),
+        )
+        states = self._search(entries, context)
+        candidates = self._candidates(phrase, states, context)
         return DiagnosisWalk(
             conditions=conditions,
             text=text,
@@ -220,17 +270,15 @@ class IndexWalker:
             found.update(self.finder.forms.content(segment.group(1)))
         return frozenset(found)
 
-    def _search(
-        self, phrase: PhraseWords, entries: Sequence[Entry], absent: frozenset[str]
-    ) -> list[_State]:
-        words = phrase.remaining
+    def _search(self, entries: Sequence[Entry], context: _Context) -> list[_State]:
+        words = context.words
         frontier = [
             _State(
                 term=entry.term.id,
                 essential=entry.match.used,
                 nonessential=entry.match.nonessential,
                 penalty=MISSING * entry.match.missing + OTHER_PART * entry.match.empty_parts,
-                path=((entry.term.id, tuple(sorted(entry.match.consumed))),),
+                path=(_Step(entry.term.id, tuple(sorted(entry.match.consumed))),),
                 entry=rank,
             )
             for rank, entry in enumerate(entries)
@@ -238,17 +286,18 @@ class IndexWalker:
         visited = list(frontier)
         expanded = 0
         while frontier and expanded < MAX_EXPANSIONS:
-            children: dict[int, tuple[float, _State]] = {}
+            children: dict[tuple[int, int | None], tuple[float, _State]] = {}
             for state in frontier:
                 expanded += 1
-                for child in self._children(state, words, absent):
+                for child in (*self._children(state, context), *self._jumps(state, words)):
                     priority = child.score + len(
                         (words - child.essential - child.nonessential)
                         & self.profiles[child.term].below
                     )
-                    best = children.get(child.term)
+                    key = (child.term, child.column)
+                    best = children.get(key)
                     if best is None or (priority, child.score) > (best[0], best[1].score):
-                        children[child.term] = (priority, child)
+                        children[key] = (priority, child)
             ranked = sorted(
                 children.values(), key=lambda pair: (-pair[0], -pair[1].score, pair[1].term)
             )
@@ -256,34 +305,84 @@ class IndexWalker:
             visited += frontier
         return visited
 
-    def _children(
-        self, state: _State, words: frozenset[str], absent: frozenset[str]
-    ) -> Iterable[_State]:
+    def _children(self, state: _State, context: _Context) -> Iterable[_State]:
+        words = context.words
         available = words - state.essential  # words a subterm may still use essentially
         fresh = available - state.nonessential  # words nothing has used yet
-        for child in self._reaching_children(state.term, available):
+        for child in self._reaching_children(state.term, available | state.given):
             profile = self.profiles[child]
             if "without" in profile.words and "without" not in available:
                 continue
-            # Words used above still fill the subterm's slots, but only new words score.
-            found = match(profile, words)
-            used = found.used - state.essential
+            # Words used above, and words a cross-reference gives, fill the subterm's slots; only
+            # phrase words not used yet score.
+            found = match(profile, words | state.given)
+            used = (found.used - state.essential) & words
             linked = state.linked or profile.connector in WITH
-            if linked and used & absent:
+            if linked and used & context.absent:
                 continue  # "with pneumonia" when the phrase says "without pneumonia"
+            # "with" and "in" presume a link (I.A.15); "due to" needs one documented.
+            undocumented = profile.connector in CAUSAL and not context.causal
             taken = found.nonessential & fresh
             essential = state.essential | used
             new = _State(
                 term=child,
                 essential=essential,
                 nonessential=(state.nonessential | taken) - essential,
-                penalty=state.penalty + MISSING * found.missing + OTHER_PART * found.empty_parts,
-                path=(*state.path, (child, tuple(sorted(used | taken)))),
+                penalty=state.penalty
+                + MISSING * (found.missing + undocumented)
+                + OTHER_PART * found.empty_parts,
+                path=(*state.path, _Step(child, tuple(sorted(used | taken)), column=state.column)),
                 entry=state.entry,
                 linked=linked,
+                given=state.given - found.used,
+                jumps=state.jumps,
             )
-            if new.score > state.score or self._leads_on(profile, available - used):
+            follows = bool(found.used & state.given)  # the words a cross-reference gives
+            if new.score > state.score or follows or self._leads_on(profile, available - used):
                 yield new
+
+    def _jumps(self, state: _State, words: frozenset[str]) -> Iterable[_State]:
+        """Where the term's cross-references lead (I.A.16): a `see` the coder must follow, a `see
+        also` as another branch. The walk goes on there with the phrase words not used yet, and
+        with the words a partial reference leaves (`see Abortion, by type complicated by,
+        sepsis`). The target's own title is matched like a subterm's: what the phrase does not
+        document costs. A reference into the Neoplasm Table carries its column. No term is
+        visited twice, and at most `MAX_JUMPS` references are followed."""
+        if state.jumps >= MAX_JUMPS:
+            return
+        on_path = {step.term for step in state.path}
+        for xref in self.graph.xrefs(state.term):
+            if xref.target is None or xref.status not in ("resolved", "partial"):
+                continue
+            if xref.target in on_path:
+                continue
+            target = self.graph.term(xref.target)
+            if target.book == "drug":
+                continue  # the Table of Drugs and Chemicals comes with task 5.9
+            column = xref.column if xref.column is not None else state.column
+            if target.book != "neoplasm":
+                column = None
+            elif column is None:
+                continue
+            given = state.given | frozenset(
+                self.finder.forms.content(xref.remainder) if xref.remainder else ()
+            )
+            found = match(self.profiles[target.id], words | given)
+            used = (found.used - state.essential) & words
+            essential = state.essential | used
+            yield replace(
+                state,
+                term=target.id,
+                essential=essential,
+                nonessential=state.nonessential - essential,
+                penalty=state.penalty + MISSING * found.missing + OTHER_PART * found.empty_parts,
+                path=(
+                    *state.path,
+                    _Step(target.id, tuple(sorted(used)), xref.kind, column, xref.written),
+                ),
+                given=given,
+                jumps=state.jumps + 1,
+            )
 
     def _leads_on(self, profile: Profile, words: frozenset[str]) -> bool:
         """Whether terms under the subterm hold one of the words."""
@@ -306,20 +405,30 @@ class IndexWalker:
 
     # -- candidates -----------------------------------------------------------------------------
 
-    def _candidates(self, phrase: PhraseWords, states: Sequence[_State]) -> list[Candidate]:
-        ranked: list[tuple[tuple[float, int, bool, int, int], _State, int]] = []
+    def _candidates(
+        self, phrase: PhraseWords, states: Sequence[_State], context: _Context
+    ) -> list[Candidate]:
+        ranked: list[tuple[tuple[float, int, int, bool, int, int], _State, int]] = []
         for state in states:
             at = self._coded_term(state)
             if at is None or (at < len(state.path) - 1 and self._sends_on(state.term)):
                 continue  # a "see" the coder must follow, not a default code (task 5.6)
             direct = at == len(state.path) - 1
-            key = (-round(state.score, 6), state.entry, not direct, -len(state.path), state.term)
+            # At equal scores: a code given directly before one a cross-reference leads to.
+            key = (
+                -round(state.score, 6),
+                state.jumps,
+                state.entry,
+                not direct,
+                -len(state.path),
+                state.term,
+            )
             ranked.append((key, state, at))
         ranked.sort(key=lambda item: item[0])
         out: list[Candidate] = []
         seen: set[tuple[str, str | None]] = set()
         for _, state, at in ranked:
-            candidate = self._candidate(phrase, state, at)
+            candidate = self._candidate(phrase, state, at, context)
             if (candidate.code, candidate.manifestation) in seen:
                 continue
             seen.add((candidate.code, candidate.manifestation))
@@ -332,56 +441,103 @@ class IndexWalker:
         """The position on the path of the deepest term that gives a code, itself or through its
         "unspecified" subterm."""
         for at in range(len(state.path) - 1, -1, -1):
-            if self._code_of(state.path[at][0]) is not None:
+            if self._code_of(state.path[at].term, state.path[at].column) is not None:
                 return at
         return None
 
     def _sends_on(self, term: int) -> bool:
         return any(xref.kind == "see" for xref in self.graph.xrefs(term))
 
-    def _code_of(self, term: int) -> "_Coded | None":
-        """The code a term gives; for a term without one, the code of its subterm for the
-        unspecified case (`Sarcoma > Kaposi's > unspecified site`)."""
-        if term not in self._coded:
-            coded = self._own_code(term)
+    def _code_of(self, term: int, column: int | None = None) -> _Coded | None:
+        """The code a term gives (in a table, the cell of the column); for a term without one,
+        the code of its subterm for the unspecified case (`Sarcoma > Kaposi's > unspecified
+        site`)."""
+        key = (term, column)
+        if key not in self._coded:
+            coded = self._own_code(term, column)
             if coded is None:
                 coded = next(
                     (
                         found
                         for sub in self.graph.subterms(term)
                         if _UNSPECIFIED.match(sub.title)
-                        and (found := self._own_code(sub.id, unspecified=True)) is not None
+                        and (found := self._own_code(sub.id, column, unspecified=True)) is not None
                     ),
                     None,
                 )
-            self._coded[term] = coded
-        return self._coded[term]
+            self._coded[key] = coded
+        return self._coded[key]
 
-    def _own_code(self, term: int, unspecified: bool = False) -> "_Coded | None":
+    def _own_code(self, term: int, column: int | None, unspecified: bool = False) -> _Coded | None:
         pointers = self.graph.pointers(term)
-        code = next((p for p in pointers if p.field in CODE_FIELDS and p.target is not None), None)
+        if column is None:
+            fields: tuple[str, ...] = CODE_FIELDS
+        else:
+            fields = ("cell",)
+        code = next(
+            (
+                p
+                for p in pointers
+                if p.field in fields
+                and p.target is not None
+                and (column is None or p.column == column)
+            ),
+            None,
+        )
         if code is None:
             return None
         manifestation = next(
             (p for p in pointers if p.field == "manifestation" and p.target is not None), None
         )
-        return _Coded(code, manifestation, term, unspecified)
+        return _Coded(code, manifestation, term, column, unspecified)
 
-    def _candidate(self, phrase: PhraseWords, state: _State, at: int) -> Candidate:
-        coded = self._code_of(state.path[at][0])
+    def _candidate(
+        self, phrase: PhraseWords, state: _State, at: int, context: _Context
+    ) -> Candidate:
+        coded = self._code_of(state.path[at].term, state.path[at].column)
         assert coded is not None
         code, manifestation = coded.code, coded.manifestation
         coded_at = self.graph.term(coded.term)
         flags: list[str] = []
         trace: list[TraceStep] = []
-        for depth, (term_id, took) in enumerate(state.path):
-            term = self.graph.term(term_id)
-            uses = f" (uses {', '.join(took)})" if took else ""
+        for depth, step in enumerate(state.path):
+            term = self.graph.term(step.term)
+            if step.via:
+                column = self.graph.column_heading(term.book, step.column) if step.column else None
+                into = f" [{column}]" if column else ""
+                detail = f"{step.note} -> {term.path}{into}"
+                trace.append(
+                    TraceStep(layer="index", action=step.via, detail=detail, guideline="I.A.16")
+                )
+                continue
+            uses = f" (uses {', '.join(step.took)})" if step.took else ""
             action = "main_term" if depth == 0 else "subterm"
             trace.append(TraceStep(layer="index", action=action, detail=f"{term.title}{uses}"))
-        if at == 0 or coded.unspecified:
+            connector = self.profiles[step.term].connector if depth else None
+            if connector in PRESUMED and connector not in context.said:
+                trace.append(
+                    TraceStep(
+                        layer="index",
+                        action="presumed_link",
+                        detail=f'"{connector}" in the Index links the conditions',
+                        guideline="I.A.15",
+                    )
+                )
+            elif connector in CAUSAL and not context.causal:
+                flags.append("undocumented_link")
+                trace.append(
+                    TraceStep(
+                        layer="index",
+                        action="undocumented_link",
+                        detail=f'"{connector}": the phrase does not say one causes the other',
+                        guideline="I.A.15",
+                    )
+                )
+        if any(step.via for step in state.path):
+            flags.append("cross_reference")
+        if coded_at.parent is None or coded.unspecified:
             flags.append(DEFAULT_CODE)
-            source = self.graph.term(state.path[at][0])
+            source = self.graph.term(state.path[at].term)
             detail = (
                 f"no subterm of {source.title} the phrase documents gives a code: the "
                 f"unspecified case, {code.written}"
@@ -404,7 +560,7 @@ class IndexWalker:
             manifestation=manifestation.target if manifestation else None,
             score=round(state.score, 6),
             book=coded_at.book,
-            column=code.column or None,
+            column=coded.column,
             path=self.graph.term(state.term).path,
             coded_at=coded_at.path,
             used=tuple(word for word in phrase.forms if word in used),
@@ -415,7 +571,7 @@ class IndexWalker:
 
 
 def _covers(joined: DiagnosisWalk, first: DiagnosisWalk, second: DiagnosisWalk) -> bool:
-    if joined.best is None:
+    if joined.best is None or "undocumented_link" in joined.best.flags:
         return False
     used = set(joined.best.used)
     before = set(first.best.used) if first.best else set()

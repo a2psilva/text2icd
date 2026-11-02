@@ -209,7 +209,7 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
    holds a word. Main terms that only say "see condition" (`Kidney`) are dropped, so the condition
    wins over the anatomical site. Candidates are ranked by what the main term uses plus what its
    subterms could still use (`text2icd.resolve.profiles`), then by whether the main term holds the
-   head noun of the phrase. Follow `see` redirects.
+   head noun of the phrase.
 3. **Descend** subterms (`text2icd.resolve.walk`) with a beam search of width 5 from the five
    best main terms. Each diagnosis of the parsed phrase is walked on its own, without the wording
    only a 7th character carries ("initial encounter"); two neighbouring diagnoses are joined when
@@ -225,7 +225,19 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
    (Guideline I.A.18), flagged `default_code_used`. A subterm that only says "see" gives no
    default code. The result is ranked candidates (code, possibly partial; score; path; flags;
    trace); `text2icd walk "<phrase>"` prints them.
-4. **Pick the table column** for Neoplasm (behaviour) and Drug (intent: accidental, self-harm,
+4. **Connectors** (I.A.15): "with" and "in" in the Index link the conditions even when the phrase
+   only lists them ("type 2 diabetes, CKD" gives `Diabetes, diabetic > type 2 > with > chronic
+   kidney disease`), recorded as `presumed_link`. "due to" needs the phrase to state the cause; a
+   path through it otherwise costs like an undocumented word and is flagged `undocumented_link`,
+   and listed diagnoses are never joined through it.
+5. **Follow cross-references** (I.A.16): `see` jumps to its target (`Tapeworm` to `Infestation >
+   tapeworm`), `see also` adds the target as another branch, and the walk continues there with the
+   words not used yet, plus those a partial reference leaves. The target's title costs what the
+   phrase does not document, and at equal scores a code given directly beats one reached by a
+   reference. References into the Neoplasm Table carry their column (`Adenocarcinoma` - see also
+   `Neoplasm, malignant, by site` reads the Malignant Primary cells). No term is visited twice,
+   and at most three references are followed on a path.
+6. **Pick the table column** for Neoplasm (behaviour) and Drug (intent: accidental, self-harm,
    assault, undetermined, adverse effect, underdosing) entries.
 
 ### Tabular verification
