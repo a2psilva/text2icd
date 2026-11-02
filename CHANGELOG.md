@@ -110,6 +110,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   reads, 5-minute and 1-hour cache writes), priced from one table (`resources/prices.toml`, with
   long-context and batch prices), and a per-run meter that refuses further calls once the budget
   is spent.
+- B2 embedding baseline (`-s embedding`): nearest Tabular descriptions and inclusion terms by
+  cosine similarity of a local static embedding model (`text2icd.embeddings`; optional extra
+  `embeddings`, model2vec; default `NeuML/pubmedbert-base-embeddings-8M`). CI installs all extras.
+  On the FY2027 `cms-synthetic` dev split, B1 reaches 38.8% accuracy@1 and B2 40.6%.
 
 ### Fixed
 

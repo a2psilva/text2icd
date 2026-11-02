@@ -39,6 +39,11 @@ Homepage = "https://github.com/a2psilva/text2icd"
 Issues = "https://github.com/a2psilva/text2icd/issues"
 Changelog = "https://github.com/a2psilva/text2icd/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+embeddings = [
+    "model2vec>=0.10",
+]
+
 [dependency-groups]
 dev = [
     "mypy>=1.13",

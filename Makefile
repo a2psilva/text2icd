@@ -5,7 +5,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
 install: ## Create the virtual environment with all dev tools
-	uv sync
+	uv sync --all-extras
 
 hooks: ## Install the pre-commit hooks
 	uv run pre-commit install
