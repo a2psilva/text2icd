@@ -3,24 +3,29 @@
 A coder starts from a main term of the Alphabetic Index. For a phrase whose gold code is G, the
 right main terms are those with a subterm (or themselves) that gives G or a code above G, from
 which the coder continues in the Tabular List. Recall@k is the share of phrases for which one of
-the first k main terms found is right. Two ways of finding them are measured:
+the first k main terms found is right. Three ways of finding them are measured:
 
 - `main`: search the main terms only;
-- `any`: search every term and take the main term each hit belongs to, in order.
+- `any`: search every term and take the main term each hit belongs to, in order;
+- `coder`: the main-term selection of the Index walk (`resolve.main_terms`) on the normalised
+  phrase, in the main Index only (the tables come with the Index router).
 
 Used to choose the FTS5 tokenizer of the graph (task 2.8) and to measure main-term selection.
 """
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Literal
 
 from text2icd.eval.datasets import Example
 from text2icd.eval.mimic.audit import wilson
 from text2icd.graph.model import Graph
+from text2icd.resolve.main_terms import MainTermFinder, index_speller
+from text2icd.text.parse import Parser
 
-Mode = Literal["main", "any"]
-MODES: tuple[Mode, ...] = ("main", "any")
+Mode = Literal["main", "any", "coder"]
+MODES: tuple[Mode, ...] = ("main", "any", "coder")
 DEPTHS = (1, 5, 10)
 _SEARCH_DEPTH = 50  # terms read in `any` mode to find the first ten main terms
 
@@ -37,7 +42,7 @@ class Recall:
             return f"{self.mode} recall@{self.k}: no examples"
         low, high = wilson(self.found, self.total)
         return (
-            f"{self.mode:<4} recall@{self.k:<2} {self.found / self.total:.1%} "
+            f"{self.mode:<5} recall@{self.k:<2} {self.found / self.total:.1%} "
             f"(95% CI {low:.1%}-{high:.1%}), {self.found:,} of {self.total:,}"
         )
 
@@ -72,7 +77,17 @@ class MainTerms:
                 found |= self.leading.get(node.key, set())
         return found
 
+    @cached_property
+    def coder(self) -> tuple[Parser, MainTermFinder]:
+        parser = Parser.from_graph(self.graph)
+        known = parser.terms.vocabulary if parser.terms is not None else frozenset()
+        return parser, MainTermFinder(self.graph, speller=index_speller(self.graph, known))
+
     def ranked(self, phrase: str, mode: Mode, k: int) -> list[int]:
+        if mode == "coder":
+            parser, finder = self.coder
+            words = finder.phrase_words(parser.parse(phrase).normalized)
+            return [entry.term.id for entry in finder.candidates(words)[:k]]
         if mode == "main":
             return [hit.term for hit in self.graph.search_index(phrase, k, main_terms=True)]
         roots: list[int] = []

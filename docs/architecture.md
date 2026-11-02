@@ -201,9 +201,15 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
 1. **Route** each condition to the Neoplasm Table, the Drug Table, the External Cause Index, or the
    main Index, based on morphology words, poisoning or adverse-effect language, and external-cause
    language.
-2. **Select the main term**: FTS5 BM25 over titles and nonessential modifiers, fuzzy matching for
-   typos, and a lexicon of adjective-to-noun forms (renal → kidney). Prefer the condition over the
-   anatomical site. Follow `see` redirects.
+2. **Select the main term** (`text2icd.resolve.main_terms`): the main terms whose title holds a
+   word of the phrase, compared in shared forms (`text2icd.resolve.words`: singular, and the noun
+   of an anatomical adjective from `resources/word_forms.toml`, so renal and kidney are one word),
+   after correcting typos to the nearest Index word (`rapidfuzz`, one edit, two from nine
+   letters). FTS5 BM25 over titles and nonessential modifiers supplies main terms when no title
+   holds a word. Main terms that only say "see condition" (`Kidney`) are dropped, so the condition
+   wins over the anatomical site. Candidates are ranked by what the main term uses plus what its
+   subterms could still use (`text2icd.resolve.profiles`), then by whether the main term holds the
+   head noun of the phrase. Follow `see` redirects.
 3. **Descend** subterms with a small beam search. A child's score is the share of the remaining
    modifiers it uses up. Connector subterms ("with", "due to", "in") consume linked conditions. When
    no child matches, stop and use the code at the current node (the default code, Guideline I.A.18).

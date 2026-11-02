@@ -54,7 +54,8 @@ def test_recall(graph: Graph) -> None:
     assert results[("main", 1)].total == 3
     assert results[("any", 10)].found == 2
     assert results[("any", 1)].found == 2
-    assert results[("main", 10)].line().startswith("main recall@10 66.7% (95% CI ")
+    assert results[("coder", 1)].found == 2
+    assert results[("main", 10)].line().startswith("main  recall@10 66.7% (95% CI ")
     assert Recall("any", 1, 0, 0).line() == "any recall@1: no examples"
 
 
@@ -66,7 +67,8 @@ def test_main_terms_command(graph_file: Path, tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert "set.jsonl (dev), tokenizer porter, 1 examples" in result.output
-    assert "any  recall@1  100.0%" in result.output
+    assert "any   recall@1  100.0%" in result.output
+    assert "coder recall@1  100.0%" in result.output
     missing = CliRunner().invoke(
         cli.app, ["eval", "main-terms", "-d", "nothing", "--graph", str(graph_file)]
     )
