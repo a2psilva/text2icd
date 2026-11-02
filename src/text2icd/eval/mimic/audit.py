@@ -100,10 +100,12 @@ def read_review(path: Path) -> list[dict[str, str]]:
         return [dict(row) for row in csv.DictReader(fh)]
 
 
-def save_review(path: Path, rows: Sequence[Mapping[str, str]]) -> None:
+def save_review(
+    path: Path, rows: Sequence[Mapping[str, str]], columns: Sequence[str] = COLUMNS
+) -> None:
     temporary = path.with_name(path.name + ".partial")
     with temporary.open("w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, COLUMNS)
+        writer = csv.DictWriter(fh, columns)
         writer.writeheader()
         writer.writerows(rows)
     temporary.replace(path)
@@ -137,22 +139,33 @@ REVIEW_HELP = (
 )
 
 
+def _silver_lines(row: Mapping[str, str]) -> list[str]:
+    return [
+        f"score {row.get('score', '')}",
+        f"  phrase: {row['phrase']}",
+        f"  code:   {row['code']}  {row['description']}",
+    ]
+
+
 def review(
     rows: list[dict[str, str]],
     ask: Callable[[str], str],
     say: Callable[[str], None],
     save: Callable[[Sequence[Mapping[str, str]]], None],
+    describe: Callable[[Mapping[str, str]], list[str]] = _silver_lines,
+    help_text: str = REVIEW_HELP,
 ) -> int:
     """Ask for a verdict on each row without one, saving after each; returns how many were
-    given this time."""
+    given this time. `describe` gives the lines shown for a row (a header, then details)."""
     given = 0
     position = next((i for i, r in enumerate(rows) if not r["verdict"].strip()), len(rows))
     while position < len(rows):
         row = rows[position]
+        header, *details = describe(row)
         say("")
-        say(f"[{position + 1}/{len(rows)}]  score {row.get('score', '')}")
-        say(f"  phrase: {row['phrase']}")
-        say(f"  code:   {row['code']}  {row['description']}")
+        say(f"[{position + 1}/{len(rows)}]  {header}")
+        for line in details:
+            say(line)
         answer = ask("> ").strip()
         key, _, comment = answer.partition(" ")
         key = key.lower()
@@ -162,7 +175,7 @@ def review(
             position = max(0, position - 1)
             continue
         if key not in VERDICTS:
-            say(f"  {REVIEW_HELP}")
+            say(f"  {help_text}")
             continue
         row["verdict"] = key
         row["comment"] = comment.strip()

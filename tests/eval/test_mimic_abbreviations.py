@@ -6,7 +6,15 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from text2icd import cli
-from text2icd.eval.mimic.abbreviations import _known, expansion_words, mine, write_candidates
+from text2icd.eval.mimic.abbreviations import (
+    _known,
+    accuracy,
+    describe_expansion,
+    expansion_words,
+    mine,
+    sample_expansions,
+    write_candidates,
+)
 from text2icd.eval.mimic.files import Note
 from text2icd.eval.mimic.splits import split_of_subject
 from text2icd.text.abbreviations import default_lexicon
@@ -96,3 +104,90 @@ def test_mine_command(tmp_path: Path, graph_file: Path) -> None:
     assert "at least 50" in low.output
     missing = runner.invoke(cli.app, [*args[:4], "--data-dir", str(tmp_path)])
     assert missing.exit_code == 1
+
+
+def test_sample_expansions() -> None:
+    notes = [
+        note(10, DEV[4], "HTN", "Afib w RVR"),
+        note(11, DEV[5], "altered MS"),
+        note(12, DEV[6], "pneumonia"),  # no expansion
+        note(13, TEST[1], "CHF"),  # test split: never read
+    ]
+    rows = sample_expansions(notes, default_lexicon(), KNOWN, size=10, seed=0)
+    assert [row["id"].split(":")[0] for row in rows] == ["n10", "n11"]  # one per note
+    ms = next(row for row in rows if row["id"].startswith("n11"))
+    assert (ms["abbreviation"], ms["expansion"], ms["chosen_by"]) == ("MS", "mental status", "hint")
+    assert ms["others"] == "multiple sclerosis; mitral stenosis"
+    assert rows == sample_expansions(notes, default_lexicon(), KNOWN, size=10, seed=0)
+    assert len(sample_expansions(notes, default_lexicon(), KNOWN, size=1)) == 1
+    shown = describe_expansion(ms)
+    assert shown[0] == "chosen: hint"
+    assert "  abbreviation: MS -> mental status" in shown
+    assert shown[-1] == "  other meanings: multiple sclerosis; mitral stenosis"
+
+
+def test_accuracy() -> None:
+    rows = [
+        {"chosen_by": "only", "verdict": "y"},
+        {"chosen_by": "only", "verdict": "y"},
+        {"chosen_by": "default", "verdict": "n"},
+        {"chosen_by": "hint", "verdict": "?"},
+    ]
+    lines = accuracy(rows)
+    assert lines[0].startswith("accuracy: 66.7% (95% CI ")
+    assert lines[1].startswith("  chosen only: 100.0%")
+    assert lines[2].startswith("  chosen hint: nothing reviewed yet")
+    assert lines[3].startswith("  chosen default: 0.0%")
+
+
+def test_review_commands(tmp_path: Path, graph_file: Path) -> None:
+    data = tmp_path / "data"
+    discharge = data / "raw" / "mimic-iv" / "discharge.csv"
+    discharge.parent.mkdir(parents=True)
+    notes = [note(20 + i, subject, "HTN, CAD") for i, subject in enumerate(DEV[:6])]
+    with discharge.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["note_id", "subject_id", "hadm_id", "text"])
+        for n in notes:
+            writer.writerow([n.note_id, n.subject_id, n.hadm_id, n.text])
+    runner = CliRunner()
+    base = ["--data-dir", str(data)]
+    sampled = runner.invoke(
+        cli.app, ["eval", "mimic", "abbrev", "sample", "-n", "4", "--graph", str(graph_file), *base]
+    )
+    assert sampled.exit_code == 0, sampled.output
+    assert "4 rows to review" in sampled.output
+    path = data / "processed" / "eval" / "audit" / "abbreviations.csv"
+    assert len(list(csv.DictReader(path.open()))) == 4
+    reviewed = runner.invoke(
+        cli.app, ["eval", "mimic", "abbrev", "review", *base], input="y\nn heart failure\ny\nq\n"
+    )
+    assert reviewed.exit_code == 0, reviewed.output
+    assert "3 verdicts given" in reviewed.output
+    assert "abbreviation: " in reviewed.output
+    scored = runner.invoke(cli.app, ["eval", "mimic", "abbrev", "score", *base])
+    assert "accuracy: 66.7%" in scored.output
+    again = runner.invoke(
+        cli.app, ["eval", "mimic", "abbrev", "sample", "--graph", str(graph_file), *base]
+    )
+    assert again.exit_code == 1
+    assert "already has verdicts" in again.output
+    for command in ("review", "score"):
+        missing = runner.invoke(
+            cli.app, ["eval", "mimic", "abbrev", command, "--data-dir", str(tmp_path)]
+        )
+        assert missing.exit_code == 1
+    no_notes = runner.invoke(
+        cli.app,
+        [
+            "eval",
+            "mimic",
+            "abbrev",
+            "sample",
+            "--graph",
+            str(graph_file),
+            "--data-dir",
+            str(tmp_path),
+        ],
+    )
+    assert no_notes.exit_code == 1

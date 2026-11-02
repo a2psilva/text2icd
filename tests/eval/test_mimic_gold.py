@@ -104,6 +104,26 @@ def test_parse_answers(text: str, codes: tuple[str, ...], verdict: str) -> None:
 
 
 @pytest.mark.parametrize(
+    ("text", "diagnoses"),
+    [
+        ("1", 1),
+        ("1 n1830", 1),  # a combination code and its companion: one diagnosis
+        ("1 n1830, 2", 2),
+        ("I10, E11.22 N18.30", 2),
+        ("E11.22, 1", 1),  # the same code twice
+        (",1,", 1),
+    ],
+)
+def test_diagnoses(text: str, diagnoses: int) -> None:
+    parsed = parse_answer(text, candidate(), BILLABLE)
+    assert parsed.answer is not None
+    assert parsed.answer.diagnoses == diagnoses
+    skipped = parse_answer("s plan", candidate(), BILLABLE).answer
+    assert skipped is not None
+    assert skipped.diagnoses is None
+
+
+@pytest.mark.parametrize(
     ("text", "error"),
     [
         ("", "type codes"),
@@ -175,12 +195,13 @@ def test_build_gold(tmp_path: Path) -> None:
     write_jsonl(path, candidates)
     assert read_candidates(path) == candidates
     answers = {
-        "n1:0": Answer(id="n1:0", verdict="coded", codes=("E11.22", "N18.30")),
+        "n1:0": Answer(id="n1:0", verdict="coded", codes=("E11.22", "N18.30"), diagnoses=1),
         "n2:0": Answer(id="n2:0", verdict="skip"),
     }
     examples, verdicts = build_gold(candidates, answers, "fy2027")
     assert verdicts == {"coded": 1, "skip": 1, "unanswered": 1}
     (gold,) = examples
+    assert gold.meta["diagnoses"] == 1
     assert [(g.code, g.role) for g in gold.gold] == [("E11.22", "primary"), ("N18.30", "companion")]
     assert gold.source == "mimic-gold"
     assert gold.split == split_of_subject("1")
