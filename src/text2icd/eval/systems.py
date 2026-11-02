@@ -1,5 +1,5 @@
 """Systems the evaluation runner can score: the baselines, and the text2icd resolver as it is
-built (`index`: the Alphabetic Index walk).
+built (`index`: the Alphabetic Index walk alone; `coder`: the walk and Tabular verification).
 
 A system turns one phrase into a `Prediction` (the code set, ranked alternates, a confidence and
 what it cost). It never sees the gold codes. Systems are built by name from `SYSTEMS`, with
@@ -18,6 +18,8 @@ from text2icd.config import Settings
 from text2icd.embeddings import Embedder, StaticEmbedder, VectorIndex
 from text2icd.eval.predictions import Prediction
 from text2icd.graph.model import Graph
+from text2icd.resolve.coder import Coder
+from text2icd.resolve.tabular import EPISODES, TabularVerifier
 from text2icd.resolve.walk import WIDTH, IndexWalker
 
 Options = Mapping[str, str]
@@ -205,6 +207,43 @@ class IndexSystem(System):
         return {"width": self.width, "setting": self.setting}
 
 
+class CoderSystem(System):
+    """The deterministic coder (L1, `resolve.coder`): the Index walk, then Tabular verification,
+    so every code is billable. The code set is each diagnosis's code (with its manifestation)
+    and the external cause codes; the alternates, the other completed candidates of the first
+    diagnosis. No confidence yet (Phase 7)."""
+
+    name = "coder"
+
+    def __init__(self, graph: Graph, settings: Settings, options: Options) -> None:
+        self.width = option(options, "width", WIDTH)
+        setting = options.get("setting", "inpatient")
+        episode = options.get("episode", settings.default_episode)
+        unknown = set(options) - {"width", "setting", "episode"}
+        if unknown:
+            raise SystemSetupError(f"unknown options for coder: {', '.join(sorted(unknown))}")
+        if setting not in ("inpatient", "outpatient"):
+            raise SystemSetupError(
+                f"option setting must be inpatient or outpatient, got {setting!r}"
+            )
+        if episode not in EPISODES:
+            raise SystemSetupError(f"option episode must be one of {', '.join(EPISODES)}")
+        self.setting, self.episode = setting, episode
+        walker = IndexWalker.from_graph(
+            graph, "outpatient" if setting == "outpatient" else "inpatient", self.width
+        )
+        default = next(e for e in EPISODES if e == episode)
+        self.coder = Coder(graph, walker, TabularVerifier(graph, walker.finder.forms, default))
+
+    def predict(self, phrase: str) -> Prediction:
+        code_set = self.coder.code(phrase)
+        first = code_set.diagnoses[0].alternates if code_set.diagnoses else ()
+        return Prediction(id="", codes=code_set.codes, alternates=first)
+
+    def settings(self) -> dict[str, JsonValue]:
+        return {"width": self.width, "setting": self.setting, "episode": self.episode}
+
+
 Factory = Callable[[Graph, Settings, Options], System]
 
 SYSTEMS: dict[str, Factory] = {
@@ -212,6 +251,7 @@ SYSTEMS: dict[str, Factory] = {
     "embedding": lambda graph, settings, options: EmbeddingSystem(graph, options),
     "llm": lambda graph, settings, options: _llm(graph, settings, options),
     "index": lambda graph, settings, options: IndexSystem(graph, options),
+    "coder": lambda graph, settings, options: CoderSystem(graph, settings, options),
 }
 
 

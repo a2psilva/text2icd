@@ -106,6 +106,7 @@ uv run text2icd graph code E11.22                     # a code, its notes, edges
 uv run text2icd graph check  # runs the integrity checks on the built graph
 uv run text2icd parse "DM2 w/ CKD 3a, possible UTI 2/2 E. coli"   # how a phrase is read
 uv run text2icd walk "aspiration pneumonia due to food"         # the Index walk's candidates
+uv run text2icd code "type 2 DM with diabetic CKD stage 3a"      # the deterministic coder
 uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all   # the BM25 baseline
 make check                   # lint, format check, type check, tests
 ```

@@ -220,8 +220,10 @@ FY2027, `dev` split (67,812 phrases), 95% intervals:
 | B1 BM25 | 38.8% (38.5-39.2) | 52.0% (51.6-52.3) | 50.4% (50.0-50.7) | 40.8% (40.4-41.2) | 0% | $0 |
 | B2 embedding | 40.6% (40.2-41.0) | 55.2% (54.8-55.6) | 53.8% (53.4-54.2) | 41.6% (41.3-42.0) | 0% | $0 |
 | `index` (Index walk, before Tabular) | 80.8% (80.5-81.1) | 81.6% (81.3-81.9) | 98.1% (98.0-98.2) | 80.8% (80.5-81.1) | 17.5% | $0 |
+| `coder` (Index walk and Tabular verification) | 95.6% (95.4-95.8) | 96.5% (96.3-96.6) | 98.1% (98.0-98.2) | 95.4% (95.2-95.6) | 0% | $0 |
 
-The `index` row is the Index walk alone: its codes are often partial (`S72.9-`) or not billable,
+The `coder` row is the deterministic coder (Phase 6): the Index walk, then Tabular verification
+to a billable code, so no code is invalid. The `index` row is the Index walk alone: its codes are often partial (`S72.9-`) or not billable,
 counted as invalid, until Tabular verification completes them (Phase 6): Drug Table codes still
 lack their 7th character, for one.
 

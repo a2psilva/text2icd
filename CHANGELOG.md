@@ -205,6 +205,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   mechanism of injury adds External Cause Index codes with role `external_cause`; history,
   family history and status-post conditions are looked up under History and Status. The
   `index` evaluation system adds the external cause code after the diagnoses.
+- Tabular verification (`text2icd.resolve.tabular`) and the deterministic coder
+  (`text2icd.resolve.coder`): Index candidates are completed to billable codes by matching the
+  words of child descriptions and inclusion terms, with the "unspecified" child when the phrase
+  says no more (`unspecified_chosen`), fractures displaced and closed unless stated otherwise,
+  the 7th character from the stated episode of care or `TEXT2ICD_DEFAULT_EPISODE`
+  (`seventh_character_assumed`) and placeholder `X`s; a diagnosis with no completable candidate
+  gets no code (`needs_review`), never an invalid one. `text2icd code "<phrase>"` prints the code
+  set and its trace, and `eval run -s coder` scores it.
 - Index-walk tests on FY2027: the worked examples of `docs/coder-workflow.md` and 110 cases drawn
   from the Index across all code chapters (`tests/resolve/fy2027_index_walks.json`).
 
