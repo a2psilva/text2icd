@@ -91,7 +91,20 @@ not align mostly name conditions that were not billed, or match two codes too cl
 ### `mimic-gold`
 
 Stratified by ICD-10-CM chapter and by code frequency (head, torso, tail), so rare codes are
-represented. Each phrase gets its full code set, including companion codes.
+represented. Each phrase gets its full code set, including companion codes, coded by hand against
+the evaluated release (`text2icd.eval.mimic.annotate`):
+
+- `text2icd eval mimic gold sample` draws the phrases from `mimic-silver`: a third from each
+  frequency band of the silver codes (the codes making up the first half of the silver examples,
+  the next 40%, the last 10%), spread over chapters, one item per note. Each comes with its
+  admission's billed codes as candidates (replaced codes shown as their current replacements).
+- `text2icd eval mimic gold annotate` is the coding session in the terminal: candidate numbers or
+  codes, primary first, checked against the release's billable codes as they are typed, with
+  Index lookups and code views from the graph; answers are saved after each phrase.
+- `text2icd eval mimic gold build` writes `mimic-gold.jsonl` and reports how many phrases were
+  coded, skipped and unsure, and how often the hand-coded primary code equals the silver one.
+
+The rules for coders are in the [annotation guide](annotation-guide.md).
 
 ### Splits
 

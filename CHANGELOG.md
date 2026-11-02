@@ -127,6 +127,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Silver-label audit (`text2icd eval mimic audit sample | review | score`): a seeded sample of
   `mimic-silver` dev alignments reviewed in the terminal, and the label precision with a 95%
   Wilson interval, overall and by alignment score.
+- `mimic-gold` tooling (`text2icd eval mimic gold sample | annotate | build`) and the annotation guide
+  (`docs/annotation-guide.md`): phrases drawn from `mimic-silver` by code frequency band and chapter,
+  coded by hand in a terminal session with Index lookups and code views, every code checked against
+  the release, and the answers built into a dataset with its agreement with the silver labels.
 
 ### Fixed
 
