@@ -113,7 +113,7 @@ their subdivisions) and 83 assignments (38 distinct codes) unmappable.
 | Selective accuracy | Accuracy at each coverage level when phrases below a confidence threshold are abstained |
 | Calibration | Expected calibration error of the reported confidence |
 | LLM call rate | Share of phrases that reached L3, and mean calls per phrase |
-| Cost | US dollars per 1,000 phrases, from the provider `usage` fields |
+| Cost | US dollars per 1,000 phrases: each response's `usage` (input, output, cache read and cache write tokens) times the price table in `src/text2icd/resources/prices.toml` (`text2icd.llm.cost`) |
 | Latency | p50 and p95 per phrase, with and without the LLM |
 
 All metrics except latency are reported with 95% bootstrap confidence intervals (1,000 resamples

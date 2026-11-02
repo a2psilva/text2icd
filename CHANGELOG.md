@@ -106,6 +106,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   per-chapter tables on request. First system: the B1 BM25 baseline (`-s bm25`). The CI
   integration job runs it on the committed `cms-synthetic` sample and now also fetches the FY2016
   to FY2025 code lists.
+- LLM cost meter (`text2icd.llm.cost`): token usage read from each response (input, output, cache
+  reads, 5-minute and 1-hour cache writes), priced from one table (`resources/prices.toml`, with
+  long-context and batch prices), and a per-run meter that refuses further calls once the budget
+  is spent.
 
 ### Fixed
 
