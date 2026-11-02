@@ -140,6 +140,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   main term leading to the gold code, at 1, 5 and 10, searching main terms or all terms. It
   confirms the `porter` tokenizer as the default: 49.6% against 45.9% for `unicode61` at 1 on
   `mimic-silver` dev, and 88.3% against 83.6% at 10 searching all terms.
+- Phrase normaliser (`text2icd.text.normalize`): Unicode NFKC, dashes and quotes, list markers and
+  spacing, clinical shorthand (`w/`, `w/o`, `s/p`, `c/b`, `2/2`, `h/o`, `r/o`, `hx`, ...), case
+  folding, and Roman numerals of stages and diabetes types, with every rewrite recorded as a trace
+  step (`text2icd.trace.TraceStep`).
 
 ### Fixed
 
