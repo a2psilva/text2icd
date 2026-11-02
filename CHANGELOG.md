@@ -192,6 +192,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `default_code_used`. It returns ranked candidates with their paths, flags and trace.
   `text2icd walk "<phrase>"` shows them, `text2icd eval index` measures the walk alone (prefix
   match of the gold code, by generator), and `eval run -s index` scores it like the baselines.
+- The Index walk follows cross-references (I.A.16): `see` jumps to its target and `see also` adds
+  it as another branch, continuing with the words not used yet (and those a partial reference
+  leaves), with loop protection; references into the Neoplasm Table carry their column. Connector
+  subterms follow I.A.15: "with" and "in" link listed conditions (`presumed_link` in the trace),
+  "due to" needs the phrase to state the cause (otherwise `undocumented_link`, at a cost), and
+  listed diagnoses are joined only through a presumed link.
 
 ### Fixed
 
