@@ -198,6 +198,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   subterms follow I.A.15: "with" and "in" link listed conditions (`presumed_link` in the trace),
   "due to" needs the phrase to state the cause (otherwise `undocumented_link`, at a cost), and
   listed diagnoses are joined only through a presumed link.
+- Index router (`text2icd.resolve.route`): neoplasm behaviour wording is looked up by site in the
+  Neoplasm Table at that column; poisoning, overdose, adverse effect, underdosing and toxicity
+  wording by substance in the Table of Drugs and Chemicals at the intent column (unknown intent
+  coded as accidental, I.C.19.e.5(b); toxicity as an adverse effect, flagged); a stated
+  mechanism of injury adds External Cause Index codes with role `external_cause`; history,
+  family history and status-post conditions are looked up under History and Status. The
+  `index` evaluation system adds the external cause code after the diagnoses.
 
 ### Fixed
 

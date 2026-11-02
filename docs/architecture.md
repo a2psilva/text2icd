@@ -198,9 +198,18 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
 
 ### L1: deterministic coder
 
-1. **Route** each condition to the Neoplasm Table, the Drug Table, the External Cause Index, or the
-   main Index, based on morphology words, poisoning or adverse-effect language, and external-cause
-   language.
+1. **Route** each diagnosis (`text2icd.resolve.route`). Behaviour wording ("malignant neoplasm
+   of", "secondary malignant", "carcinoma in situ", "benign", "uncertain" or "unspecified
+   behavior", "cancer of") starts a walk in the Neoplasm Table at that column, with the rest of
+   the phrase as the site; morphology words ("adenocarcinoma") reach it through their Index
+   cross-references. Poisoning, overdose, adverse-effect, underdosing and toxicity wording starts
+   walks in the Table of Drugs and Chemicals at the intent column: self-harm, assault and
+   undetermined only when written, accidental when the intent is unknown (I.C.19.e.5(b)), and
+   toxicity read as an adverse effect (flagged). The cue words count as used, so routed walks
+   compete with the main Index walk; cues are read after typo correction. A stated mechanism of
+   injury (a fall, a collision, a bite) adds an External Cause Index walk whose codes have role
+   `external_cause`. Conditions that are not current are looked up under History (personal or
+   family) or Status (I.C.21.c).
 2. **Select the main term** (`text2icd.resolve.main_terms`): the main terms whose title holds a
    word of the phrase, compared in shared forms (`text2icd.resolve.words`: singular, and the noun
    of an anatomical adjective from `resources/word_forms.toml`, so renal and kidney are one word),
@@ -237,8 +246,8 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
    reference. References into the Neoplasm Table carry their column (`Adenocarcinoma` - see also
    `Neoplasm, malignant, by site` reads the Malignant Primary cells). No term is visited twice,
    and at most three references are followed on a path.
-6. **Pick the table column** for Neoplasm (behaviour) and Drug (intent: accidental, self-harm,
-   assault, undetermined, adverse effect, underdosing) entries.
+6. **Read the table column**: a table walk takes its codes from the cells of the column the
+   router or a cross-reference chose.
 
 ### Tabular verification
 
