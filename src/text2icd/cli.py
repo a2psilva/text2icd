@@ -10,6 +10,7 @@ import typer
 
 from text2icd import __version__
 from text2icd.config import Settings
+from text2icd.eval.datasets import DatasetError, check_dataset, read_dataset, summarize
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
 from text2icd.graph.integrity import check_graph, failed
@@ -18,6 +19,7 @@ from text2icd.graph.search import DEFAULT_TOKENIZER, Tokenizer
 from text2icd.graph.show import show_code, show_term
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.index import IndexSource
+from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
 
@@ -33,6 +35,8 @@ data_app = typer.Typer(
 app.add_typer(data_app, name="data")
 graph_app = typer.Typer(help="Inspect a built knowledge graph.", no_args_is_help=True)
 app.add_typer(graph_app, name="graph")
+eval_app = typer.Typer(help="Evaluation datasets, runs and reports.", no_args_is_help=True)
+app.add_typer(eval_app, name="eval")
 
 DataDirOption = Annotated[
     Path | None,
@@ -42,6 +46,9 @@ ReleaseOption = Annotated[
     str | None,
     typer.Option("--release", "-r", help="Release id. Default: TEXT2ICD_RELEASE or newest."),
 ]
+# Problems printed per file; the rest are counted.
+PROBLEM_LIMIT = 5
+
 GraphFileOption = Annotated[
     Path | None,
     typer.Option("--graph", help="Graph file (default: the release's file in the data directory)."),
@@ -220,6 +227,50 @@ def graph_check(
         f"{outcomes['fail']} failed"
     )
     if failed(results):
+        raise typer.Exit(code=1)
+
+
+@eval_app.command("validate")
+def eval_validate(
+    paths: Annotated[list[Path], typer.Argument(help="Dataset files (JSONL).")],
+    codes: Annotated[
+        bool,
+        typer.Option(
+            "--codes/--no-codes",
+            help="Check gold codes against the billable codes of the dataset's release.",
+        ),
+    ] = True,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Check that dataset files follow the format; print what each one holds."""
+    settings = _settings(data_dir)
+    bad = False
+    for path in paths:
+        typer.echo(str(path))
+        try:
+            examples = read_dataset(path)
+        except (OSError, DatasetError) as exc:
+            typer.echo(f"  error: {exc}", err=True)
+            bad = True
+            continue
+        summary = summarize(examples)
+        typer.echo("\n".join(summary.lines()))
+        billable = None
+        if codes and summary.release:
+            try:
+                order = ReleaseFiles(settings.cms_raw_dir(summary.release)).order
+                billable = billable_codes(parse_order_file(order)).__contains__
+            except FileNotFoundError:
+                typer.echo(f"  gold codes not checked: {summary.release} is not fetched")
+        problems = check_dataset(examples, billable)
+        for problem in problems[:PROBLEM_LIMIT]:
+            typer.echo(f"  problem: {problem}", err=True)
+        if len(problems) > PROBLEM_LIMIT:
+            typer.echo(f"  ... and {len(problems) - PROBLEM_LIMIT} more problems", err=True)
+        if billable is not None and not problems:
+            typer.echo(f"  gold codes checked against {summary.release}: ok")
+        bad = bad or bool(problems)
+    if bad:
         raise typer.Exit(code=1)
 
 
