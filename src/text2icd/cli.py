@@ -27,6 +27,7 @@ from text2icd.eval.datasets import (
     write_manifest,
 )
 from text2icd.eval.main_terms import main_term_recall
+from text2icd.eval.mimic import abbreviations as mimic_abbreviations
 from text2icd.eval.mimic import align as mimic_align
 from text2icd.eval.mimic import annotate, audit
 from text2icd.eval.mimic.files import (
@@ -68,6 +69,8 @@ from text2icd.ontology.index import IndexSource
 from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
+from text2icd.text.abbreviations import default_lexicon
+from text2icd.text.terms import vocabulary
 
 app = typer.Typer(
     name="text2icd",
@@ -98,6 +101,11 @@ gold_app = typer.Typer(
     no_args_is_help=True,
 )
 mimic_app.add_typer(gold_app, name="gold")
+abbrev_app = typer.Typer(
+    help="Abbreviations in MIMIC-IV discharge diagnoses: mining (local only).",
+    no_args_is_help=True,
+)
+mimic_app.add_typer(abbrev_app, name="abbrev")
 
 DataDirOption = Annotated[
     Path | None,
@@ -879,6 +887,39 @@ def gold_build(
     typer.echo(f"{target}: {len(examples)} examples ({counts})")
     typer.echo(annotate.agreement_with_silver(examples))
     typer.echo("\n".join(summarize(examples).lines()))
+
+
+@abbrev_app.command("mine")
+def abbrev_mine(
+    limit: Annotated[int | None, typer.Option(min=1, help="Read only N dev notes.")] = None,
+    min_notes: Annotated[
+        int, typer.Option(min=1, help="Show only words used in this many notes.")
+    ] = mimic_abbreviations.MIN_NOTES,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Count the words of dev discharge diagnoses unknown to the lexicon and the CMS files.
+
+    Writes data/interim/abbreviation-candidates.tsv (git-ignored) and prints aggregate counts,
+    showing only words used in --min-notes notes or more (at least 50).
+    """
+    if min_notes < mimic_abbreviations.MIN_NOTES:
+        typer.echo(f"error: --min-notes is at least {mimic_abbreviations.MIN_NOTES}", err=True)
+        raise typer.Exit(code=2)
+    settings = _settings(data_dir)
+    try:
+        path = mimic_file(settings, DISCHARGE)
+    except MimicFilesMissingError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    with _open_graph(release, graph_path, data_dir) as graph:
+        known = vocabulary(graph)
+    mined = mimic_abbreviations.mine(read_notes(path), default_lexicon(), known, limit=limit)
+    target = settings.data_dir / "interim" / mimic_abbreviations.CANDIDATES
+    written = mimic_abbreviations.write_candidates(target, mined)
+    typer.echo("\n".join(mined.lines(min_notes)))
+    typer.echo(f"{target}: {written:,} words used in 2 or more notes (local only)")
 
 
 def _reconciled(result: Reconciled, reconciler: Reconciler) -> str:

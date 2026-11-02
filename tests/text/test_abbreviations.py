@@ -1,4 +1,3 @@
-import re
 from collections.abc import Callable
 
 import pytest
@@ -7,6 +6,7 @@ from text2icd.graph.build import BuildReport
 from text2icd.graph.model import Graph
 from text2icd.text.abbreviations import Lexicon, LexiconError, default_lexicon, fold
 from text2icd.text.normalize import normalize
+from text2icd.text.terms import vocabulary, words
 
 LEXICON = default_lexicon()
 
@@ -243,9 +243,15 @@ def test_custom_lexicon() -> None:
     assert normalize("ZZ", None).text == "zz"
 
 
-# Words of expansions that the CMS diagnosis files do not use: procedures and a few clinical
-# terms the Index words differently, which the Index walk matches by its other words.
+# Words of expansions that the CMS diagnosis files do not use: procedures, therapies and measures,
+# and a few clinical terms the Index words differently, matched by their other words.
 NOT_IN_CMS = {
+    "antiretroviral",
+    "cholangiopancreatography",
+    "esophagogastroduodenoscopy",
+    "normalized",
+    "obtuse",  # obtuse marginal artery: a coronary branch the CMS files do not name
+    "video",
     "mildly",
     "percutaneous",
     "transluminal",
@@ -260,27 +266,20 @@ NOT_IN_CMS = {
     "resection",
     "transjugular",
     "portosystemic",
-    "schonlein",  # Henoch-Schönlein: the Index writes the umlaut
 }
 
 
 @pytest.mark.slow
 def test_expansions_use_cms_words(release_graph: Callable[[str], BuildReport]) -> None:
     with Graph(release_graph("fy2027").path) as graph:
-        vocabulary: set[str] = set()
-        for term in graph.terms():
-            vocabulary.update(re.findall(r"[a-z0-9]+", term.title.casefold()))
-            for modifier in term.nonessential:
-                vocabulary.update(re.findall(r"[a-z0-9]+", modifier.casefold()))
-        for text in graph.tabular_texts():
-            vocabulary.update(re.findall(r"[a-z0-9]+", text.text.casefold()))
+        known = vocabulary(graph)
         main_terms = {fold(term.title) for term in graph.main_terms()}
     missing = {
         word
         for entry in LEXICON.entries.values()
         for expansion in entry.expansions
-        for word in re.findall(r"[a-z0-9]+", expansion.casefold())
-        if word not in vocabulary
+        for word in words(expansion)
+        if word not in known
     }
     assert missing <= NOT_IN_CMS, sorted(missing - NOT_IN_CMS)
     # The Index finds an abbreviation that is a main term (GERD, STEMI): no entry for it, unless

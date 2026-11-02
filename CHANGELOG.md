@@ -149,6 +149,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   Ambiguous ones (MS, ARF, PD) are resolved by hint words of the phrase or take their first meaning
   with a flag, entries that are also English words (ALL, AS, CAP) match only in capitals, and
   abbreviation-like tokens with no entry are listed. `normalize` takes the lexicon.
+- Abbreviation mining (`text2icd eval mimic abbrev mine`, local only): counts the words of dev-split
+  MIMIC-IV discharge diagnoses that neither the lexicon nor the CMS files know, writes them to the
+  git-ignored `data/interim/`, and prints aggregate counts and only words used in 50 or more notes.
+  34 lexicon entries were written from its counts. `text2icd.text.terms.vocabulary` gives the words
+  of the CMS files.
 
 ### Fixed
 
