@@ -335,8 +335,7 @@
   {
    "phrase": "previous isthmocele cesarean delivery",
    "code": "N85.A",
-   "path": "Cesarean delivery, previous, affecting management of pregnancy > isthmocele",
-   "xfail": "the phrase drops 'affecting management of pregnancy', and the walk takes the pregnancy scar code O34.22"
+   "path": "Cesarean delivery, previous, affecting management of pregnancy > isthmocele"
   },
   {
    "phrase": "granulomatous prostatitis",

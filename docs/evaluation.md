@@ -213,6 +213,9 @@ different model, so that silver labels do not favour B2.
 
 ### Results on `cms-synthetic`
 
+The reported numbers (test splits, and `mimic-silver`) are in [results.md](results.md); this
+section tracks the dev split during development.
+
 FY2027, `dev` split (67,812 phrases), 95% intervals:
 
 | System | Acc@1 | Acc@5 | Category | Code-set F1 | Invalid | Cost |

@@ -76,11 +76,11 @@ def pairs(found: list[Order]) -> list[tuple[str, str, str | None]]:
 
 def test_orders_follow_the_drug_intent() -> None:
     poisoning = [entry("T40.1X1A"), entry("R40.20", 1)]
-    assert pairs(orders(poisoning, [0, 0])) == [("T40.1X1A", "R40.20", "I.C.19.e.5.b")]
+    assert pairs(orders(poisoning, [0, 0])) == [("T40.1X1A", "R40.20", "I.C.19.e.5(b)")]
     adverse = [entry("T46.4X5A"), entry("I95.9", 1)]
-    assert pairs(orders(adverse, [0, 0])) == [("I95.9", "T46.4X5A", "I.C.19.e.5.a")]
+    assert pairs(orders(adverse, [0, 0])) == [("I95.9", "T46.4X5A", "I.C.19.e.5(a)")]
     underdosing = [entry("T38.3X6A"), entry("R73.9", 1)]
-    assert pairs(orders(underdosing, [0, 0])) == [("R73.9", "T38.3X6A", "I.C.19.e.5.c")]
+    assert pairs(orders(underdosing, [0, 0])) == [("R73.9", "T38.3X6A", "I.C.19.e.5(c)")]
     assert orders(underdosing, [0, 1]) == []  # another diagnosis of the phrase
 
 

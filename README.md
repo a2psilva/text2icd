@@ -8,8 +8,10 @@ Map clinical diagnosis phrases to **ICD-10-CM** codes by navigating the official
 and Tabular List the way a certified medical coder does: cheaply, transparently, and with an audit
 trail for every code.
 
-> **Status: pre-alpha.** This repository currently contains the project scaffold and the design
-> docs. The resolver described below is under development.
+> **Status: alpha (v0.1.0).** The deterministic coder works: Index walk, Tabular verification,
+> instructional notes and the main guideline rules, with no model and no API call
+> ([results](docs/results.md)). Confidence, local retrieval, the LLM navigator, the cache and the
+> service are still to come.
 
 ## Why
 
@@ -51,6 +53,8 @@ flowchart TD
 
 The design target is under $0.50 per 1,000 phrases with accuracy above an LLM-plus-retrieval
 baseline. Both numbers will be measured, not assumed; see [docs/evaluation.md](docs/evaluation.md).
+The deterministic coder alone (L1, $0) already reaches 94.2% accuracy@1 on the public
+`cms-synthetic` test split, with no invalid code ([docs/results.md](docs/results.md)).
 More detail is in [docs/architecture.md](docs/architecture.md) and
 [docs/coder-workflow.md](docs/coder-workflow.md).
 

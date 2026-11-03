@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "text2icd"
-version = "0.0.1"
+version = "0.1.0"
 description = "Map clinical diagnosis phrases to ICD-10-CM codes by navigating the CMS Alphabetic Index and Tabular List the way a medical coder does."
 readme = "README.md"
 license = "MIT"

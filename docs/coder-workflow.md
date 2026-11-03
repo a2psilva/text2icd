@@ -66,7 +66,10 @@ defines A, D and S. For an initial encounter the code is `T51.3X1A`.
 
 - It does not read full clinical notes. Input is a diagnosis phrase (extraction from notes is a
   possible later extension).
-- It does not sequence the principal diagnosis for an encounter (Section II). Within a code set it
-  only orders etiology before manifestation, as I.A.13 requires.
+- It does not choose the principal diagnosis of an encounter (Section II). Within a code set it
+  orders the codes as the conventions and chapter rules require: `code first` and `use additional
+  code` notes, etiology before manifestation (I.A.13), the systemic infection before severe sepsis
+  (I.C.1.d.4), a poisoning before its manifestations and an adverse effect after (I.C.19.e.5).
+  Otherwise the codes keep the order of the phrase.
 - It does not replace query-the-physician. When the documentation is not specific enough, it returns
   the "unspecified" code and says so in `flags`.

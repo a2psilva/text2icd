@@ -6,10 +6,15 @@ join, is walked on its own. A condition that is not current is looked up under H
 Status ("family history of ...", I.C.21.c). The router (`route`) adds start states in the
 Neoplasm Table and the Table of Drugs and Chemicals, in the column the phrase calls for, and an
 External Cause Index walk when the phrase states a mechanism of injury (`external_causes`).
-Wording a 7th character carries ("initial encounter", a trailing ", sequela") is left to the
-Tabular List and not walked. Two neighbouring diagnoses are joined when one walk of both uses
-every word their separate walks use: the parser takes a comma before a subterm for a list
-("drug abuse with psychosis, delusions"), the coder does not.
+A history or family history is answered only by codes of its kind: a family history code for a
+family history; for a personal history a Z code, a code the History main term leads to, or a
+path that says "previous" itself, never the condition found elsewhere. Under History, "cancer"
+reads "malignant neoplasm". Wording a 7th character carries ("initial encounter", a trailing ",
+sequela") is left to the Tabular List and not walked, and so is the drug of a diabetes (a Z79
+status code). Two neighbouring diagnoses are joined when one walk of both uses every word their
+separate walks use, but for a stage of the second that the combination leaves to a `use
+additional code` note ("type 2 diabetes, CKD stage 3a", I.A.15): the parser takes a comma before a
+subterm for a list ("drug abuse with psychosis, delusions"), the coder does not.
 
 The walk starts from the best main terms (`main_terms.MainTermFinder`) and descends with a beam
 search (`WIDTH` states per level). A state is a term with the phrase words its path has used:
@@ -56,6 +61,7 @@ from typing import Literal, NamedTuple
 from pydantic import BaseModel, ConfigDict
 
 from text2icd.graph.model import Graph, Pointer
+from text2icd.ontology.codes import undot
 from text2icd.resolve.main_terms import Entry, MainTermFinder, PhraseWords, index_speller
 from text2icd.resolve.profiles import MISSING, NONESSENTIAL, OTHER_PART, Profile, match
 from text2icd.resolve.route import Route, route
@@ -77,6 +83,9 @@ BOOKS = {
     "eindex": "External Cause Index",
 }
 # How a coder looks up a condition that is not current: under History or Status (I.C.21.c).
+FAMILY_HISTORY = ("Z80", "Z81", "Z82", "Z83", "Z84")
+_HISTORY_WORDS = re.compile(r"\b(?:previous|prior|old|past|history)\b")
+_CANCER = re.compile(r"\b(?:cancers?|malignanc(?:y|ies))\b")
 STATUS_LOOKUP = {
     "history": ("personal history of", "I.C.21.c.4"),
     "resolved": ("personal history of", "I.C.21.c.4"),
@@ -240,7 +249,15 @@ class IndexWalker:
                 walks.append(self.walk_text(text, members))
                 continue
             words, guideline = lookup
+            if status != "status_post":
+                # "Cancer, see Neoplasm, malignant": under History the Index says "malignant
+                # neoplasm".
+                text = _CANCER.sub("malignant neoplasm", text)
             walk = self.walk_text(f"{words} {text}", members)
+            if status in ("history", "resolved") and self.finder.forms.form("family") in walk.words:
+                status = "family_history"  # "famizy history of", read through its typo
+            kept = tuple(c for c in walk.candidates if _status_code(status, c))
+            walk = walk.model_copy(update={"candidates": kept})
             step = TraceStep(
                 layer="index",
                 action="status",
@@ -248,30 +265,49 @@ class IndexWalker:
                 guideline=guideline,
             )
             walks.append(walk.model_copy(update={"trace": (step, *walk.trace)}))
-        return WalkResult(parsed=parsed, diagnoses=tuple(self.join(walks)))
+        return WalkResult(parsed=parsed, diagnoses=tuple(self.join(walks, parsed)))
 
-    def join(self, walks: Sequence[DiagnosisWalk]) -> list[DiagnosisWalk]:
+    def join(
+        self, walks: Sequence[DiagnosisWalk], parsed: ParsedPhrase | None = None
+    ) -> list[DiagnosisWalk]:
         """Join neighbouring diagnoses that one Index path codes: when the walk of both together
-        uses every word the separate walks use ("abuse with psychosis, delusions")."""
+        uses every word the separate walks use ("abuse with psychosis, delusions"), but for the
+        stage of the second, which the combination code leaves to a `use additional code` note
+        ("type 2 diabetes, CKD stage 3a": E11.22, then N18.31; I.A.15)."""
         out: list[DiagnosisWalk] = []
         for walk in walks:
             if out:
                 joined = self.walk_text(f"{out[-1].text}, {walk.text}", out[-1].conditions)
-                if _covers(joined, out[-1], walk):
+                found = _covering(joined, out[-1], walk, self._stage_words(parsed, walk))
+                if found is not None:
                     step = TraceStep(
                         layer="index",
                         action="joined",
                         detail=f'"{out[-1].text}" and "{walk.text}": one Index path codes both',
                     )
+                    others = tuple(c for c in joined.candidates if c is not found)
                     out[-1] = joined.model_copy(
                         update={
                             "conditions": out[-1].conditions + walk.conditions,
+                            "candidates": (found, *others),
                             "trace": (step, *joined.trace),
                         }
                     )
                     continue
             out.append(walk)
         return out
+
+    def _stage_words(self, parsed: ParsedPhrase | None, walk: DiagnosisWalk) -> frozenset[str]:
+        if parsed is None:
+            return frozenset()
+        return frozenset(
+            word
+            for i in walk.conditions
+            if i < len(parsed.conditions)
+            for m in parsed.conditions[i].modifiers
+            if m.kind == "stage"
+            for word in self.finder.forms.content(m.text)
+        )
 
     def walk_text(self, text: str, conditions: tuple[int, ...] = (0,)) -> DiagnosisWalk:
         """Walk the words of one diagnosis."""
@@ -702,6 +738,25 @@ class IndexWalker:
         )
 
 
+def _status_code(status: str, candidate: Candidate) -> bool:
+    """Whether a candidate can answer a status lookup: a family history only a family history
+    code; a personal history a Z code, one the History main term leads to (I25.2 for "history
+    of MI") or a path that says "previous" itself (O34.219 for "previous cesarean delivery"),
+    never the condition itself found elsewhere (C34.90 for "history of lung cancer") nor a
+    family history."""
+    bare = undot(candidate.code)
+    if status == "family_history":
+        return bare.startswith(FAMILY_HISTORY)
+    if bare.startswith(FAMILY_HISTORY):
+        return False
+    if status in ("history", "resolved"):
+        main = next((s.detail for s in candidate.trace if s.action == "main_term"), "")
+        # a Z code, History (see ...), or a path that says "previous" itself (O34.219)
+        said = _HISTORY_WORDS.search(candidate.path.casefold()) is not None
+        return bare.startswith("Z") or main.startswith("History") or said
+    return True
+
+
 def _corrected(text: str, phrase: PhraseWords) -> str:
     """The text with its typos corrected, so that misspelled cue words still route."""
     for correction in phrase.corrections:
@@ -711,13 +766,24 @@ def _corrected(text: str, phrase: PhraseWords) -> str:
     return text
 
 
-def _covers(joined: DiagnosisWalk, first: DiagnosisWalk, second: DiagnosisWalk) -> bool:
-    if joined.best is None or "undocumented_link" in joined.best.flags:
-        return False
-    used = set(joined.best.used)
+def _covering(
+    joined: DiagnosisWalk,
+    first: DiagnosisWalk,
+    second: DiagnosisWalk,
+    left: frozenset[str] = frozenset(),
+) -> Candidate | None:
+    """The joined walk's best candidate that uses every word the separate walks use, but
+    `left` (words of the second the combination leaves to a companion code), with no
+    undocumented slot or link."""
     before = set(first.best.used) if first.best else set()
     after = set(second.best.used) if second.best else set()
-    return before | after <= used and used > before
+    for rank, candidate in enumerate(joined.candidates):
+        used = set(candidate.used)
+        if "undocumented_link" in candidate.flags or (rank and candidate.penalty >= MISSING):
+            continue
+        if before | (after - left) <= used and used > before:
+            return candidate
+    return None
 
 
 def diagnosis_text(parsed: ParsedPhrase, members: Sequence[int]) -> str:

@@ -108,17 +108,15 @@ def apply_hypertension(
     hypertension the walk did not code is coded on its own first, I.B.9)."""
     target = hypertension_code(facts)
     present = [i for i, e in enumerate(entries) if hypertensive(e.code)]
-    if target is None or target not in graph or not present:
-        return entries, []  # the set codes no hypertension of I10-I13 ("pulmonary")
+    if target is None or target == "I10" or target not in graph or not present:
+        return entries, []  # no combination; never a downgrade of the walk's I11-I13
     if any(undot(e.code)[:3] in PREGNANCY for e in entries):
         return entries, []  # hypertension in pregnancy has combinations of its own (I.C.15.d)
     if [entries[i].code for i in present] == [target]:
         return entries, []
     found = sorted({f.code for f in facts if not hypertensive(f.code)} - {target})
     detail = f"{target}: hypertension with " + (", ".join(found) or "its combination")
-    guideline = {"I11": "I.C.9.a.1", "I12": "I.C.9.a.2", "I13": "I.C.9.a.3"}.get(
-        undot(target)[:3], "I.C.9.a"
-    )
+    guideline = {"I11": "I.C.9.a.1", "I12": "I.C.9.a.2", "I13": "I.C.9.a.3"}[undot(target)[:3]]
     description = graph.code(target).description
     out = list(entries)
     first = out[present[0]]
@@ -309,16 +307,16 @@ def orders(entries: Sequence[Entry], origins: Sequence[int]) -> list[Order]:
                     step(
                         "sequence",
                         f"{entry.code} before {other.code}: the poisoning first",
-                        "I.C.19.e.5.b",
+                        "I.C.19.e.5(b)",
                     ),
                 )
                 for other in others
             ]
         elif kind in ("adverse_effect", "underdosing"):
             what, guideline = (
-                ("the nature of the adverse effect first", "I.C.19.e.5.a")
+                ("the nature of the adverse effect first", "I.C.19.e.5(a)")
                 if kind == "adverse_effect"
-                else ("the condition first, never the underdosing", "I.C.19.e.5.c")
+                else ("the condition first, never the underdosing", "I.C.19.e.5(c)")
             )
             out += [
                 Order(
