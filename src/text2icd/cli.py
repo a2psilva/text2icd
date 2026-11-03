@@ -21,8 +21,12 @@ from text2icd.eval.calibrate import (
     TARGET,
     CalibrationOutputError,
     CalibrationUnavailableError,
+    choice_lines,
     collect,
+    collect_choices,
+    escalated,
     fit,
+    fit_choice,
     refuse_output,
 )
 from text2icd.eval.calibrate import lines as calibration_lines
@@ -98,7 +102,15 @@ from text2icd.resolve.confidence import (
     write_calibration,
 )
 from text2icd.resolve.retrieve import DEFAULT_MODEL as DEFAULT_RETRIEVAL_MODEL
-from text2icd.resolve.retrieve import DEFAULT_SOURCES, Source, build_vectors
+from text2icd.resolve.retrieve import (
+    DEFAULT_SOURCES,
+    EmbeddingRetriever,
+    Source,
+    VectorsError,
+    build_vectors,
+    load_vectors,
+    vectors_path,
+)
 from text2icd.resolve.retrieve import SOURCES as RETRIEVAL_SOURCES
 from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.text.abbreviations import default_lexicon
@@ -283,23 +295,48 @@ def code_command(
         typer.Option(help="inpatient (uncertain diagnoses coded as if established) or outpatient."),
     ] = "inpatient",
     as_json: Annotated[bool, typer.Option("--json", help="Print the code set as JSON.")] = False,
+    use_retrieval: Annotated[
+        bool | None,
+        typer.Option(
+            "--retrieval/--no-retrieval",
+            help="L2 for an escalated phrase: needs the graph's vectors file and a calibration "
+            "table with a retrieval stage (default: when both are there).",
+        ),
+    ] = None,
     release: ReleaseOption = None,
     graph_path: GraphFileOption = None,
     data_dir: DataDirOption = None,
 ) -> None:
-    """Code a phrase with the deterministic coder: Index walk, then Tabular verification."""
+    """Code a phrase with the deterministic coder (Index walk, then Tabular verification) and,
+    when it is escalated, local retrieval (L2)."""
     if setting not in ("inpatient", "outpatient"):
         typer.echo("error: --setting is inpatient or outpatient", err=True)
         raise typer.Exit(code=2)
     settings = _settings(data_dir)
     calibration = _calibration(settings)
     with _open_graph(release, graph_path, data_dir) as graph:
-        coder = Coder.from_graph(
-            graph,
-            "outpatient" if setting == "outpatient" else "inpatient",
-            settings.default_episode,
-            calibration,
+        staged = calibration is not None and calibration.retrieval is not None
+        if use_retrieval and not staged:
+            typer.echo(
+                "error: the calibration table has no retrieval stage; fit one with "
+                "text2icd eval calibrate",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        wanted = use_retrieval or (
+            use_retrieval is None and staged and vectors_path(graph.path).is_file()
         )
+        try:
+            coder = Coder.from_graph(
+                graph,
+                "outpatient" if setting == "outpatient" else "inpatient",
+                settings.default_episode,
+                calibration,
+                _retriever(graph) if wanted else None,
+            )
+        except CalibrationError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
         code_set = coder.code(phrase)
     if as_json:
         typer.echo(code_set.model_dump_json(indent=2))
@@ -410,6 +447,15 @@ def _embed(graph: Graph, model: str, sources: tuple[Source, ...]) -> None:
         graph, embedder, model, sources=sources, progress=_progress(32_768, "texts")
     )
     typer.echo("\n".join(built.lines()))
+
+
+def _retriever(graph: Graph) -> EmbeddingRetriever:
+    """L2's retriever over the graph's vectors file."""
+    try:
+        return load_vectors(graph)
+    except (VectorsError, ValueError, EmbeddingsUnavailableError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
 
 
 @graph_app.command("show")
@@ -679,6 +725,8 @@ def eval_run(
     typer.echo("\n".join(eval_report.comparison([(run.header, report)])))
     if table := eval_report.selective([(run.header, report)]):
         typer.echo("\n".join(["Selective accuracy@1", "", *table]))
+    if table := eval_report.escalation([(run.header, report)]):
+        typer.echo("\n".join(["", "Kept and escalated by the coder", "", *table]))
 
 
 @eval_app.command("calibrate")
@@ -699,6 +747,14 @@ def eval_calibrate(
         list[str] | None, typer.Option("--option", "-O", help="Coder option key=value.")
     ] = None,
     seed: Annotated[int, typer.Option(help="Seed for --limit.")] = 0,
+    use_retrieval: Annotated[
+        bool | None,
+        typer.Option(
+            "--retrieval/--no-retrieval",
+            help="Also fit L2's choice on the escalated examples, with the graph's vectors file "
+            "(default: when it exists).",
+        ),
+    ] = None,
     output: Annotated[
         Path | None,
         typer.Option(
@@ -712,8 +768,8 @@ def eval_calibrate(
     graph_path: GraphFileOption = None,
     data_dir: DataDirOption = None,
 ) -> None:
-    """Fit the coder's confidence calibration on a split and choose the escalation threshold;
-    prints aggregate results only."""
+    """Fit the coder's confidence calibration on a split and choose the escalation threshold,
+    then L2's choice for the escalated examples; prints aggregate results only."""
     settings = _settings(data_dir)
     with _open_graph(release, graph_path, data_dir) as graph:
         try:
@@ -733,27 +789,49 @@ def eval_calibrate(
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=2) from exc
         assert isinstance(system, CoderSystem)
+        wanted = use_retrieval or (use_retrieval is None and vectors_path(graph.path).is_file())
+        retriever = _retriever(graph) if wanted else None
         typer.echo(f"{path.name} ({split}), {len(chosen):,} examples", err=True)
         sample = collect(system.coder, chosen, _progress(5000))
-    provenance: dict[str, JsonValue] = {
-        "name": name,
-        "dataset": path.name,
-        "split": split,
-        "release": graph.release,
-        "options": {k: v for k, v in system.settings().items() if k != "calibration"},
-        "commit": git_state().get("commit"),
-    }
-    try:
-        fitted = fit(sample, target=target, folds=folds, fitted=provenance)
-    except CalibrationUnavailableError as exc:
-        typer.echo(f"error: {exc}", err=True)
-        raise typer.Exit(code=1) from exc
-    except ValueError as exc:
-        typer.echo(f"error: {exc}", err=True)
-        raise typer.Exit(code=1) from exc
-    write_calibration(target_path, fitted.calibration)
+        provenance: dict[str, JsonValue] = {
+            "name": name,
+            "dataset": path.name,
+            "split": split,
+            "release": graph.release,
+            "options": {
+                k: v for k, v in system.settings().items() if k not in ("calibration", "retrieval")
+            },
+            "commit": git_state().get("commit"),
+        }
+        try:
+            fitted = fit(sample, target=target, folds=folds, fitted=provenance)
+            calibration = fitted.calibration
+            if retriever is not None:
+                coder = Coder(
+                    graph, system.coder.walker, system.coder.verifier, calibration, retriever
+                )
+                escalating = [chosen[i] for i in escalated(sample, calibration)]
+                typer.echo(f"retrieval for {len(escalating):,} escalated examples", err=True)
+                choices = collect_choices(coder, escalating, _progress(1000))
+                staged = fit_choice(
+                    choices,
+                    fitted,
+                    model=retriever.name,
+                    folds=folds,
+                    fitted={"dataset": path.name, "split": split, "release": graph.release},
+                )
+                calibration = calibration.model_copy(update={"retrieval": staged.stage})
+        except CalibrationUnavailableError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        except ValueError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+    write_calibration(target_path, calibration)
     typer.echo(f"{target_path}\n{sample.examples:,} scored, {sample.uncoded:,} without a code")
     typer.echo("\n".join(calibration_lines(fitted)))
+    if retriever is not None:
+        typer.echo("\n".join(choice_lines(staged)))
 
 
 def _calibration(settings: Settings) -> Calibration | None:
@@ -786,6 +864,8 @@ def eval_report_command(
     lines = eval_report.comparison(runs, intervals)
     if table := eval_report.selective(runs):
         lines += ["Selective accuracy@1", "", *table, ""]
+    if table := eval_report.escalation(runs):
+        lines += ["Kept and escalated by the coder", "", *table, ""]
     if by_chapter:
         for header, report in runs:
             lines += ["", *eval_report.by_group(header, report)]

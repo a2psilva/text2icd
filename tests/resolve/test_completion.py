@@ -96,10 +96,17 @@ def test_coder_system(graph: Graph) -> None:
     settings = system.settings()
     shipped = read_calibration()
     assert settings.pop("calibration") == (shipped.fitted.get("name") if shipped else None)
-    assert settings == {"width": 5, "setting": "inpatient", "episode": "subsequent"}
+    assert settings == {
+        "width": 5,
+        "setting": "inpatient",
+        "episode": "subsequent",
+        "retrieval": None,
+    }
     assert system.predict("accidental poisoning by 1-propanol").codes == ("T51.3X1D",)
     with pytest.raises(SystemSetupError, match="episode"):
         build_system("coder", graph, Settings(), {"episode": "later"})
+    with pytest.raises(SystemSetupError, match="retrieval must be on or off"):
+        build_system("coder", graph, Settings(), {"retrieval": "maybe"})
     with pytest.raises(SystemSetupError, match="unknown options"):
         build_system("coder", graph, Settings(), {"k": "1"})
 

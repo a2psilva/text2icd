@@ -66,6 +66,29 @@ FEATURES: Final = (
 )
 _CANDIDATES = 10  # the walk's TOP
 
+# L2's choice (task 7.6), one row per code of the pool: the coder's code and alternates, and the
+# first codes retrieval completes. Ranks are 1 / (1 + rank), 0 when the code is not in the list.
+RETRIEVAL_FEATURES: Final = (
+    "coder",  # the coder's primary code
+    "coder_rank",  # among the coder's code and its alternates
+    "retrieval_rank",  # among the codes retrieval completes
+    "retrieval_first",  # the first of them
+    "similarity",  # cosine of its best text; the lowest retrieved when it has none
+    "similarity_gap",  # the first code's similarity minus its own
+    "top_similarity",  # the first code's similarity
+    "top_margin",  # the first code's similarity minus the second's
+    "confidence",  # the coder's
+    "coder_confidence",  # the coder's, for the coder's code (0 for the others)
+    "coverage",  # share of the phrase's words its titles use (its own and its category's)
+    "coder_coverage",  # the same, for the coder's code
+    "coder_similarity",  # similarity, for the coder's code
+    "not_retrieved",  # retrieval did not reach it
+    "unspecified",  # its title says unspecified
+    "uncoded",  # the coder gave no code
+    "words",  # content words of the phrase
+    "agreement",  # the first retrieved code is one of the coder's
+)
+
 
 def features(
     parsed: ParsedPhrase,
@@ -124,9 +147,8 @@ class CalibrationError(ValueError):
     """A calibration table that cannot be read or does not fit this version's features."""
 
 
-class Calibration(BaseModel):
-    """A logistic score over the features, then an isotonic map from score to probability, and
-    the confidence below which a code set is escalated."""
+class Stage(BaseModel):
+    """A logistic score over named features, then an isotonic map from score to probability."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -135,12 +157,9 @@ class Calibration(BaseModel):
     intercept: float
     knots: tuple[float, ...]  # isotonic map: scores, increasing
     values: tuple[float, ...]  # and the probability at each
-    threshold: float  # escalate below this confidence
-    target: float  # the precision of the code sets kept that the threshold was chosen for
-    fitted: dict[str, JsonValue] = {}  # dataset, split, release, examples, held-out results
 
     @model_validator(mode="after")
-    def _consistent(self) -> "Calibration":
+    def _consistent(self) -> "Stage":
         if len(self.weights) != len(self.features):
             raise ValueError("one weight per feature")
         if not self.knots or len(self.knots) != len(self.values):
@@ -157,10 +176,30 @@ class Calibration(BaseModel):
         )
 
     def probability(self, values: Mapping[str, float]) -> float:
-        """The probability that the primary code is right; 0 for a set with no code."""
+        """The probability that the code is right; 0 with no features (no code)."""
         if not values:
             return 0.0
         return round(interpolate(self.score(values), self.knots, self.values), 4)
+
+
+class RetrievalStage(Stage):
+    """L2's choice (task 7.6): the probability that each code of the pool, the coder's or a
+    retrieved one, is the right primary code, from `RETRIEVAL_FEATURES`. Fitted with the vectors
+    of one embedding model, whose similarities it reads."""
+
+    threshold: float  # escalate the code L2 chose below this confidence (to L3)
+    model: str  # the embedding model the vectors were built with (`VectorsMeta.model`)
+    fitted: dict[str, JsonValue] = {}
+
+
+class Calibration(Stage):
+    """The coder's confidence (`FEATURES`), the threshold below which a code set is escalated,
+    and optionally L2's choice for the escalated ones."""
+
+    threshold: float  # escalate below this confidence
+    target: float  # the precision of the code sets kept that the threshold was chosen for
+    fitted: dict[str, JsonValue] = {}  # dataset, split, release, examples, held-out results
+    retrieval: RetrievalStage | None = None
 
     def escalate(self, confidence: float) -> bool:
         return confidence < self.threshold
@@ -198,6 +237,8 @@ def _parse(text: str, where: str) -> Calibration:
     except ValueError as exc:
         raise CalibrationError(f"{where}: {exc}") from exc
     unknown = set(calibration.features) - set(FEATURES)
+    if calibration.retrieval is not None:
+        unknown |= set(calibration.retrieval.features) - set(RETRIEVAL_FEATURES)
     if unknown:
         raise CalibrationError(f"{where}: unknown features {', '.join(sorted(unknown))}")
     return calibration

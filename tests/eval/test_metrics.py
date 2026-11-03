@@ -109,6 +109,19 @@ def test_subsets_and_groups(report: Report) -> None:
     assert not report.groups["V"].metrics["accuracy@1"].defined
 
 
+def test_kept_and_escalated_subsets(report: Report) -> None:
+    assert "kept" not in report.subsets  # the predictions do not say
+    said = dict(PREDICTIONS)
+    said["1"] = said["1"].model_copy(update={"escalated": ()})
+    said["2"] = said["2"].model_copy(update={"escalated": ("index",)})
+    said["3"] = said["3"].model_copy(update={"escalated": ("index", "retrieval")})
+    split = score(EXAMPLES, said, BILLABLE, resamples=20)
+    assert split.subsets["kept"].scored == 1
+    assert value(split.subsets["kept"], "accuracy@1") == 1.0
+    assert split.subsets["escalated"].scored == 2  # escalated by the coder, whatever L2 did
+    assert value(split.subsets["escalated"], "accuracy@1") == 0.5
+
+
 def test_intervals_hold_the_point_estimate(report: Report) -> None:
     for name, estimate in report.metrics.items():
         assert estimate.low <= estimate.value <= estimate.high, name

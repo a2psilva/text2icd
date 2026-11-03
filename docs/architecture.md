@@ -381,6 +381,29 @@ float16 and are widened to float32 a block of rows at a time while searching, at
 of float32. One phrase takes 8 to 10 ms on a laptop CPU: embedding it, searching all the vectors
 and completing the codes found. Only the escalated phrases need it.
 
+A code set the coder escalates goes to L2's choice (`resolve.choice`). Retrieval runs on the
+normalised phrase, and Tabular verification completes the first 50 codes found, with all the
+phrase's words and modifiers. The pool holds the coder's primary code and alternates, then the
+first five retrieved codes. Each code in the pool gets 18 features:
+
+- where it ranks in each list;
+- its similarity, and the gap to the first retrieved code;
+- the share of the phrase's words its titles use;
+- whether its title says unspecified;
+- the coder's confidence;
+- whether retrieval's first code is also one of the coder's.
+
+The calibration table's retrieval stage scores every code in the pool. It is a logistic score and
+an isotonic map, fitted like the coder's, on the escalated dev examples (`text2icd eval calibrate`,
+with the vectors file). The best code wins, and its probability becomes the confidence.
+
+A retrieved code is then coded again, as the first candidate of its diagnosis. That way its 7th
+character, companion codes and Excludes1 notes are read like any other candidate's. The trace
+records the choice, and `resolver` says whether the primary code came from the Index walk or from
+retrieval. A code set below the stage's own threshold is escalated again, to L3. `text2icd code`
+uses L2 when the vectors file and a table with a retrieval stage are both there. The stage records
+the embedding model it was fitted with, and is refused with vectors of another model.
+
 ### L3: LLM navigator
 
 The LLM never writes a code. It chooses among options the graph provides:

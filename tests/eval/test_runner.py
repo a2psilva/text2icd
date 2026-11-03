@@ -12,7 +12,7 @@ from text2icd.eval import runner as runner_module
 from text2icd.eval.datasets import Example, write_dataset, write_manifest
 from text2icd.eval.metrics import report_to_json, score
 from text2icd.eval.predictions import Prediction
-from text2icd.eval.report import by_group, comparison, fmt, selective
+from text2icd.eval.report import by_group, comparison, escalation, fmt, selective
 from text2icd.eval.runner import (
     RunError,
     chapter_of,
@@ -230,6 +230,20 @@ def test_markdown(graph: Graph, dataset: Path) -> None:
     assert selective([(run.header, unscored)]) == []  # no confidence, no table
     assert fmt(unscored.metrics["accuracy@1"], "share") == "0.0%"
     assert fmt(None, "share") == "n/a"
+    assert escalation([(run.header, report)]) == []  # bm25 does not escalate
+
+
+def test_escalation_table(graph: Graph, dataset: Path) -> None:
+    run, report = evaluate(build_system("coder", graph, Settings(), {}), graph, dataset)
+    lines = escalation([(run.header, report)])
+    assert lines[0] == (
+        "| System | Dataset | Kept | Acc@1 | Code-set F1 | Escalated | Acc@1 | Code-set F1 |"
+    )
+    kept, escalated = report.subsets.get("kept"), report.subsets.get("escalated")
+    assert (kept.scored if kept else 0) + (escalated.scored if escalated else 0) == 2
+    assert lines[2].startswith("| coder | tiny (dev) | ")
+    header = {**run.header, "system": {**run.header["system"], "retrieval": "test/model"}}
+    assert escalation([(header, report)])[2].startswith("| coder + L2 | tiny (dev) | ")
 
 
 cli_runner = CliRunner()

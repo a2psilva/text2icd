@@ -19,7 +19,8 @@ from text2icd.embeddings import Embedder, StaticEmbedder, VectorIndex
 from text2icd.eval.predictions import Prediction
 from text2icd.graph.model import Graph
 from text2icd.resolve.coder import Coder
-from text2icd.resolve.confidence import read_calibration
+from text2icd.resolve.confidence import CalibrationError, read_calibration
+from text2icd.resolve.retrieve import VectorsError, load_vectors
 from text2icd.resolve.tabular import EPISODES, TabularVerifier
 from text2icd.resolve.walk import WIDTH, IndexWalker
 
@@ -213,7 +214,11 @@ class CoderSystem(System):
     so every code is billable. The code set is the coder's sequence: the diagnoses with their
     manifestations and companion codes, in the order the notes give, then the external causes;
     the alternates, the other completed candidates of the first diagnosis; the confidence, that
-    of the calibration table (`resolve.confidence`), if one is shipped or configured."""
+    of the calibration table (`resolve.confidence`), if one is shipped or configured.
+
+    `-O retrieval=on` adds L2 (task 7.6): an escalated phrase is coded again from the best of
+    the coder's codes and the retrieved ones, by the table's retrieval stage, with the graph's
+    vectors file. Each prediction records the layers that escalated it."""
 
     name = "coder"
 
@@ -221,7 +226,8 @@ class CoderSystem(System):
         self.width = option(options, "width", WIDTH)
         setting = options.get("setting", "inpatient")
         episode = options.get("episode", settings.default_episode)
-        unknown = set(options) - {"width", "setting", "episode"}
+        retrieval = options.get("retrieval", "off")
+        unknown = set(options) - {"width", "setting", "episode", "retrieval"}
         if unknown:
             raise SystemSetupError(f"unknown options for coder: {', '.join(sorted(unknown))}")
         if setting not in ("inpatient", "outpatient"):
@@ -230,6 +236,8 @@ class CoderSystem(System):
             )
         if episode not in EPISODES:
             raise SystemSetupError(f"option episode must be one of {', '.join(EPISODES)}")
+        if retrieval not in ("on", "off"):
+            raise SystemSetupError(f"option retrieval must be on or off, got {retrieval!r}")
         self.setting, self.episode = setting, episode
         walker = IndexWalker.from_graph(
             graph, "outpatient" if setting == "outpatient" else "inpatient", self.width
@@ -237,22 +245,42 @@ class CoderSystem(System):
         default = next(e for e in EPISODES if e == episode)
         self.calibration = read_calibration(settings.calibration)
         verifier = TabularVerifier(graph, walker.finder.forms, default)
-        self.coder = Coder(graph, walker, verifier, self.calibration)
+        retriever = None
+        if retrieval == "on":
+            if self.calibration is None or self.calibration.retrieval is None:
+                raise SystemSetupError(
+                    "retrieval=on needs a calibration table with a retrieval stage "
+                    "(text2icd eval calibrate)"
+                )
+            try:
+                retriever = load_vectors(graph)
+            except (VectorsError, ValueError) as exc:
+                raise SystemSetupError(str(exc)) from exc
+        try:
+            self.coder = Coder(graph, walker, verifier, self.calibration, retriever)
+        except CalibrationError as exc:
+            raise SystemSetupError(str(exc)) from exc
 
     def predict(self, phrase: str) -> Prediction:
         code_set = self.coder.code(phrase)
         first = code_set.diagnoses[0].alternates if code_set.diagnoses else ()
         return Prediction(
-            id="", codes=code_set.codes, alternates=first, confidence=code_set.confidence
+            id="",
+            codes=code_set.codes,
+            alternates=first,
+            confidence=code_set.confidence,
+            escalated=code_set.escalated if self.calibration is not None else None,
         )
 
     def settings(self) -> dict[str, JsonValue]:
         fitted = self.calibration.fitted if self.calibration is not None else {}
+        retriever = self.coder.retriever
         return {
             "width": self.width,
             "setting": self.setting,
             "episode": self.episode,
             "calibration": fitted.get("name"),
+            "retrieval": retriever.name if retriever is not None else None,
         }
 
 

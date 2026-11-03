@@ -35,6 +35,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   a float16 matrix next to the graph file, with a JSON file naming the model, the texts' sources,
   the graph and the code of each row: 94.8 MB for FY2027. `resolve.retrieve.load_vectors` reads it
   and refuses vectors built for another graph. `eval retrieval -m vectors` measures it.
+- L2 in the coder (task 7.6). When a code set is escalated and the coder has a retriever, the
+  retrieved codes compete with the coder's code and alternates. The calibration table's new
+  retrieval stage scores each one (`resolve.choice`); the best wins, and its probability becomes
+  the confidence. A retrieved code is coded again as the first candidate of its diagnosis, so
+  that its notes and 7th character are read as usual. Code sets now say which layers escalated
+  them (`escalated`), where the primary code came from (`resolver`) and what L2 chose it by
+  (`choice`).
+- `text2icd eval calibrate` fits the retrieval stage on the escalated examples when the graph's
+  vectors file exists (`--retrieval/--no-retrieval`). The shipped table has one, fitted on
+  `cms-synthetic` dev with bge-small-en-v1.5.
+- `text2icd code --retrieval/--no-retrieval`, on by default when the vectors file and a staged
+  table are both there; the `coder` eval system takes `-O retrieval=on`.
+- Predictions record the layers that escalated them. `eval run` and `eval report` show accuracy
+  on the phrases the coder keeps and on those it escalates; a run with L2 is labelled
+  `coder + L2`.
 
 ### Changed
 
