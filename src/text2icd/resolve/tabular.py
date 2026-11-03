@@ -41,6 +41,7 @@ EPISODES: tuple[Episode, ...] = ("initial", "subsequent", "sequela")
 UNSPECIFIED = "unspecified_chosen"
 ASSUMED = "seventh_character_assumed"
 REVIEW = "needs_review"
+TIE = "tabular_tie"  # children tied and the first was taken
 _HEALING = {
     "routine_healing": "routine healing",
     "delayed_healing": "delayed healing",
@@ -253,4 +254,6 @@ def _displaced(children: Sequence[Code], descent: _Descent) -> Code:
             "I.C.19.c.1",
         )
         return displaced[0]
+    descent.flags.append(TIE)
+    descent.step("tie", f"{', '.join(c.key for c in children)} tie: took {children[0].key}")
     return children[0]

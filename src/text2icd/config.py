@@ -35,8 +35,10 @@ class Settings(BaseSettings):
     llm_budget_usd: float = Field(default=1.0, ge=0)
     # The 7th character's episode of care when an injury phrase states none.
     default_episode: Literal["initial", "subsequent", "sequela"] = "initial"
+    # A confidence calibration table (`text2icd eval calibrate`); None uses the shipped one.
+    calibration: Path | None = None
 
-    @field_validator("release", "llm_api_key", mode="before")
+    @field_validator("release", "llm_api_key", "calibration", mode="before")
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():

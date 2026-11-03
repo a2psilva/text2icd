@@ -159,6 +159,11 @@ def provenance(
     }
 
 
+def dataset_name(path: Path) -> str:
+    """The name of the dataset at `path`, from its manifest when it has one."""
+    return _dataset_name(path, read_manifest(path))
+
+
 def _dataset_name(path: Path, manifest: dict[str, JsonValue]) -> str:
     name = manifest.get("name")
     if not isinstance(name, str) or not name:

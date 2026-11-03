@@ -10,8 +10,9 @@ trail for every code.
 
 > **Status: alpha (v0.1.0).** The deterministic coder works: Index walk, Tabular verification,
 > instructional notes and the main guideline rules, with no model and no API call
-> ([results](docs/results.md)). Confidence, local retrieval, the LLM navigator, the cache and the
-> service are still to come.
+> ([results](docs/results.md)). Each code set now carries a calibrated confidence that marks
+> the phrases to escalate. Local retrieval, the LLM navigator, the cache and the service are still
+> to come.
 
 ## Why
 
@@ -61,8 +62,9 @@ More detail is in [docs/architecture.md](docs/architecture.md) and
 ## Target output
 
 The deterministic coder already gives the codes, roles and trace of this example
-(`text2icd code "type 2 DM with diabetic CKD stage 3a" --json`); the first code is the primary
-one. Confidence, the answering layer and the cost come with Phases 7 to 9.
+(`text2icd code "type 2 DM with diabetic CKD stage 3a" --json`), with one calibrated confidence for
+the primary code; the first code is the primary one. A confidence per code, the answering layer
+and the cost come with Phases 8 and 9.
 
 ```json
 {
