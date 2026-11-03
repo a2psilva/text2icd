@@ -1,11 +1,12 @@
 """Local text embeddings: static models run with numpy only (no torch, no network at encode time
 once the model is cached). Install with `uv sync --extra embeddings`.
 
-Used by the B2 baseline now, and by local retrieval (L2) later. The model id is configuration and
-is recorded with every result.
+Used by the B2 baseline, the MIMIC-IV aligner and local retrieval (L2, `resolve.retrieve`). The
+model is configuration, named `<kind>:<id>` (`load_embedder`), and recorded with every result.
 """
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -36,6 +37,17 @@ def normalize(vectors: npt.ArrayLike) -> Vectors:
     return array / norms
 
 
+def load_embedder(spec: str) -> Embedder:
+    """An embedder named `model2vec:<id>` (a static model) or `onnx:<id>` (a transformer encoder
+    exported to ONNX, quantized), `<id>` a Hugging Face Hub repository."""
+    kind, _, model = spec.partition(":")
+    if kind == "model2vec" and model:
+        return StaticEmbedder(model)
+    if kind == "onnx" and model:
+        return OnnxEmbedder(model)
+    raise ValueError(f"embedding model {spec!r}: expected model2vec:<id> or onnx:<id>")
+
+
 class StaticEmbedder:
     """A model2vec static model from the Hugging Face Hub (downloaded once, then cached)."""
 
@@ -48,6 +60,8 @@ class StaticEmbedder:
             ) from exc
         self.model = model
         self._model = StaticModel.from_pretrained(model)
+        self.dim = int(self._model.dim)
+        self.size_bytes = int(self._model.embedding.nbytes)  # the token vectors, as loaded
 
     def encode(self, texts: Sequence[str]) -> Vectors:
         if not texts:
@@ -107,8 +121,10 @@ class OnnxEmbedder:
         self._tokenizer.enable_padding()
         options = onnxruntime.SessionOptions()
         options.log_severity_level = 3
+        weights = hf_hub_download(repo, file)
+        self.size_bytes = Path(weights).stat().st_size
         self._session = onnxruntime.InferenceSession(
-            hf_hub_download(repo, file), options, providers=["CPUExecutionProvider"]
+            weights, options, providers=["CPUExecutionProvider"]
         )
         self._inputs = {i.name for i in self._session.get_inputs()}
         self.dim = int(self._session.get_outputs()[0].shape[-1])

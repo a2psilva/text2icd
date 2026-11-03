@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 import typer
 from pydantic import JsonValue
@@ -15,7 +15,7 @@ from text2icd import __version__
 from text2icd.config import Settings
 from text2icd.embeddings import EmbeddingsUnavailableError, OnnxEmbedder
 from text2icd.eval import report as eval_report
-from text2icd.eval import synthetic
+from text2icd.eval import retrieval, synthetic
 from text2icd.eval.calibrate import (
     FOLDS,
     TARGET,
@@ -69,7 +69,13 @@ from text2icd.eval.runner import (
     select,
     write_run,
 )
-from text2icd.eval.systems import SYSTEMS, CoderSystem, SystemSetupError, build_system
+from text2icd.eval.systems import (
+    DEFAULT_EMBEDDING_MODEL,
+    SYSTEMS,
+    CoderSystem,
+    SystemSetupError,
+    build_system,
+)
 from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reconcile_example
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
@@ -91,6 +97,8 @@ from text2icd.resolve.confidence import (
     read_calibration,
     write_calibration,
 )
+from text2icd.resolve.retrieve import SOURCES as RETRIEVAL_SOURCES
+from text2icd.resolve.retrieve import Source
 from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.text.abbreviations import default_lexicon
 from text2icd.text.parse import Parser, describe_parsed
@@ -772,6 +780,72 @@ def eval_main_terms(
         results = main_term_recall(graph, chosen)
     typer.echo(f"{path.name} ({split}), tokenizer {tokenizer}, {len(chosen):,} examples")
     typer.echo("\n".join(result.line() for result in results))
+
+
+@eval_app.command("retrieval")
+def eval_retrieval(
+    dataset: Annotated[str, typer.Option("--dataset", "-d", help="Dataset file or name.")],
+    model: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="Retriever: bm25, model2vec:<id> or onnx:<id> (Hugging Face Hub). Repeatable.",
+        ),
+    ] = None,
+    texts_option: Annotated[
+        list[str] | None,
+        typer.Option("--texts", help="Texts to rank: tabular, index or tabular,index. Repeatable."),
+    ] = None,
+    split: Annotated[SplitChoice, typer.Option(help="Split to measure on.")] = "dev",
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Measure on a seeded random sample of this many.")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Seed for --limit.")] = 0,
+    option: Annotated[
+        list[str] | None, typer.Option("--option", "-O", help="Coder option key=value.")
+    ] = None,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Recall of local retrievers for L2 (task 7.4): the codes each ranks for a phrase, completed
+    to billable codes, over all examples, those the coder escalates and those it gets wrong;
+    with latency and size (aggregates only)."""
+    specs = model or ["bm25", f"model2vec:{DEFAULT_EMBEDDING_MODEL}"]
+    settings_list: list[tuple[Source, ...]] = []
+    for value in texts_option or ["tabular"]:
+        parts = tuple(part.strip() for part in value.split(",") if part.strip())
+        if not parts or any(part not in RETRIEVAL_SOURCES for part in parts):
+            typer.echo(f"error: --texts {value!r}: use tabular, index or both", err=True)
+            raise typer.Exit(code=2)
+        settings_list.append(cast(tuple[Source, ...], parts))
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            path = resolve_dataset(dataset, graph.release, settings)
+            chosen = select(read_dataset(path), split, limit, seed)
+            system = build_system("coder", graph, settings, _options(option or []))
+        except (RunError, DatasetError, SystemSetupError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        assert isinstance(system, CoderSystem)
+        typer.echo(f"{path.name} ({split}), {len(chosen):,} examples", err=True)
+        found = retrieval.queries(system.coder, chosen, _progress(10_000))
+        results = []
+        for spec in specs:
+            for sources in settings_list:
+                typer.echo(f"  {spec} over {'+'.join(sources)}", err=True)
+                try:
+                    results.append(
+                        retrieval.measure(spec, graph, sources, found, system.coder.verifier)
+                    )
+                except (ValueError, FileNotFoundError, EmbeddingsUnavailableError) as exc:
+                    typer.echo(f"error: {exc}", err=True)
+                    raise typer.Exit(code=1) from exc
+    typer.echo(f"{path.name} ({split}), {graph.release}, {len(found):,} scored examples")
+    typer.echo("\n".join(retrieval.summary(found)) + "\n")
+    typer.echo("\n".join(retrieval.table(results)))
 
 
 @eval_app.command("index")
