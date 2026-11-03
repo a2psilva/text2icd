@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-03
+
+The deterministic coder (Phases 0 to 6): Index walk, Tabular verification, instructional notes and
+the guideline rule pack, with the evaluation harness. Results: `docs/results.md`.
+
 ### Added
 
 - Project scaffold: `src/` package layout, Typer CLI with a `version` command, pytest smoke tests.
@@ -230,11 +235,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   none is documented (I.C.1.d.4); diabetes drugs, by name too, add Z79.4, Z79.84 and Z79.85
   (I.C.4.a.3); poisonings come before their manifestations and adverse effects and underdosing
   after the condition (I.C.19.e.5); the residual before the sequela (I.B.10).
+- Tests for every guideline section the coder cites and every worked example of
+  `docs/coder-workflow.md` (`tests/resolve/test_guidelines.py`); a new rule cannot be added
+  without a case, since the test reads the cited sections from the source.
+- `docs/results.md`: the deterministic coder against the baselines, aggregates only.
 - Index-walk tests on FY2027: the worked examples of `docs/coder-workflow.md` and 110 cases drawn
   from the Index across all code chapters (`tests/resolve/fy2027_index_walks.json`).
 
 ### Fixed
 
+- A family history is answered only by a family history code, and a personal history never by
+  the condition itself: "family history of colon cancer" was Z85.038 (personal history), and
+  "family history of lung cancer" is Z80.1. Under History, "cancer" and "malignancy" are read as
+  "malignant neoplasm", where the Index's "Cancer, see Neoplasm, malignant" leads.
+- Diagnoses listed side by side join into the combination code the Index presumes (I.A.15) even
+  when the second states a stage the combination leaves to its `use additional code` note:
+  "type 2 diabetes, CKD stage 3a" gives E11.22 and N18.31, not E11.9 and N18.31.
 - Several `use additional code` notes that each say "code to identify ..." are separate
   instructions, not a list of alternatives: I13.0 and I13.2 now require both the heart failure
   and the CKD stage code. A mandatory `use additional code` note left unanswered takes the

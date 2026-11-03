@@ -209,7 +209,10 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
    compete with the main Index walk; cues are read after typo correction. A stated mechanism of
    injury (a fall, a collision, a bite) adds an External Cause Index walk whose codes have role
    `external_cause`. Conditions that are not current are looked up under History (personal or
-   family) or Status (I.C.21.c).
+   family) or Status (I.C.21.c), and only codes of that kind answer them: a family history code
+   for a family history, never the personal history the Index's "see also" offers; for a
+   personal history a Z code or what the History entry leads to (I25.2 for "history of MI"),
+   never the current condition. Under History, "cancer" reads "malignant neoplasm".
 2. **Select the main term** (`text2icd.resolve.main_terms`): the main terms whose title holds a
    word of the phrase, compared in shared forms (`text2icd.resolve.words`: singular, and the noun
    of an anatomical adjective from `resources/word_forms.toml`, so renal and kidney are one word),
@@ -222,7 +225,10 @@ under `.text2icd/` (git-ignored, because cached phrases may come from restricted
 3. **Descend** subterms (`text2icd.resolve.walk`) with a beam search of width 5 from the five
    best main terms. Each diagnosis of the parsed phrase is walked on its own, without the wording
    only a 7th character carries ("initial encounter"); two neighbouring diagnoses are joined when
-   one path uses every word their separate walks use ("abuse with psychosis, delusions"). A
+   one path uses every word their separate walks use ("abuse with psychosis, delusions"), but
+   for a stage the combination code leaves to its `use additional code` note ("type 2 diabetes,
+   CKD stage 3a": E11.22, then N18.31, I.A.15). A main term the phrase says is absent is never
+   taken ("sepsis without septic shock"). A
    subterm is taken when it uses phrase words not used yet: 1 for each essential word, 0.8 for
    each word of a nonessential modifier, minus 0.6 for each essential word the phrase does not
    document. A subterm can take a word a nonessential modifier above it used, so when the two are
