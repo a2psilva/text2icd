@@ -8,8 +8,10 @@ from text2icd.graph.model import Code, Graph
 from text2icd.resolve.coder import Coder, describe_code_set
 from text2icd.resolve.confidence import (
     FEATURES,
+    RETRIEVAL_FEATURES,
     Calibration,
     CalibrationError,
+    RetrievalStage,
     interpolate,
     read_calibration,
     write_calibration,
@@ -76,6 +78,32 @@ def test_write_and_read(tmp_path: Path) -> None:
         read_calibration(broken)
 
 
+def test_retrieval_stage(tmp_path: Path) -> None:
+    stage = RetrievalStage(
+        features=("similarity", "coder"),
+        weights=(3.0, 1.0),
+        intercept=-2.0,
+        knots=(-2.0, 1.0),
+        values=(0.2, 0.8),
+        threshold=0.5,
+        model="test/model",
+    )
+    assert stage.probability({"similarity": 0.5}) == 0.5  # score -0.5, halfway
+    assert stage.probability({}) == 0.0
+    staged = table(retrieval=stage)
+    path = write_calibration(tmp_path / "staged.json", staged)
+    assert read_calibration(path) == staged
+    assert read_calibration(write_calibration(tmp_path / "plain.json", table())).retrieval is None
+    data = staged.model_dump()
+    data["retrieval"]["features"] = ["similarity", "nope"]
+    unknown = tmp_path / "unknown.json"
+    unknown.write_text(json.dumps(data))
+    with pytest.raises(CalibrationError, match="unknown features nope"):
+        read_calibration(unknown)
+    with pytest.raises(ValueError, match="one weight per feature"):
+        RetrievalStage.model_validate({**stage.model_dump(), "weights": (1.0,)})
+
+
 def test_shipped_table() -> None:
     """The shipped table reads this version's features (refit after changing them) and was
     fitted on public data only."""
@@ -87,6 +115,12 @@ def test_shipped_table() -> None:
     held_out = shipped.fitted["held_out"]
     assert isinstance(held_out, dict)
     assert held_out["calibration error"] < 0.05  # the Phase 7 exit criterion
+    stage = shipped.retrieval
+    assert stage is not None
+    assert stage.features == RETRIEVAL_FEATURES
+    assert stage.model.startswith("Xenova/bge-small-en-v1.5")
+    assert str(stage.fitted["dataset"]).startswith("cms-synthetic")
+    assert 0 < stage.threshold <= 1
 
 
 def test_coder_features_and_confidence(graph: Graph) -> None:

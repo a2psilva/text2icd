@@ -77,6 +77,29 @@ The held-out folds are grouped by gold code. On `cms-synthetic` dev the AUROC is
 - **Phrases where a rule puts another code first** get a low confidence ("severe sepsis": A41.9
   before R65.20). Single-code gold rarely agrees with the guideline order.
 
+## Local retrieval in the coder (after v0.1.0)
+
+A phrase the coder escalates goes to local retrieval (L2): the codes it finds compete with the
+coder's, and the calibration table's retrieval stage chooses
+([evaluation.md](evaluation.md#l2-in-the-coder)). It runs on the CPU, at no API cost, in about
+10 ms per escalated phrase.
+
+| Dataset | Escalated | Acc@1 there, coder | Acc@1 there, coder + L2 | Acc@1, all phrases | Acc@1, all, coder + L2 |
+| --- | --- | --- | --- | --- | --- |
+| `cms-synthetic` test | 3,615 | 28.5% | 57.7% | 94.2% | 95.6% |
+| `mimic-silver` dev | 8,793 | 33.3% | 56.4% | 73.1% | 75.4% |
+
+The phrases the coder keeps get the same codes. With L2, the code sets kept at the thresholds
+cover 97.9% of `cms-synthetic` dev at 98.0% precision, against 96.2% for the coder alone.
+
+## Phase 7 exit criteria
+
+- **Expected calibration error under 0.05 on dev.** Met on `cms-synthetic` dev: 0.001 held out
+  for the coder, 0.011 for L2's choice. On `mimic-silver` dev a local table is needed (0.041);
+  the shipped one is 0.151.
+- **L2 raises accuracy@1 on the low-confidence subset without lowering it elsewhere, at no API
+  cost.** Met: see the table above. The kept phrases do not change.
+
 ## Phase 6 exit criteria
 
 - **Invalid-code rate exactly 0 on every dataset.** Met: 0 invalid codes on `cms-synthetic` dev
@@ -98,8 +121,10 @@ uv run text2icd eval run -d cms-synthetic -s bm25 --split test
 uv run text2icd eval run -d cms-synthetic -s embedding --split test
 uv run text2icd eval mimic silver -r fy2027             # needs MIMIC-IV access (PhysioNet)
 uv run text2icd eval run -d mimic-silver -s coder
+uv run text2icd graph embed -r fy2027                    # the vectors file of L2
 uv run text2icd eval calibrate -d cms-synthetic -o src/text2icd/resources/calibration.json
 uv run text2icd eval calibrate -d mimic-silver          # a local table, under data/
+uv run text2icd eval run -d cms-synthetic -s coder -O retrieval=on --split test
 ```
 
 Each run writes its result file, with the commit, release, graph and dataset hashes, under

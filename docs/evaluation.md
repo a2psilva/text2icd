@@ -184,6 +184,15 @@ held-out calibration error, Brier score, AUROC and selective-accuracy curve. The
 is the lowest confidence at which the code sets kept reach the target precision (`--target`, 98% by
 default), which keeps as many as possible.
 
+When the graph's vectors file exists, `eval calibrate` also fits the table's retrieval stage, L2's
+choice ([below](#l2-in-the-coder)); `--no-retrieval` skips it. The examples the new table escalates
+are coded again, and L2's pool for each gives one row per code: its features and whether it is the
+gold code. A logistic regression over the rows scores the codes, and the best of each pool is L2's
+choice. An isotonic regression over the choices then maps the winning score to a probability. Five
+folds grouped by gold code give the held-out accuracy of the choice and its calibration. The
+stage's threshold is the lowest at which all the code sets kept, the coder's and L2's together,
+still reach the target precision.
+
 The table holds aggregates only: the weights, the isotonic map sampled on a fixed grid between the
 0.5th and 99.5th percentiles of the scores, and summary numbers. The shipped table,
 `src/text2icd/resources/calibration.json`, is fitted on `cms-synthetic` dev. A table fitted on a
@@ -436,6 +445,62 @@ Embedding runs on the CPU. On Apple silicon, onnxruntime's CoreML provider was n
 encoders. With variable input shapes it falls back to the CPU; with fixed shapes it pads short
 texts to the longest. The CPU path batches texts of similar length instead.
 
+### L2 in the coder
+
+For a phrase the coder escalates, the codes retrieval finds compete with the coder's code and
+alternates ([architecture](architecture.md#l2-local-retrieval)). How to choose was measured first,
+on the 2,519 escalated phrases of `cms-synthetic` dev, against the gold code:
+
+| Choice | Accuracy@1 |
+| --- | --- |
+| The coder's code | 27.0% |
+| Retrieval's first code, always | 59.9% |
+| The coder's code if retrieval ranks it in its first 2, 3 or 5, else retrieval's first | 57.9%, 56.1%, 53.9% |
+| A learned score over the pool (5 folds by gold code) | 66.8% |
+| The same, querying with the diagnosis text rather than the whole phrase | 60.9% |
+| The best code of the pool, if one could tell | 75.5% |
+
+**Choice: a learned score over the pool, with the whole phrase as query.** It is the retrieval
+stage of the calibration table. Its probability is calibrated, so it also gives the code set's
+confidence and decides whether the phrase goes on to L3. Breaking ties in favour of the coder's
+code made no difference.
+
+Fitted on `cms-synthetic` dev and held out over 5 folds by gold code, the stage chooses the right
+code for 65.0% of the 2,519 escalated phrases. It takes a retrieved code for 44.7% of them, with a
+calibration error of 0.011 and an AUROC of 0.825. Its threshold, 0.67, keeps 45.6% of the
+escalated phrases and escalates the rest to L3. All the code sets kept, the coder's and L2's,
+then cover 97.9% of the phrases at 98.0% precision; the coder alone keeps 96.2% at 98.2%.
+
+The coder with and without L2, FY2027, shipped table, on the phrases the coder keeps and on those
+it escalates:
+
+| Dataset | Kept | Acc@1 | Escalated | Acc@1, coder | Acc@1, coder + L2 | F1, coder | F1, coder + L2 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `cms-synthetic` dev | 65,293 | 98.2% | 2,519 | 27.0% | 61.8% (60.0-63.7) | 30.8% | 61.3% |
+| `cms-synthetic` test | 71,330 | 97.5% | 3,615 | 28.5% | 57.7% (56.1-59.4) | 30.0% | 57.1% |
+| `mimic-silver` dev | 79,797 | 77.5% | 8,793 | 33.3% | 56.4% (55.4-57.5) | 37.8% | 57.7% |
+
+On all phrases:
+
+| Dataset | Acc@1, coder | Acc@1, coder + L2 | F1, coder | F1, coder + L2 | p50 / p95 ms, coder + L2 |
+| --- | --- | --- | --- | --- | --- |
+| `cms-synthetic` test | 94.2% | 95.6% | 93.9% | 95.2% | 1.3 / 11.3 |
+| `mimic-silver` dev | 73.1% | 75.4% | 73.0% | 75.1% | 0.7 / 12.7 |
+
+- **The kept phrases do not change**, and nothing is paid: L2 runs on the CPU, only on the
+  escalated phrases, in about 10 ms each.
+- **The run scores below the held-out choice** (61.8% against 65.0% on dev). For 76 phrases the
+  code chosen is the gold one, but a Tabular note sequences another first: U07.1 before J12.82
+  for COVID-19 pneumonia, as the guidelines require. Single-code gold counts that as wrong.
+- **L2 does not code a phrase that states no condition.** "No pneumonia" stays uncoded, though
+  retrieval would find J18.9. That leaves 77 escalated `cms-synthetic` phrases uncoded, which the
+  text parser reads as negated ("BCR/ABL-negative", "with no further subtyping").
+- **`mimic-silver` uses the table fitted on `cms-synthetic`.** A table fitted locally on
+  `mimic-silver` dev (never shipped) reaches no threshold with 98% precision, so the coder
+  escalates nearly every phrase. Held out, L2 then chooses the right code for 77.1% of them,
+  against the coder's 73.1%, taking a retrieved code for 10.2%. No L2 threshold reaches the target
+  either, so all of them still go on to L3.
+
 ## Text understanding
 
 `text2icd eval parse -d <dataset>` reads every phrase of a split with `text2icd.text.parse` and
@@ -474,6 +539,9 @@ diagnoses, and at least 95% of expansions right. Results so far, FY2027:
   `cms-synthetic` (the full local set of the release), `mimic-silver`, `mimic-gold`.
 - `text2icd eval report RESULT...` renders a markdown table comparing runs, with intervals and a
   provenance line per run; `--by-chapter` adds per-chapter tables. Only aggregate numbers appear.
+- Runs of the `coder` system also show accuracy on the phrases the coder keeps and on those it
+  escalates (each prediction records the layers that escalated it). `-O retrieval=on` adds L2 to
+  the coder, so the two runs compare L2 on the same escalated phrases.
 - The CI integration job runs B1 on the committed `cms-synthetic` sample, so the harness itself is
   exercised on every pull request.
 - Ablations switch off one component at a time: no Index walk, no Tabular verification, no

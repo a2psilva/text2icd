@@ -19,6 +19,9 @@ class Prediction(BaseModel):
     codes: tuple[str, ...] = ()  # the code set: the primary code first, then companion codes
     alternates: tuple[str, ...] = ()  # other candidate primary codes, best first
     confidence: float | None = Field(default=None, ge=0, le=1)
+    # The layers that escalated the phrase, in order ("index": the coder's confidence was below
+    # its threshold; "retrieval": L2's too); None when the system does not escalate.
+    escalated: tuple[str, ...] | None = None
     llm_calls: int = Field(default=0, ge=0)
     cost_usd: float = Field(default=0.0, ge=0)
     latency_ms: float = Field(default=0.0, ge=0)

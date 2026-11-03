@@ -72,6 +72,30 @@ def selective(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
     return lines
 
 
+def escalation(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
+    """Accuracy on the phrases the coder keeps and on those it escalates, for the runs whose
+    system says (none: no lines). L2 and L3 change only the escalated ones."""
+    shown = [(h, r) for h, r in runs if "kept" in r.subsets or "escalated" in r.subsets]
+    if not shown:
+        return []
+    head = ["System", "Dataset"]
+    for title in ("Kept", "Escalated"):
+        head += [title, "Acc@1", "Code-set F1"]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for header, report in shown:
+        dataset = header["dataset"]
+        cells = [_system_label(header), f"{dataset['name']} ({dataset['split']})"]
+        for name in ("kept", "escalated"):
+            part = report.subsets.get(name)
+            if part is None:
+                cells += ["0", "n/a", "n/a"]
+                continue
+            cells += [f"{part.scored:,}"]
+            cells += [fmt(part.metrics.get(m), "share") for m in ("accuracy@1", "code-set F1")]
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
 def by_group(header: dict[str, Any], report: Report, label: str = "Chapter") -> list[str]:
     """One row per group (chapter) of a single run."""
     head = [label, "n", "Acc@1", "Acc@5", "Category", "Code-set F1"]
@@ -94,7 +118,8 @@ def _group_key(name: str) -> tuple[int, str]:
 def _system_label(header: dict[str, Any]) -> str:
     system = header["system"]
     model = system.get("model")
-    return f"{system['name']} ({model})" if model else str(system["name"])
+    label = f"{system['name']} ({model})" if model else str(system["name"])
+    return f"{label} + L2" if system.get("retrieval") else label
 
 
 def _latency(report: Report, key: str) -> str:

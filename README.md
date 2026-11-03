@@ -10,9 +10,9 @@ trail for every code.
 
 > **Status: alpha (v0.1.0).** The deterministic coder works: Index walk, Tabular verification,
 > instructional notes and the main guideline rules, with no model and no API call
-> ([results](docs/results.md)). Each code set now carries a calibrated confidence that marks
-> the phrases to escalate. Local retrieval, the LLM navigator, the cache and the service are still
-> to come.
+> ([results](docs/results.md)). Each code set carries a calibrated confidence that marks the
+> phrases to escalate, and local retrieval (L2) recodes those on the CPU, at no API cost. The LLM
+> navigator, the cache and the service are still to come.
 
 ## Why
 
@@ -115,7 +115,7 @@ uv run text2icd graph check  # runs the integrity checks on the built graph
 uv run text2icd graph embed  # embeds its texts for local retrieval (about 3 min on a laptop CPU)
 uv run text2icd parse "DM2 w/ CKD 3a, possible UTI 2/2 E. coli"   # how a phrase is read
 uv run text2icd walk "aspiration pneumonia due to food"         # the Index walk's candidates
-uv run text2icd code "type 2 DM with diabetic CKD stage 3a"      # the deterministic coder
+uv run text2icd code "type 2 DM with diabetic CKD stage 3a"      # the coder, then L2 if unsure
 uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all   # the BM25 baseline
 make check                   # lint, format check, type check, tests
 ```

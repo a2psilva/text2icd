@@ -56,7 +56,8 @@ class Report:
     metrics: dict[str, Estimate]
     selective: dict[float, Estimate]  # coverage -> accuracy@1 on the most confident examples
     latency_ms: dict[str, float]  # p50 and p95
-    subsets: dict[str, "Report"] = field(default_factory=dict)  # "valid" and "mapped" examples
+    # "valid" and "mapped" examples; "kept" and "escalated" by the coder, when it says
+    subsets: dict[str, "Report"] = field(default_factory=dict)
     groups: dict[str, "Report"] = field(default_factory=dict)  # for example per chapter
 
 
@@ -115,7 +116,13 @@ def score(
     every = np.arange(len(examples))
     report = _report(table, every, resamples, seed)
     scored, mapped = table.flags["scored"], table.flags["mapped"]
-    for name, mask in (("valid", scored & ~mapped), ("mapped", mapped)):
+    escalated, reported = table.flags["escalated"], table.flags["reported"]
+    for name, mask in (
+        ("valid", scored & ~mapped),
+        ("mapped", mapped),
+        ("kept", scored & reported & ~escalated),
+        ("escalated", scored & escalated),
+    ):
         if mask.any():
             report.subsets[name] = _report(table, every[mask], resamples, seed)
     if group_of is not None:
@@ -136,7 +143,10 @@ def _table(
     matrix = np.zeros((n, len(_COLUMNS)))
     confidence = np.full(n, math.nan)
     latency = np.full(n, math.nan)
-    flags = {name: np.zeros(n, dtype=bool) for name in ("unmappable", "mapped", "missing", "error")}
+    flags = {
+        name: np.zeros(n, dtype=bool)
+        for name in ("unmappable", "mapped", "missing", "error", "reported", "escalated")
+    }
     for i, example in enumerate(examples):
         prediction = predictions.get(example.id)
         matrix[i] = _row(example, prediction, billable)
@@ -146,6 +156,9 @@ def _table(
             flags["missing"][i] = True
             continue
         flags["error"][i] = prediction.error is not None
+        if prediction.escalated is not None:  # the coder's escalation (L1), whatever came next
+            flags["reported"][i] = True
+            flags["escalated"][i] = "index" in prediction.escalated
         latency[i] = prediction.latency_ms
         if prediction.confidence is not None:
             confidence[i] = prediction.confidence
