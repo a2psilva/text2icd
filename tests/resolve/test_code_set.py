@@ -15,9 +15,11 @@ from text2icd.resolve.instructions import (
     Instruction,
     Kind,
     Notes,
+    Order,
     resolve_excludes1,
     sequence,
 )
+from text2icd.trace import TraceStep
 
 
 def entry(code: str, role: str = "diagnosis", source: str | None = None, group: int = 0) -> Entry:
@@ -174,7 +176,27 @@ def test_excludes1_prefers_a_specified_code() -> None:
     assert codes(kept) == ["B02.2"]
 
 
+def test_excludes1_spares_the_pairs_a_guideline_codes_together() -> None:
+    notes = FakeNotes(excludes={"K86.1": "K85"})
+    entries = [entry("K85.90"), entry("K86.1", group=1)]  # acute and chronic (I.B.8)
+    assert codes(resolve_excludes1(entries, notes, {frozenset({0, 1})})[0]) == ["K85.90", "K86.1"]
+    assert codes(resolve_excludes1(entries, notes)[0]) == ["K85.90"]  # the more specific
+
+
 # -- sequencing ------------------------------------------------------------------------------------
+
+
+def test_guideline_orders_move_codes() -> None:
+    step = TraceStep(
+        layer="rules", action="sequence", detail="R73.9 first", guideline="I.C.19.e.5.c"
+    )
+    ordered, trace = sequence(
+        [entry("T38.3X6A"), entry("R73.9", group=1)],
+        FakeNotes(),
+        [Order("R73.9", "T38.3X6A", step)],
+    )
+    assert codes(ordered) == ["R73.9", "T38.3X6A"]
+    assert trace == [step]
 
 
 def test_code_first_puts_the_named_code_before() -> None:

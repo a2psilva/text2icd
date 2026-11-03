@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-Layer = Literal["text", "cache", "index", "tabular", "retrieval", "llm"]
+Layer = Literal["text", "cache", "index", "tabular", "rules", "retrieval", "llm"]
 
 
 class TraceStep(BaseModel):

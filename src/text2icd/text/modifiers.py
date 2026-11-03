@@ -58,6 +58,23 @@ _FOR_FRACTURE = (
 )
 _DIABETES = r"diabet|(?<![a-z])dm(?![a-z])"
 _BEFORE_DIABETES = r"\s+(?:diabetes|dm)\b"
+# A bare "insulin" is not a drug status ("insulin resistance", "hypoglycemia due to insulin").
+_INSULINS = (
+    r"(?:basal |bolus |prandial )?insulin (?:glargine|lispro|aspart|detemir|degludec)|"
+    r"(?:basal|bolus|prandial|long[\s-]acting|short[\s-]acting|nph) insulin|"
+    r"glargine|lispro|detemir|degludec|lantus|levemir|tresiba|toujeo|basaglar|humalog|novolog|"
+    r"humulin|novolin"
+)
+_ORAL_DRUGS = (
+    r"metformin|glucophage|glipizide|glyburide|glimepiride|sitagliptin|januvia|janumet|"
+    r"linagliptin|saxagliptin|alogliptin|pioglitazone|empagliflozin|jardiance|dapagliflozin|"
+    r"farxiga|canagliflozin|ertugliflozin|repaglinide|nateglinide|acarbose|oral semaglutide|"
+    r"rybelsus|oral antidiabetics?"
+)
+_INJECTABLE_DRUGS = (
+    r"liraglutide|victoza|semaglutide|ozempic|dulaglutide|trulicity|exenatide|byetta|bydureon|"
+    r"tirzepatide|mounjaro|pramlintide|lixisenatide|glp[\s-]?1 (?:receptor )?agonists?"
+)
 _PREGNANCY = r"pregnan|gestation|intrauterine|gravid|antepartum|trimester|(?<![a-z])ga(?![a-z])"
 _HEART_PARTS = (
     r"ventric|atri|heart\b|bundle|main\b|anterior descending|circumflex|coronary|internal mammary"
@@ -246,6 +263,17 @@ RULES: tuple[Rule, ...] = (
         "diabetes_drug",
         r"injectable non[\s-]insulin(?: antidiabetic)?(?: drugs?)?",
         "injectable_non_insulin",
+    ),
+    # Common diabetes drugs by name, only next to a diabetes (I.C.4.a.3).
+    _rule(
+        "diabetes_drug",
+        rf"(?:on )?(?:{_INSULINS})|insulin (?:therapy|use|treatment|regimen|pump)",
+        "insulin",
+        _DIABETES,
+    ),
+    _rule("diabetes_drug", rf"(?:on )?(?:{_ORAL_DRUGS})", "oral_hypoglycemic", _DIABETES),
+    _rule(
+        "diabetes_drug", rf"(?:on )?(?:{_INJECTABLE_DRUGS})", "injectable_non_insulin", _DIABETES
     ),
     # control
     _rule("control", r"uncontrolled", "uncontrolled"),

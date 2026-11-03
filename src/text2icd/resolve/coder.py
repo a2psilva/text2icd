@@ -12,10 +12,17 @@ it; otherwise the phrase is searched for one, among the Index paths of the diagn
 phrase documents in full (no undocumented slot): the walk's candidates for a one-condition
 diagnosis, and for a diagnosis of several conditions a second walk of each condition ("type 2 DM
 with CKD stage 3a": E11.22, then N18.31 from "chronic kidney disease stage 3a"). A mandatory
-instruction found nowhere is listed as `required_unresolved`. Excludes1 conflicts are resolved,
-and the codes put in coding order.
+instruction found nowhere takes the unspecified code it names when the code's title states the
+condition (I13.0: N18.9), or else is listed as `required_unresolved`. Excludes1 conflicts are
+resolved, and the codes put in coding order.
+
+The guideline rule pack (`rules`, task 6.9) runs in between: a condition the code of its
+diagnosis leaves unused is coded on its own (I.B.9), a condition both acute and chronic gets
+both codes (I.B.8), and the hypertension, sepsis, diabetes, drug and sequela rules change the
+set and its order.
 """
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, Literal
@@ -23,6 +30,8 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict
 
 from text2icd.graph.model import Graph
+from text2icd.ontology.codes import dot
+from text2icd.resolve import rules
 from text2icd.resolve.instructions import (
     NAMES,
     ROLES,
@@ -30,6 +39,7 @@ from text2icd.resolve.instructions import (
     Instruction,
     Kind,
     Notes,
+    Order,
     Role,
     resolve_excludes1,
     sequence,
@@ -50,13 +60,21 @@ from text2icd.resolve.walk import (
     IndexWalker,
     diagnosis_text,
 )
-from text2icd.text.model import ParsedPhrase, Setting
+from text2icd.text.model import Modifier, ParsedPhrase, Setting
 from text2icd.trace import TraceStep
 
 ALTERNATES = 4  # completed alternates kept per diagnosis
 MAX_COMPANIONS = 8  # companion codes added per phrase
 UNRESOLVED: Final = "required_unresolved"
 EXCLUDES1 = "excludes1_conflict"
+# Parts of a condition that are no condition of their own: qualifiers, and the wording of a 7th
+# character even misspelled ("iniital encounter").
+_QUALIFIER = re.compile(
+    r"(?:unspecified|nos|nec|other|other specified|not elsewhere classified|"
+    r"not otherwise specified|(?:site|type|organism) unspecified|unspecified (?:site|type)|"
+    r"\S+ encounter(?: for .+)?|sequela)"
+)
+_COMBINED = re.compile(r"\b(?:sub)?acute\b.*\bchronic\b|\bchronic\b.*\b(?:sub)?acute\b")
 
 
 class CodedDiagnosis(BaseModel):
@@ -139,6 +157,24 @@ class _Group:
     evidence: Evidence
     coded: CodedDiagnosis
     pool: list[Candidate] | None = None
+    origin: int = 0  # the diagnosis of the phrase it codes (all or part of)
+    whole: bool = True  # the walk of a whole diagnosis, not of one of its conditions
+
+
+@dataclass(frozen=True, slots=True)
+class _Found:
+    """A companion code found for an instruction, with what it was found from."""
+
+    code: str
+    description: str
+    score: float
+    specified: bool
+    used: frozenset[str]
+    flags: tuple[str, ...]
+    trace: tuple[TraceStep, ...]
+
+
+_Alone = tuple[DiagnosisWalk, Evidence, CodedDiagnosis] | None
 
 
 class Coder:
@@ -167,27 +203,41 @@ class Coder:
 
     def code(self, phrase: str) -> CodeSet:
         result = self.walker.walk(phrase)
+        parsed = result.parsed
         groups: list[_Group] = []
         external: list[CodedDiagnosis] = []
         flags: set[str] = set()
-        for walk in result.diagnoses:
-            evidence = self.evidence(result.parsed, walk)
+        trace: list[TraceStep] = []
+        exempt: set[frozenset[int]] = set()  # acute and chronic pairs (I.B.8)
+        alone: dict[str, _Alone] = {}  # conditions coded on their own, by their words
+        for origin, walk in enumerate(result.diagnoses):
+            evidence = self.evidence(parsed, walk)
             coded = self._coded(walk.candidates, evidence, walk.trace)
             if coded is None:
                 flags.add(REVIEW)
                 continue
-            groups.append(_Group(walk, evidence, coded))
+            group = _Group(walk, evidence, coded, origin=origin)
+            pair, steps = self._acute_and_chronic(parsed, group)
+            if len(pair) == 2:
+                exempt.add(frozenset({len(groups), len(groups) + 1}))
+            groups += pair
+            trace += steps
             cause = self._coded(walk.external_causes, evidence, ())
             if cause is not None:
                 external.append(cause.model_copy(update={"role": "external_cause"}))
+            groups += self._uncoded(parsed, group, alone)
         if not groups and result.diagnoses:
             flags.add(REVIEW)
         entries = self._entries(groups)
-        companions = self._companions(result.parsed, groups, entries)
-        entries, excluded, trace = resolve_excludes1(entries, self.notes)
-        if excluded:
+        entries, orders, steps = self._rules(parsed, groups, entries, alone)
+        trace += steps
+        companions = self._companions(parsed, groups, entries)
+        entries, excluded, steps = resolve_excludes1(entries, self.notes, exempt)
+        trace += steps
+        if any(not rules.presumed(e) for e in excluded):
             flags.add(EXCLUDES1)
-        entries, steps = sequence(entries, self.notes)
+        orders += rules.orders(entries, [group.origin for group in groups])
+        entries, steps = sequence(entries, self.notes, orders)
         trace += steps
         companions += self._etiologies(entries, companions)
         if any(companion.status == UNRESOLVED for companion in companions):
@@ -264,6 +314,8 @@ class Coder:
             entry = entries[position]
             position += 1
             for instruction in self.notes.instructions(entry.code):
+                if rules.owned(instruction):
+                    continue
                 present = next(
                     (e for e in entries if e.code != entry.code and instruction.covers(e.code)),
                     None,
@@ -275,20 +327,17 @@ class Coder:
                 if added < MAX_COMPANIONS:
                     found = self._search(parsed, groups[entry.group], instruction, entry)
                 if found is not None:
-                    candidate, completed = found
                     added += 1
                     entries.append(
                         Entry(
-                            completed.code,
-                            completed.description,
+                            found.code,
+                            found.description,
                             ROLES[instruction.kind],
                             entry.code,
                             entry.group,
-                            candidate.score,
-                            not (
-                                {UNSPECIFIED, DEFAULT_CODE} & {*candidate.flags, *completed.flags}
-                            ),
-                            frozenset(candidate.used),
+                            found.score,
+                            found.specified,
+                            found.used,
                         )
                     )
                     step = TraceStep(
@@ -302,14 +351,94 @@ class Coder:
                             entry,
                             instruction,
                             "added",
-                            completed.code,
-                            completed.description,
-                            flags=tuple(dict.fromkeys((*candidate.flags, *completed.flags))),
-                            trace=(step, *candidate.trace, *completed.trace),
+                            found.code,
+                            found.description,
+                            flags=found.flags,
+                            trace=(step, *found.trace),
                         )
                     )
                 elif instruction.mandatory:
-                    out.append(self._companion(entry, instruction, UNRESOLVED))
+                    unspecified = self._unspecified(instruction, entry)
+                    if unspecified is None:
+                        out.append(self._companion(entry, instruction, UNRESOLVED))
+                        continue
+                    entries.append(
+                        Entry(
+                            unspecified.code,
+                            unspecified.description,
+                            ROLES[instruction.kind],
+                            entry.code,
+                            entry.group,
+                            entry.score,
+                            False,
+                            frozenset(),
+                        )
+                    )
+                    out.append(
+                        self._companion(
+                            entry,
+                            instruction,
+                            "added",
+                            unspecified.code,
+                            unspecified.description,
+                            flags=unspecified.flags,
+                            trace=unspecified.trace,
+                        )
+                    )
+        return out
+
+    def _unspecified(self, instruction: Instruction, source: Entry) -> _Found | None:
+        """The unspecified code a mandatory note names, when the title of the code that holds it
+        states the condition (I13.0 "... with heart failure and ... chronic kidney disease":
+        I50.9 and N18.9 when neither type nor stage is documented, I.A.9.b)."""
+        if instruction.kind != "useAdditionalCode":
+            return None  # an etiology to code first is not presumed (I.A.13)
+        forms = self.walker.finder.forms
+        stated = set(forms.content(source.description))
+        unspecified = set(forms.content("unspecified"))
+        best: tuple[int, str, str] | None = None
+        for code in self._named(instruction):
+            description = self.graph.code(code).description
+            if "unspecified" not in description.casefold():
+                continue
+            words = set(forms.content(description)) - unspecified
+            if words and words <= stated and (best is None or len(words) > best[0]):
+                best = (len(words), code, description)  # the most the title states
+        if best is None:
+            return None
+        _, code, description = best
+        step = TraceStep(
+            layer="tabular",
+            action="companion",
+            detail=(
+                f'{source.code}: {NAMES[instruction.kind]} "{instruction.text}": {code}, its '
+                "title states the condition, the phrase no more"
+            ),
+            guideline="I.A.9.b",
+        )
+        return _Found(code, description, source.score, False, frozenset(), (UNSPECIFIED,), (step,))
+
+    def _named(self, instruction: Instruction) -> list[str]:
+        """The billable codes an instruction names, at most a few hundred."""
+        out: list[str] = []
+        stack = []
+        for reference in instruction.references:
+            start = dot(reference.start)
+            if start not in self.graph:
+                continue
+            parent = self.graph.parent(start)
+            siblings = self.graph.children(parent.key) if parent is not None else ()
+            stack += [c.key for c in siblings if c.key in reference] or [start]
+        seen: set[str] = set()
+        while stack and len(out) < 300:
+            key = stack.pop(0)
+            if key in seen:
+                continue
+            seen.add(key)
+            node = self.graph.code(key)
+            if node.billable:
+                out.append(key)
+            stack += [c.key for c in self.graph.children(key)]
         return out
 
     def _companion(
@@ -335,12 +464,45 @@ class Coder:
 
     def _search(
         self, parsed: ParsedPhrase, group: _Group, instruction: Instruction, source: Entry
-    ) -> tuple[Candidate, Completion] | None:
-        """The first Index path the phrase documents in full whose code completes to one the
+    ) -> _Found | None:
+        """A diabetes drug of the phrase for a drug-therapy note (I.C.4.a.3); otherwise the
+        first Index path the phrase documents in full whose code completes to one the
         instruction names. A mandatory instruction names a code the condition always has, so
         the words of the source's path may document it (CKD, stage 3a); for an optional one the
         path must use a word of its own ("static internal nasal valve collapse" says nothing of
         the deviated septum that J34.82 lists as an underlying cause)."""
+        drug = rules.drug_status(instruction, _modifiers(parsed))
+        if drug is not None:
+            completed = self.verifier.complete(rules.DRUG_STATUS[drug.value], group.evidence)
+            if completed is not None:
+                step = rules.step("drug_status", f'"{drug.text}": {completed.code}', "I.C.4.a.3")
+                return _Found(
+                    completed.code,
+                    completed.description,
+                    source.score,
+                    True,
+                    frozenset(),
+                    completed.flags,
+                    (step, *completed.trace),
+                )
+        found = self._from_pool(parsed, group, instruction, source)
+        if found is None:
+            return None
+        candidate, completed = found
+        flags = (*candidate.flags, *completed.flags)
+        return _Found(
+            completed.code,
+            completed.description,
+            candidate.score,
+            not ({UNSPECIFIED, DEFAULT_CODE} & set(flags)),
+            frozenset(candidate.used),
+            tuple(dict.fromkeys(flags)),
+            (*candidate.trace, *completed.trace),
+        )
+
+    def _from_pool(
+        self, parsed: ParsedPhrase, group: _Group, instruction: Instruction, source: Entry
+    ) -> tuple[Candidate, Completion] | None:
         for candidate in self._pool(parsed, group):
             if candidate.penalty >= MISSING or "undocumented_link" in candidate.flags:
                 continue
@@ -405,6 +567,195 @@ class Coder:
                 )
         return out
 
+    def _pieces(self, parsed: ParsedPhrase, walk: DiagnosisWalk) -> list[tuple[str, int]]:
+        """The current conditions of a diagnosis, and the comma-separated parts of each, with
+        the condition they are part of: what a coder codes one by one."""
+        out = []
+        absent = {r.linked for r in parsed.relations if r.kind == "without"}
+        for i in walk.conditions:
+            if i >= len(parsed.conditions) or i in absent:
+                continue  # "severe sepsis without septic shock"
+            condition = parsed.conditions[i]
+            if not condition.reportable or condition.status != "current":
+                continue
+            for part in diagnosis_text(parsed, (i,)).split(","):
+                part = part.strip()
+                if part and not _QUALIFIER.fullmatch(part):
+                    out.append((part, i))
+        return out
+
+    def _alone(
+        self, parsed: ParsedPhrase, text: str, index: int, cache: dict[str, _Alone]
+    ) -> _Alone:
+        """A part of a diagnosis coded on its own, when the Index codes it in full: a path that
+        uses every word of it but its modifiers, with no undocumented slot but the title a
+        cross-reference leads to ("cardiomegaly", see "Hypertrophy, cardiac"). A mechanism of
+        injury is an external cause, not a part ("hip fracture due to fall")."""
+        if text in cache:
+            return cache[text]
+        condition = parsed.conditions[index]
+        modifiers = tuple(
+            m
+            for m in condition.modifiers
+            if m.text in text or m.kind in ("episode", "fracture")  # 7th characters
+        )
+        finder = self.walker.finder
+        forms = finder.forms
+        qualifiers = {w for m in modifiers for w in forms.content(m.text)}
+        if not finder.names_main_term(set(forms.content(text)) - qualifiers):
+            cache[text] = None  # a modifier or a site ("moderate", "skull"): no condition
+            return None
+        walk = self.walker.walk_text(text, (index,))
+        evidence = Evidence(frozenset(forms.content(text)), modifiers, text)
+        coded = self._coded(walk.candidates, evidence, walk.trace)
+        found: _Alone = None
+        if coded is not None and not walk.external_causes:  # a mechanism of injury (I.C.20)
+            candidate = coded.candidate
+            core = set(walk.words) - qualifiers  # its words as the walk reads them
+            penalty = round(candidate.penalty, 6)
+            if (
+                core
+                and core <= set(candidate.used)
+                and (
+                    penalty < MISSING
+                    or (penalty == MISSING and "cross_reference" in candidate.flags)
+                )
+                and "undocumented_link" not in candidate.flags
+            ):
+                found = (walk, evidence, coded)
+        cache[text] = found
+        return found
+
+    def _uncoded(
+        self, parsed: ParsedPhrase, group: _Group, cache: dict[str, _Alone]
+    ) -> list[_Group]:
+        """The conditions of a diagnosis its code leaves entirely unused, each coded on its own:
+        a combination code is used alone only when it identifies every condition (I.B.9)."""
+        candidate = group.coded.candidate
+        unused = set(candidate.unused)
+        pieces = self._pieces(parsed, group.walk) if unused else []
+        if len(pieces) < 2:
+            return []
+        if candidate.book != "index":
+            # A table entry is written "substance, form" or "site, part": its parts are names.
+            whole = {diagnosis_text(parsed, (i,)) for i in group.walk.conditions}
+            pieces = [(text, index) for text, index in pieces if text in whole]
+        forms = self.walker.finder.forms
+        words = set(group.walk.words)
+        titles = self._titles(group.coded.code)
+        out = []
+        for text, index in pieces:
+            found_forms = set(forms.content(text)) & words
+            if not found_forms or not found_forms <= unused or found_forms <= titles:
+                continue  # used by the path, or identified by the code ("warts due to HPV")
+            found = self._alone(parsed, text, index, cache)
+            if found is None or found[2].code == group.coded.code:
+                continue
+            walk, evidence, coded = found
+            step = rules.step(
+                "uncoded_condition",
+                f'"{text}": {group.coded.code} does not code it; coded on its own',
+                "I.B.9",
+            )
+            coded = coded.model_copy(update={"trace": (step, *coded.trace)})
+            out.append(_Group(walk, evidence, coded, origin=group.origin, whole=False))
+        return out
+
+    def _titles(self, code: str) -> set[str]:
+        """The words of the code's title and inclusion terms, and its category's."""
+        forms = self.walker.finder.forms
+        nodes = [code, *(a.key for a in self.graph.ancestors(code) if a.kind == "diag")]
+        texts = [
+            text
+            for node in nodes
+            for text in (self.graph.code(node).description, *self.verifier.inclusions(node))
+        ]
+        return {word for text in texts for word in forms.content(text)}
+
+    def _acute_and_chronic(
+        self, parsed: ParsedPhrase, group: _Group
+    ) -> tuple[list[_Group], list[TraceStep]]:
+        """A condition both acute and chronic, with no combination code: both codes, the acute
+        one first, when the Index has a subentry for each (I.B.8)."""
+        walk, coded = group.walk, group.coded
+        modifier = next(
+            (
+                m
+                for i in walk.conditions
+                if i < len(parsed.conditions)
+                for m in parsed.conditions[i].modifiers
+                if m.kind == "acuity" and m.value == "acute_on_chronic"
+            ),
+            None,
+        )
+        if modifier is None or modifier.text not in walk.text:
+            return [group], []
+        texts = (coded.description, *self.verifier.inclusions(coded.code))
+        if any(_COMBINED.search(text.casefold()) for text in texts):
+            return [group], []  # a combination code
+        forms = self.walker.finder.forms
+        pair: list[_Group] = []
+        for word in ("acute", "chronic"):
+            text = walk.text.replace(modifier.text, word, 1)
+            single = self.walker.walk_text(text, walk.conditions)
+            modifiers = tuple(
+                m.model_copy(update={"value": word, "text": word}) if m == modifier else m
+                for m in group.evidence.modifiers
+            )
+            evidence = Evidence(frozenset(forms.content(text)), modifiers, text)
+            found = self._coded(single.candidates, evidence, single.trace)
+            if found is None or not set(forms.content(word)) <= set(found.candidate.used):
+                return [group], []  # the Index has no subentry for it
+            pair.append(_Group(single, evidence, found, origin=group.origin, whole=False))
+        acute, chronic = pair[0].coded.code, pair[1].coded.code
+        if acute == chronic:
+            return [group], []
+        detail = f'"{walk.text}": {acute} and {chronic}, the acute first'
+        return pair, [rules.step("acute_and_chronic", detail, "I.B.8")]
+
+    def _facts(
+        self, parsed: ParsedPhrase, groups: Sequence[_Group], cache: dict[str, _Alone]
+    ) -> list[rules.Fact]:
+        """The code of each condition of the phrase on its own: a diagnosis of one condition
+        by its code, one of several by each of its parts walked alone."""
+        facts = []
+        for number, group in enumerate(groups):
+            pieces = self._pieces(parsed, group.walk) if group.whole else []
+            if len(pieces) < 2 or not rules.hypertensive(group.coded.code):
+                # a joined walk's hypertension code is read from its parts, not trusted
+                facts.append(rules.Fact(group.coded.code, number))
+            if len(pieces) < 2:
+                continue
+            for text, index in pieces:
+                found = self._alone(parsed, text, index, cache)
+                if found is not None:
+                    facts.append(rules.Fact(found[2].code, number))
+        return facts
+
+    def _rules(
+        self,
+        parsed: ParsedPhrase,
+        groups: Sequence[_Group],
+        entries: list[Entry],
+        cache: dict[str, _Alone],
+    ) -> tuple[list[Entry], list[Order], list[TraceStep]]:
+        """The guideline rules that change the set before its notes are read (`rules`)."""
+        trace: list[TraceStep] = []
+        texts = {number: group.walk.text for number, group in enumerate(groups)}
+        if any(rules.hypertensive(e.code) for e in entries) or any(
+            "hypertens" in text for text in texts.values()
+        ):
+            entries, steps = rules.apply_hypertension(
+                entries, self._facts(parsed, groups, cache), self.graph
+            )
+            trace += steps
+        entries, orders, steps = rules.apply_sepsis(entries, texts, self.verifier, self.notes)
+        trace += steps
+        trace += rules.diabetes_type(
+            entries, {number: group.evidence for number, group in enumerate(groups)}
+        )
+        return entries, orders, trace
+
     def evidence(self, parsed: ParsedPhrase, walk: DiagnosisWalk) -> Evidence:
         """What the phrase says about the diagnosis: the words of its conditions, with the
         wording the walk left to the Tabular List ("initial encounter"), and their modifiers."""
@@ -450,6 +801,10 @@ class Coder:
         if chosen is None:
             return None
         return chosen.model_copy(update={"alternates": tuple(alternates)})
+
+
+def _modifiers(parsed: ParsedPhrase) -> tuple[Modifier, ...]:
+    return tuple(m for condition in parsed.conditions for m in condition.modifiers)
 
 
 def describe_code_set(code_set: CodeSet) -> list[str]:
