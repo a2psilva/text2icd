@@ -11,6 +11,7 @@ from text2icd.embeddings import Vectors, normalize
 from text2icd.eval import retrieval
 from text2icd.eval.datasets import Example, write_dataset, write_manifest
 from text2icd.graph.model import Graph
+from text2icd.resolve import retrieve
 from text2icd.resolve.coder import Coder
 from text2icd.resolve.confidence import Calibration
 
@@ -105,6 +106,11 @@ def test_measure(graph: Graph, monkeypatch: pytest.MonkeyPatch) -> None:
     assert embedded.found["all"][1] <= embedded.found["all"][5] <= embedded.found["all"][20]
     assert embedded.recall("escalated", 1) == 1.0  # E11.22 first for the diabetes phrase
     assert embedded.latency_ms[0] > 0
+    monkeypatch.setattr(retrieve, "load_embedder", lambda spec: Words())
+    retrieve.build_vectors(graph, Words(), "test:words", sources=("tabular",))
+    stored = retrieval.measure("vectors", graph, ("index",), found, coder.verifier)
+    assert stored.sources == ("tabular",)  # the file's own texts, whatever --texts says
+    assert stored.texts == len(retrieve.texts(graph))
     text = "\n".join([*retrieval.summary(found), *retrieval.table([lexical, embedded])])
     assert "escalated: 1 examples (25.0%), coder accuracy@1 0.0%" in text
     assert "coder wrong: 1 examples (25.0%), coder accuracy@1 0.0%" in text
