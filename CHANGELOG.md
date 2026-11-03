@@ -22,6 +22,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   not need it.
 - `eval run` and `eval report` print a selective-accuracy table for runs that report a confidence.
 - The Tabular step flags `tabular_tie` when children tie and the first is taken.
+- `text2icd.resolve.retrieve`, the retrieval layer of L2: ranks the graph's Tabular texts and
+  Index paths against a phrase, by local embeddings or BM25, and returns distinct codes for
+  Tabular verification to complete.
+- `text2icd eval retrieval` (task 7.4): recall@1, 5 and 20 of retrievers (`bm25`,
+  `model2vec:<id>`, `onnx:<id>`) over chosen texts, with their codes completed to billable ones,
+  on all examples, on those the coder escalates and on those it gets wrong; with latency and
+  vector and model sizes. `embeddings.load_embedder` reads the model names.
 
 ## [0.1.0] - 2026-11-03
 

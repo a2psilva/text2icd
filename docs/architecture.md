@@ -358,9 +358,13 @@ never shipped.
 
 ### L2: local retrieval
 
-Embeddings run on CPU through ONNX (fastembed or model2vec; the model is chosen by benchmark)
-over Index full paths, Tabular descriptions and inclusion terms. Retrieved codes are fed back
-into Tabular verification. No API cost.
+`resolve.retrieve` ranks the graph's own texts against the normalised phrase: Tabular
+descriptions, inclusion terms and `includes` notes, and the full paths of the Index terms that give
+a code. It returns distinct codes, which Tabular verification completes to billable ones, as it
+does the Index walk's candidates. Embeddings run on the CPU, without torch. The benchmark of task
+7.4 ([evaluation](evaluation.md#local-retrieval-l2)) chose bge-small-en-v1.5, a quantized ONNX
+model run with onnxruntime, over both kinds of text; a static model2vec model is the numpy-only
+fallback. No API cost.
 
 ### L3: LLM navigator
 

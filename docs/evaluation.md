@@ -309,6 +309,109 @@ and the Table of Drugs and Chemicals (5.1, 5.8, 5.9) 96.9%. Inclusion terms foll
 List's wording rather than the Index's, and are the largest remaining gap. The `mimic-gold`
 target (category accuracy above B1 and B2) waits for the annotation.
 
+## Local retrieval (L2)
+
+`text2icd eval retrieval -d <dataset> -m <retriever> --texts <texts>` compares the retrievers L2
+may use (`text2icd.eval.retrieval`, task 7.4). The coder codes each phrase first. Each retriever
+then ranks codes for the normalised phrase (abbreviations expanded) over the chosen texts
+(`text2icd.resolve.retrieve`):
+
+- `tabular`: the Tabular descriptions, inclusion terms and `includes` notes;
+- `index`: the full path of each Alphabetic Index and External Cause Index term that gives a code
+  ("Pneumonia, aspiration", J69.0).
+
+The first 50 codes are completed to billable codes by Tabular verification, with the phrase's
+words and modifiers, as L2 completes them. Recall@k is the share of phrases whose primary gold
+code is among the first k completed codes, over three subsets:
+
+- all scored phrases;
+- those the coder escalates, where L2 runs;
+- those whose primary code the coder gets wrong.
+
+Latency is for one phrase at a time (retrieval and completion) on the CPU, after the graph and the
+model are loaded. Vectors are the text embeddings in float16.
+
+| Retriever | Kind | Trained on |
+| --- | --- | --- |
+| `bm25` | the graph's FTS5 tables; both text sets fused by reciprocal rank | - |
+| `model2vec:NeuML/pubmedbert-base-embeddings-8M` | static (numpy only), B2's model | biomedical text |
+| `model2vec:minishlab/potion-base-8M` | static (numpy only) | general text |
+| `onnx:Xenova/bge-small-en-v1.5` | transformer, quantized ONNX; fastembed's default model | general text |
+| `onnx:Xenova/SapBERT-from-PubMedBERT-fulltext` | transformer, quantized ONNX; the MIMIC-IV aligner's model | UMLS synonyms |
+
+The ONNX models run with onnxruntime, without torch. bge-small runs through text2icd's own
+onnxruntime wrapper rather than the fastembed package, which would add dependencies for the same
+model.
+
+FY2027, `cms-synthetic` dev (67,812 phrases). The coder escalates 2,519 (3.7%) and is right on
+27.0% of them; it gets 3,042 (4.5%) wrong:
+
+| Retriever | Texts | Recall@1 / @5 / @20 | Escalated @1 / @5 / @20 | Coder wrong @1 / @20 | p50 / p95 | Vectors | Model |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `bm25` | tabular | 43.8% / 58.2% / 67.4% | 47.2% / 55.7% / 59.6% | 45.8% / 60.7% | 3.5 / 26.4 ms | - | - |
+| `bm25` | tabular+index | 48.6% / 66.4% / 79.5% | 38.7% / 52.0% / 61.5% | 34.7% / 61.9% | 7.5 / 39.1 ms | - | - |
+| pubmedbert-8M | tabular | 45.7% / 62.3% / 72.6% | 47.0% / 57.0% / 61.5% | 47.2% / 61.6% | 1.6 / 1.9 ms | 31 MB | 31 MB |
+| pubmedbert-8M | tabular+index | 76.1% / 86.7% / 90.2% | 55.9% / 64.8% / 67.6% | 53.2% / 67.0% | 2.3 / 3.0 ms | 66 MB | 31 MB |
+| potion-8M | tabular | 46.8% / 62.2% / 72.1% | 46.9% / 56.8% / 61.8% | 47.4% / 62.8% | 1.6 / 1.9 ms | 31 MB | 30 MB |
+| potion-8M | tabular+index | 80.1% / 88.4% / 91.2% | 57.4% / 65.0% / 67.9% | 54.8% / 67.8% | 2.4 / 3.1 ms | 66 MB | 30 MB |
+| bge-small | tabular | 52.1% / 70.2% / 79.7% | 51.9% / 62.5% / 67.2% | 50.8% / 65.1% | 3.2 / 4.1 ms | 47 MB | 34 MB |
+| bge-small | tabular+index | 80.4% / 90.6% / 93.5% | 60.3% / 67.8% / 70.7% | 57.4% / 68.5% | 4.4 / 5.7 ms | 99 MB | 34 MB |
+| SapBERT | tabular | 54.7% / 71.5% / 79.9% | 52.1% / 61.7% / 66.3% | 51.3% / 63.8% | 4.8 / 6.7 ms | 93 MB | 110 MB |
+| SapBERT | tabular+index | 80.1% / 89.1% / 91.7% | 58.1% / 67.2% / 70.1% | 56.2% / 67.4% | 7.9 / 10.6 ms | 199 MB | 110 MB |
+
+The intervals of recall@20 over all phrases are within ±0.4 points; over the escalated phrases,
+within about ±2 points.
+
+- **Index paths matter most.** They add 25 to 33 points of recall@1 over all phrases for the
+  embedding models. Part of that is because `cms-synthetic` phrases are made from those same
+  paths. On the escalated phrases they still add 6 to 11 points.
+- **Where L2 runs, the first retrieved code is right twice as often as the coder's.** On the
+  escalated phrases, the coder is right on 27.0%; the best retriever's first code on 60.3%.
+- **BM25 does not use the Index well.** Over all phrases the fused Index list raises its recall,
+  but on the escalated phrases it lowers recall@1, from 47.2% to 38.7%.
+- **The embedding models are close to each other.** bge-small leads by 2 to 3 points on the
+  escalated phrases. SapBERT is no better, at twice the latency and with vectors over the 100 MB
+  budget of task 7.5.
+
+FY2027, `mimic-silver` dev (88,590 phrases; aggregates only). The coder escalates 8,793 (9.9%) with
+the shipped calibration table and is right on 33.3% of them; it gets 23,831 (26.9%) wrong:
+
+| Retriever | Texts | Recall@1 / @5 / @20 | Escalated @1 / @5 / @20 | Coder wrong @1 / @20 | p50 / p95 |
+| --- | --- | --- | --- | --- | --- |
+| `bm25` | tabular | 45.2% / 76.0% / 91.2% | 32.3% / 61.2% / 76.8% | 23.7% / 86.0% | 1.2 / 7.5 ms |
+| `bm25` | tabular+index | 46.5% / 81.4% / 92.3% | 22.9% / 54.7% / 74.8% | 19.6% / 82.1% | 2.3 / 17.1 ms |
+| pubmedbert-8M | tabular | 48.6% / 81.6% / 94.9% | 43.4% / 70.2% / 83.9% | 33.2% / 91.8% | 1.3 / 1.7 ms |
+| pubmedbert-8M | tabular+index | 61.7% / 91.5% / 97.8% | 54.0% / 82.1% / 92.7% | 30.4% / 93.7% | 2.3 / 3.0 ms |
+| potion-8M | tabular | 48.8% / 78.4% / 92.3% | 36.5% / 66.7% / 81.8% | 26.6% / 86.9% | 1.4 / 1.8 ms |
+| potion-8M | tabular+index | 62.9% / 88.6% / 96.4% | 47.4% / 71.0% / 88.7% | 23.7% / 88.7% | 2.2 / 2.7 ms |
+| bge-small | tabular | 59.6% / 90.1% / 97.9% | 49.7% / 79.4% / 89.1% | 31.1% / 95.7% | 2.7 / 3.3 ms |
+| bge-small | tabular+index | 73.2% / 94.3% / 98.7% | 57.9% / 87.9% / 95.6% | 32.4% / 95.7% | 3.8 / 4.7 ms |
+| SapBERT | tabular | 74.0% / 95.1% / 99.9% | 65.4% / 95.0% / 99.6% | 33.8% / 99.7% | 3.9 / 4.7 ms |
+| SapBERT | tabular+index | 77.8% / 95.7% / 99.8% | 66.7% / 91.6% / 99.4% | 34.6% / 99.5% | 5.2 / 7.2 ms |
+
+Two caveats on this set:
+
+- **SapBERT made the labels.** The silver aligner keeps an item only when SapBERT finds it close to
+  one of the admission's code descriptions, and that code is the gold one. SapBERT's recall@20 of
+  99.9% over the Tabular texts measures that, not retrieval. Its rows are not comparable.
+- **Every retriever is favoured.** Only the items close to a code description are kept (41.5% of
+  the items), so recall over the Tabular texts runs higher than on clinical phrases in general.
+  `mimic-gold` gives the unbiased numbers once annotated.
+
+Among the other models, bge-small leads on both sets. The two static models swap places:
+potion-8M is ahead on `cms-synthetic`, pubmedbert-8M (trained on biomedical text) on the clinical
+phrases.
+
+**Choice for L2: bge-small over the Tabular texts and Index paths.** On the escalated phrases it
+ranks the right code first 60.3% of the time on `cms-synthetic` and 57.9% on `mimic-silver`, 3 and 4
+points above the best static model on each. Its vectors, 99 MB in float16, fit the 100 MB
+budget; the model is 34 MB and needs onnxruntime (the `embeddings` extra), not torch. A phrase takes
+4 to 5 ms. pubmedbert-8M stays the fallback for numpy-only installs: 66 MB of vectors, 2 to 3 ms.
+
+Embedding runs on the CPU. On Apple silicon, onnxruntime's CoreML provider was no faster for these
+encoders. With variable input shapes it falls back to the CPU; with fixed shapes it pads short
+texts to the longest. The CPU path batches texts of similar length instead.
+
 ## Text understanding
 
 `text2icd eval parse -d <dataset>` reads every phrase of a split with `text2icd.text.parse` and
