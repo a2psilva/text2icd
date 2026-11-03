@@ -11,6 +11,7 @@ from text2icd.eval.systems import SystemSetupError, build_system
 from text2icd.graph.build import BuildReport
 from text2icd.graph.model import Graph, load
 from text2icd.resolve.coder import Coder, describe_code_set
+from text2icd.resolve.confidence import read_calibration
 from text2icd.resolve.tabular import ASSUMED, REVIEW, UNSPECIFIED, Evidence, TabularVerifier
 from text2icd.resolve.words import default_word_forms
 from text2icd.text.model import Modifier
@@ -85,13 +86,17 @@ def test_coder(graph: Graph) -> None:
     assert (missing.codes, missing.flags) == ((), (REVIEW,))
     lines = describe_code_set(coder.code("amyloid heart disease"))
     assert lines[1] == "codes: E85.4, I43 (manifestation)"
-    assert lines[2].startswith("1. E85.4 [I43]  Organ-limited amyloidosis")
+    assert lines[2].startswith("confidence: ")  # from the shipped calibration table
+    assert lines[3].startswith("1. E85.4 [I43]  Organ-limited amyloidosis")
     assert describe_code_set(missing)[1] == "no code"
 
 
 def test_coder_system(graph: Graph) -> None:
     system = build_system("coder", graph, Settings(), {"episode": "subsequent"})
-    assert system.settings() == {"width": 5, "setting": "inpatient", "episode": "subsequent"}
+    settings = system.settings()
+    shipped = read_calibration()
+    assert settings.pop("calibration") == (shipped.fitted.get("name") if shipped else None)
+    assert settings == {"width": 5, "setting": "inpatient", "episode": "subsequent"}
     assert system.predict("accidental poisoning by 1-propanol").codes == ("T51.3X1D",)
     with pytest.raises(SystemSetupError, match="episode"):
         build_system("coder", graph, Settings(), {"episode": "later"})

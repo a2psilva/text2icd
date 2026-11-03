@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Confidence for the deterministic coder (tasks 7.1 to 7.3). Each code set carries its `features`
+  (path coverage, score margin, default or unspecified codes, Tabular ties, typo corrections,
+  cross-references, rule changes, text flags), a calibrated `confidence` that the primary code is
+  right, and `escalate` when that confidence is below the threshold chosen for 98% precision.
+  `text2icd code` prints it, and the `coder` eval system reports it, so runs now show calibration
+  error and selective accuracy.
+- `text2icd eval calibrate`: fits the calibration (logistic score, isotonic map) on a split, with
+  held-out results from folds grouped by gold code, and writes it as a small JSON table. The shipped
+  table, `resources/calibration.json`, is fitted on `cms-synthetic` dev; `TEXT2ICD_CALIBRATION`
+  selects another one. Tables fitted on restricted data are refused inside the package.
+- An `eval` dependency group with scikit-learn, installed by default with `dev`; the runtime does
+  not need it.
+- `eval run` and `eval report` print a selective-accuracy table for runs that report a confidence.
+- The Tabular step flags `tabular_tie` when children tie and the first is taken.
+
 ## [0.1.0] - 2026-11-03
 
 The deterministic coder (Phases 0 to 6): Index walk, Tabular verification, instructional notes and

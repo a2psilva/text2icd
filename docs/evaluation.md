@@ -171,7 +171,24 @@ chapter. They are computed by `text2icd.eval.metrics.score`:
   metrics; the invalid-code rate counts every predicted code, alternates included.
 - Selective accuracy is accuracy@1 on the most confident 100%, 90%, ..., 50% of the examples; once
   a system reports any confidence, an example without one counts as 0. Calibration uses ten
-  equal-width bins.
+  equal-width bins. `eval run` and `eval report` print a selective-accuracy table for every run
+  that reports a confidence.
+
+### Confidence calibration
+
+`text2icd eval calibrate -d <dataset> --split dev` codes the split with the deterministic coder and
+fits its confidence: a logistic regression over the features of `text2icd.resolve.confidence`, then
+an isotonic regression from score to probability (scikit-learn, in the `eval` dependency group). Five
+folds grouped by gold code, so that the variants of one code never sit on both sides, give the
+held-out calibration error, Brier score, AUROC and selective-accuracy curve. The escalation threshold
+is the lowest confidence at which the code sets kept reach the target precision (`--target`, 98% by
+default), which keeps as many as possible.
+
+The table holds aggregates only: the weights, the isotonic map sampled on a fixed grid between the
+0.5th and 99.5th percentiles of the scores, and summary numbers. The shipped table,
+`src/text2icd/resources/calibration.json`, is fitted on `cms-synthetic` dev. A table fitted on a
+restricted dataset is refused inside the package: it stays under `data/` and is used through
+`TEXT2ICD_CALIBRATION`.
 
 ## Baselines
 

@@ -55,6 +55,23 @@ def comparison(runs: Sequence[tuple[dict[str, Any], Report]], intervals: bool = 
     return lines
 
 
+def selective(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
+    """Selective accuracy: accuracy@1 of the most confident share of the phrases, for the runs
+    whose system reports a confidence (none: no lines)."""
+    shown = [(header, report) for header, report in runs if report.selective]
+    if not shown:
+        return []
+    coverages = sorted({c for _, report in shown for c in report.selective}, reverse=True)
+    head = ["System", "Dataset", *(f"{c:.0%} kept" for c in coverages)]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for header, report in shown:
+        dataset = header["dataset"]
+        cells = [_system_label(header), f"{dataset['name']} ({dataset['split']})"]
+        cells += [fmt(report.selective.get(c), "share", False) for c in coverages]
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
 def by_group(header: dict[str, Any], report: Report, label: str = "Chapter") -> list[str]:
     """One row per group (chapter) of a single run."""
     head = [label, "n", "Acc@1", "Acc@5", "Category", "Code-set F1"]

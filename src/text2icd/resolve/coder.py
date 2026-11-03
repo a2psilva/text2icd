@@ -31,7 +31,8 @@ from pydantic import BaseModel, ConfigDict
 
 from text2icd.graph.model import Graph
 from text2icd.ontology.codes import dot
-from text2icd.resolve import rules
+from text2icd.resolve import confidence, rules
+from text2icd.resolve.confidence import Calibration, read_calibration
 from text2icd.resolve.instructions import (
     NAMES,
     ROLES,
@@ -143,6 +144,9 @@ class CodeSet(BaseModel):
     sequence: tuple[SequencedCode, ...] = ()
     flags: tuple[str, ...] = ()
     trace: tuple[TraceStep, ...] = ()
+    features: dict[str, float] = {}  # what the confidence is computed from (`confidence`)
+    confidence: float | None = None  # that the primary code is right; None without a table
+    escalate: bool = False  # confidence below the table's threshold: for retrieval or the LLM
 
     @property
     def codes(self) -> tuple[str, ...]:
@@ -185,11 +189,14 @@ class Coder:
         graph: Graph,
         walker: IndexWalker | None = None,
         verifier: TabularVerifier | None = None,
+        calibration: Calibration | None = None,
     ) -> None:
+        """`calibration` turns features into a confidence; by default the shipped table."""
         self.graph = graph
         self.walker = walker or IndexWalker(graph)
         self.verifier = verifier or TabularVerifier(graph, self.walker.finder.forms)
         self.notes = Notes(graph)
+        self.calibration = calibration if calibration is not None else read_calibration()
 
     @classmethod
     def from_graph(
@@ -197,9 +204,11 @@ class Coder:
         graph: Graph,
         setting: Setting = "inpatient",
         default_episode: Episode = "initial",
+        calibration: Calibration | None = None,
     ) -> "Coder":
         walker = IndexWalker.from_graph(graph, setting)
-        return cls(graph, walker, TabularVerifier(graph, walker.finder.forms, default_episode))
+        verifier = TabularVerifier(graph, walker.finder.forms, default_episode)
+        return cls(graph, walker, verifier, calibration)
 
     def code(self, phrase: str) -> CodeSet:
         result = self.walker.walk(phrase)
@@ -253,6 +262,13 @@ class Coder:
         unique: dict[str, SequencedCode] = {}
         for item in ordered:
             unique.setdefault(item.code, item)
+        primary = next(iter(unique), None)
+        basis = [(group.walk, group.coded) for group in groups]
+        features = confidence.features(parsed, result.diagnoses, basis, primary, flags)
+        sure, escalate = None, False
+        if self.calibration is not None:
+            sure = self.calibration.probability(features)
+            escalate = self.calibration.escalate(sure)
         return CodeSet(
             parsed=result.parsed,
             diagnoses=tuple(group.coded for group in groups),
@@ -262,6 +278,9 @@ class Coder:
             sequence=tuple(unique.values()),
             flags=tuple(sorted(flags)),
             trace=tuple(trace),
+            features=features,
+            confidence=sure,
+            escalate=escalate,
         )
 
     def _entries(self, groups: Sequence[_Group]) -> list[Entry]:
@@ -815,6 +834,9 @@ def describe_code_set(code_set: CodeSet) -> list[str]:
         lines.append("no code")
     else:
         lines.append("codes: " + ", ".join(_role(coded) for coded in code_set.sequence))
+    if code_set.confidence is not None:
+        low = " (low: escalate)" if code_set.escalate else ""
+        lines.append(f"confidence: {code_set.confidence:.2f}{low}")
     for number, coded in enumerate((*code_set.diagnoses, *code_set.external_causes), start=1):
         code = coded.code + (f" [{coded.manifestation}]" if coded.manifestation else "")
         role = "" if coded.role == "diagnosis" else f" ({coded.role.replace('_', ' ')})"

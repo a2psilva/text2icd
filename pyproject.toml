@@ -57,6 +57,13 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.8",
 ]
+# Fitting the confidence calibration (`text2icd eval calibrate`); the runtime needs none of it.
+eval = [
+    "scikit-learn>=1.5",
+]
+
+[tool.uv]
+default-groups = ["dev", "eval"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/text2icd"]
@@ -99,6 +106,11 @@ warn_unreachable = true
 [[tool.mypy.overrides]]
 # onnxruntime ships no type information.
 module = ["onnxruntime", "onnxruntime.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# scikit-learn ships no type information.
+module = ["sklearn", "sklearn.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -334,10 +334,27 @@ Shared by every layer, so L2 and L3 can only propose; Tabular verification decid
 
 ### Confidence and escalation
 
-Features: share of input tokens consumed by the path, score margin between the two best paths,
-whether a default or "unspecified" code was used, the number of Tabular children left undecided, and
-fuzzy-match distance. A calibrated model (isotonic regression on the dev split) maps the features to
-the probability that the primary code is correct. Below the threshold, the cascade tries L2, then L3.
+`resolve.confidence` reads features off each code set and the Index walk behind its primary code:
+
+- the share of the diagnosis's words its path uses, and of the whole phrase's words;
+- the score margin to the best path to another code, and whether an earlier candidate failed to
+  complete;
+- undocumented slots and undocumented "due to" links;
+- the Index default (I.A.18), an unspecified child, a tie among Tabular children, an assumed 7th
+  character;
+- typo corrections, cross-references followed, codes from the Neoplasm Table or the Table of
+  Drugs;
+- whether a rule or note put another code first, a diagnosis left without a code, an unresolved
+  instruction;
+- the text flags: ambiguous or unknown abbreviation, uncertainty, history.
+
+A logistic score over the features, then an isotonic map, gives `confidence`: the probability that
+the primary code is right. Both are a small table, `resources/calibration.json`, fitted on the
+`cms-synthetic` dev split by `text2icd eval calibrate`; the runtime reads it with the standard
+library, without scikit-learn. The table's threshold is chosen for a target precision of the code
+sets kept (98%). A code set below it is marked `escalate`, and the cascade tries L2, then L3.
+`TEXT2ICD_CALIBRATION` points at another table, for example one fitted locally on MIMIC-IV, which is
+never shipped.
 
 ### L2: local retrieval
 

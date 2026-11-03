@@ -12,7 +12,7 @@ from text2icd.eval import runner as runner_module
 from text2icd.eval.datasets import Example, write_dataset, write_manifest
 from text2icd.eval.metrics import report_to_json, score
 from text2icd.eval.predictions import Prediction
-from text2icd.eval.report import by_group, comparison, fmt
+from text2icd.eval.report import by_group, comparison, fmt, selective
 from text2icd.eval.runner import (
     RunError,
     chapter_of,
@@ -222,8 +222,12 @@ def test_markdown(graph: Graph, dataset: Path) -> None:
     chapters = by_group(run.header, report)
     assert chapters[0] == "bm25 on tiny"
     assert chapters[-1].startswith("| 4 | 2 | 50.0%")
+    shown = selective([(run.header, report)])
+    assert shown[0].startswith("| System | Dataset | 100% kept | 90% kept | 80% kept |")
+    assert shown[2].startswith("| bm25 | tiny (dev) | 50.0% |")
     examples = [example(1, DIABETES, "E11.22"), example(2, "x", "V29.88XA")]
     unscored = score(examples, {}, lambda code: True, resamples=0)
+    assert selective([(run.header, unscored)]) == []  # no confidence, no table
     assert fmt(unscored.metrics["accuracy@1"], "share") == "0.0%"
     assert fmt(None, "share") == "n/a"
 

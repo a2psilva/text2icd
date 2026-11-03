@@ -52,6 +52,31 @@ Acc@1.
 | B2 embedding | 37.5% (37.2-37.8) | 74.0% | 70.7% | 37.5% (37.3-37.9) | 0% | 0.3 / 0.3 ms |
 | `coder` | 73.1% (72.8-73.4) | 79.6% | 87.7% | 73.0% (72.7-73.3) | 0% | 0.5 / 3.5 ms |
 
+## Confidence (after v0.1.0)
+
+Each code set now carries a calibrated confidence that its primary code is right, and is marked
+for escalation below a threshold ([architecture.md](architecture.md#confidence-and-escalation)).
+The shipped table is fitted on `cms-synthetic` dev. Its threshold, 0.39, is the lowest confidence
+at which the code sets kept reach 98% precision on dev. Accuracy and the code sets do not change.
+
+| Dataset | Table | ECE | Acc@1 of the most confident 90% / 70% / 50% | Kept at the threshold |
+| --- | --- | --- | --- | --- |
+| `cms-synthetic` dev, 5 held-out folds | shipped | 0.001 | 99.6% / 99.8% / 99.9% | 96.2%, at 98.2% |
+| `cms-synthetic` test | shipped | 0.003 (0.002-0.004) | 99.3% / 99.8% / 99.8% | 95.2%, at 97.6% |
+| `mimic-silver` dev | shipped | 0.151 (0.148-0.153) | 77.5% / 82.0% / 84.2% | 90.1%, at 77.5% |
+| `mimic-silver` dev, 5 held-out folds | local, fitted on `mimic-silver` dev | 0.041 | 76.9% / 83.5% / 85.0% | no threshold reaches 98% |
+
+The held-out folds are grouped by gold code. On `cms-synthetic` dev the AUROC is 0.969.
+
+- **Clinical phrases need their own table.** On `mimic-silver` the shipped table is overconfident,
+  because it learned how often the coder is right on the CMS's own wording. A table fitted on the
+  clinical phrases is calibrated (0.041), but it is local only: it is fitted on MIMIC-IV and
+  never shipped. `TEXT2ICD_CALIBRATION` points the coder at it.
+- **The ranking is weaker on clinical phrases** (AUROC 0.715). Part of what counts as wrong there
+  is the silver label, which is not yet audited.
+- **Phrases where a rule puts another code first** get a low confidence ("severe sepsis": A41.9
+  before R65.20). Single-code gold rarely agrees with the guideline order.
+
 ## Phase 6 exit criteria
 
 - **Invalid-code rate exactly 0 on every dataset.** Met: 0 invalid codes on `cms-synthetic` dev
@@ -73,6 +98,8 @@ uv run text2icd eval run -d cms-synthetic -s bm25 --split test
 uv run text2icd eval run -d cms-synthetic -s embedding --split test
 uv run text2icd eval mimic silver -r fy2027             # needs MIMIC-IV access (PhysioNet)
 uv run text2icd eval run -d mimic-silver -s coder
+uv run text2icd eval calibrate -d cms-synthetic -o src/text2icd/resources/calibration.json
+uv run text2icd eval calibrate -d mimic-silver          # a local table, under data/
 ```
 
 Each run writes its result file, with the commit, release, graph and dataset hashes, under

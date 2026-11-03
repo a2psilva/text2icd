@@ -16,6 +16,16 @@ from text2icd.config import Settings
 from text2icd.embeddings import EmbeddingsUnavailableError, OnnxEmbedder
 from text2icd.eval import report as eval_report
 from text2icd.eval import synthetic
+from text2icd.eval.calibrate import (
+    FOLDS,
+    TARGET,
+    CalibrationOutputError,
+    CalibrationUnavailableError,
+    collect,
+    fit,
+    refuse_output,
+)
+from text2icd.eval.calibrate import lines as calibration_lines
 from text2icd.eval.datasets import (
     DatasetError,
     Example,
@@ -49,15 +59,17 @@ from text2icd.eval.runner import (
     SplitChoice,
     billable_in,
     chapter_of,
+    dataset_name,
     default_output,
     evaluate,
+    git_state,
     is_restricted,
     read_metrics,
     resolve_dataset,
     select,
     write_run,
 )
-from text2icd.eval.systems import SYSTEMS, SystemSetupError, build_system
+from text2icd.eval.systems import SYSTEMS, CoderSystem, SystemSetupError, build_system
 from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reconcile_example
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
@@ -73,6 +85,12 @@ from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.stats import release_report
 from text2icd.releases import Release, load_registry
 from text2icd.resolve.coder import Coder, describe_code_set
+from text2icd.resolve.confidence import (
+    Calibration,
+    CalibrationError,
+    read_calibration,
+    write_calibration,
+)
 from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.text.abbreviations import default_lexicon
 from text2icd.text.parse import Parser, describe_parsed
@@ -265,11 +283,13 @@ def code_command(
         typer.echo("error: --setting is inpatient or outpatient", err=True)
         raise typer.Exit(code=2)
     settings = _settings(data_dir)
+    calibration = _calibration(settings)
     with _open_graph(release, graph_path, data_dir) as graph:
         coder = Coder.from_graph(
             graph,
             "outpatient" if setting == "outpatient" else "inpatient",
             settings.default_episode,
+            calibration,
         )
         code_set = coder.code(phrase)
     if as_json:
@@ -605,6 +625,91 @@ def eval_run(
     metrics = write_run(target, run, report)
     typer.echo(f"{target}\n{metrics}")
     typer.echo("\n".join(eval_report.comparison([(run.header, report)])))
+    if table := eval_report.selective([(run.header, report)]):
+        typer.echo("\n".join(["Selective accuracy@1", "", *table]))
+
+
+@eval_app.command("calibrate")
+def eval_calibrate(
+    dataset: Annotated[str, typer.Option("--dataset", "-d", help="Dataset file or name.")],
+    split: Annotated[SplitChoice, typer.Option(help="Split to fit on.")] = "dev",
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Fit on a seeded random sample of this many.")
+    ] = None,
+    target: Annotated[
+        float,
+        typer.Option(min=0.5, max=1.0, help="Precision of the code sets kept (the threshold)."),
+    ] = TARGET,
+    folds: Annotated[
+        int, typer.Option(min=2, help="Held-out folds, grouped by gold code.")
+    ] = FOLDS,
+    option: Annotated[
+        list[str] | None, typer.Option("--option", "-O", help="Coder option key=value.")
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Seed for --limit.")] = 0,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Table to write (default: under data/processed/calibration). The shipped one "
+            "is src/text2icd/resources/calibration.json, fitted on a public dataset only.",
+        ),
+    ] = None,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Fit the coder's confidence calibration on a split and choose the escalation threshold;
+    prints aggregate results only."""
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            path = resolve_dataset(dataset, graph.release, settings)
+            chosen = select(read_dataset(path), split, limit, seed)
+            system = build_system("coder", graph, settings, _options(option or []))
+        except (RunError, DatasetError, SystemSetupError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        name = f"{dataset_name(path)} {split} {graph.release}"
+        target_path = output or settings.data_dir / "processed" / "calibration" / (
+            name.replace(" ", "-") + ".json"
+        )
+        try:
+            refuse_output(target_path, is_restricted(chosen))
+        except CalibrationOutputError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+        assert isinstance(system, CoderSystem)
+        typer.echo(f"{path.name} ({split}), {len(chosen):,} examples", err=True)
+        sample = collect(system.coder, chosen, _progress(5000))
+    provenance: dict[str, JsonValue] = {
+        "name": name,
+        "dataset": path.name,
+        "split": split,
+        "release": graph.release,
+        "options": {k: v for k, v in system.settings().items() if k != "calibration"},
+        "commit": git_state().get("commit"),
+    }
+    try:
+        fitted = fit(sample, target=target, folds=folds, fitted=provenance)
+    except CalibrationUnavailableError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    write_calibration(target_path, fitted.calibration)
+    typer.echo(f"{target_path}\n{sample.examples:,} scored, {sample.uncoded:,} without a code")
+    typer.echo("\n".join(calibration_lines(fitted)))
+
+
+def _calibration(settings: Settings) -> Calibration | None:
+    try:
+        return read_calibration(settings.calibration)
+    except (OSError, CalibrationError) as exc:
+        typer.echo(f"error: calibration table: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
 
 
 @eval_app.command("report")
@@ -627,6 +732,8 @@ def eval_report_command(
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
     lines = eval_report.comparison(runs, intervals)
+    if table := eval_report.selective(runs):
+        lines += ["Selective accuracy@1", "", *table, ""]
     if by_chapter:
         for header, report in runs:
             lines += ["", *eval_report.by_group(header, report)]

@@ -19,6 +19,7 @@ from text2icd.embeddings import Embedder, StaticEmbedder, VectorIndex
 from text2icd.eval.predictions import Prediction
 from text2icd.graph.model import Graph
 from text2icd.resolve.coder import Coder
+from text2icd.resolve.confidence import read_calibration
 from text2icd.resolve.tabular import EPISODES, TabularVerifier
 from text2icd.resolve.walk import WIDTH, IndexWalker
 
@@ -166,7 +167,7 @@ class IndexSystem(System):
     of the phrase its first candidate (with the manifestation code, if any), then any external
     cause code the phrase calls for, and the other candidates of the first diagnosis as
     alternates. Codes may be partial or not billable until the Tabular List completes them
-    (Phase 6). No confidence yet (Phase 7)."""
+    (Phase 6). No confidence: the coder's needs the completed code set."""
 
     name = "index"
 
@@ -211,8 +212,8 @@ class CoderSystem(System):
     """The deterministic coder (L1, `resolve.coder`): the Index walk, then Tabular verification,
     so every code is billable. The code set is the coder's sequence: the diagnoses with their
     manifestations and companion codes, in the order the notes give, then the external causes;
-    the alternates, the other completed candidates of the first diagnosis. No confidence yet
-    (Phase 7)."""
+    the alternates, the other completed candidates of the first diagnosis; the confidence, that
+    of the calibration table (`resolve.confidence`), if one is shipped or configured."""
 
     name = "coder"
 
@@ -234,15 +235,25 @@ class CoderSystem(System):
             graph, "outpatient" if setting == "outpatient" else "inpatient", self.width
         )
         default = next(e for e in EPISODES if e == episode)
-        self.coder = Coder(graph, walker, TabularVerifier(graph, walker.finder.forms, default))
+        self.calibration = read_calibration(settings.calibration)
+        verifier = TabularVerifier(graph, walker.finder.forms, default)
+        self.coder = Coder(graph, walker, verifier, self.calibration)
 
     def predict(self, phrase: str) -> Prediction:
         code_set = self.coder.code(phrase)
         first = code_set.diagnoses[0].alternates if code_set.diagnoses else ()
-        return Prediction(id="", codes=code_set.codes, alternates=first)
+        return Prediction(
+            id="", codes=code_set.codes, alternates=first, confidence=code_set.confidence
+        )
 
     def settings(self) -> dict[str, JsonValue]:
-        return {"width": self.width, "setting": self.setting, "episode": self.episode}
+        fitted = self.calibration.fitted if self.calibration is not None else {}
+        return {
+            "width": self.width,
+            "setting": self.setting,
+            "episode": self.episode,
+            "calibration": fitted.get("name"),
+        }
 
 
 Factory = Callable[[Graph, Settings, Options], System]
