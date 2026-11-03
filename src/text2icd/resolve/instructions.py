@@ -5,7 +5,9 @@
   reads its own notes and those above it. The items of a list ("code to identify control using:
   insulin (Z79.4)") are read with their heading, and each item is one instruction. Several
   notes of one kind at a node are *alternatives*: whichever applies is coded (I50: heart failure
-  due to hypertension, following surgery, rheumatic, ...). An instruction is *conditional* when
+  due to hypertension, following surgery, rheumatic, ...); unless each is a whole "code to
+  identify ..." instruction (I13.0: the type of heart failure, and the stage of chronic kidney
+  disease). An instruction is *conditional* when
   it says so ("if applicable", "if known", "any"), or when it only names external causes, which
   no national rule makes mandatory (I.C.20). An instruction that is neither is *mandatory*. The
   code of an optional instruction is added only when the phrase documents it beyond the words
@@ -18,11 +20,12 @@
 - **Sequencing.** `code first` puts the named code before the one that holds the note; `use
   additional code` puts it after; `code also` gives no order (I.B.7). An Index manifestation goes
   after its etiology, and a code "in diseases classified elsewhere" is never primary (I.A.13).
+  The guideline rules (`rules`) add orders of their own (`Order`).
 """
 
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from typing import Literal, cast
 
@@ -166,6 +169,13 @@ class Notes:
                 references.setdefault(edge.note_id, []).append(_reference(edge.start, edge.end))
         notes = [note for note in self.graph.notes(node) if note.kind in KINDS]
         sizes = Counter(note.kind for note in notes)
+        # Several notes that each say "code to identify ..." are instructions of their own (I13:
+        # the type of heart failure and the stage of CKD), not the items of one list.
+        whole = {
+            kind
+            for kind in sizes
+            if all(n.text.strip().casefold().startswith("code") for n in notes if n.kind == kind)
+        }
         out = []
         heading: tuple[str, str] | None = None  # (kind, text) of the list being read
         for note in notes:
@@ -183,7 +193,8 @@ class Notes:
             conditional = _CONDITIONAL.search(text.casefold()) is not None or all(
                 ref.start[0] in "VWXY" for ref in found
             )
-            out.append(Instruction(node, kind, text, found, conditional, sizes[kind] > 1))
+            alternative = sizes[kind] > 1 and (heading is not None or kind not in whole)
+            out.append(Instruction(node, kind, text, found, conditional, alternative))
         return out
 
 
@@ -196,10 +207,11 @@ def _step(action: str, detail: str, guideline: str | None) -> TraceStep:
 
 
 def resolve_excludes1(
-    entries: Sequence[Entry], notes: Notes
+    entries: Sequence[Entry], notes: Notes, exempt: Collection[frozenset[int]] = ()
 ) -> tuple[list[Entry], list[Excluded], list[TraceStep]]:
     """Drop, of two codes of different diagnoses that an Excludes1 note keeps apart (I.A.12.a),
-    the less specific one, with the codes it brought in."""
+    the less specific one, with the codes it brought in. Diagnoses a guideline codes together
+    (`exempt`: the acute and chronic codes of one condition, I.B.8) are left alone."""
     dropped: set[int] = set()
     excluded: list[Excluded] = []
     trace: list[TraceStep] = []
@@ -207,6 +219,8 @@ def resolve_excludes1(
         for j in range(i + 1, len(entries)):
             second = entries[j]
             if i in dropped or j in dropped or first.group == second.group:
+                continue
+            if frozenset({first.group, second.group}) in exempt:
                 continue
             found = notes.excluding(first.code, second.code)
             if found is None:
@@ -248,16 +262,34 @@ def _brought_in(entries: Sequence[Entry], index: int) -> set[int]:
         sources = {entries[k].code for k in found}
 
 
-def sequence(entries: Sequence[Entry], notes: Notes) -> tuple[list[Entry], list[TraceStep]]:
-    """The entries in coding order: the order of the phrase, moved as `code first` and `use
-    additional code` notes and etiology/manifestation pairs require, with a code "in diseases
-    classified elsewhere" never first (I.A.13)."""
+@dataclass(frozen=True, slots=True)
+class Order:
+    """A guideline's coding order for two codes of the set (`rules`)."""
+
+    first: str
+    then: str
+    step: TraceStep
+
+
+def sequence(
+    entries: Sequence[Entry], notes: Notes, orders: Sequence[Order] = ()
+) -> tuple[list[Entry], list[TraceStep]]:
+    """The entries in coding order: the order of the phrase, moved as the guideline rules
+    (`orders`), `code first` and `use additional code` notes and etiology/manifestation pairs
+    require, with a code "in diseases classified elsewhere" never first (I.A.13)."""
     after: dict[int, dict[int, TraceStep]] = {i: {} for i in range(len(entries))}
 
     def require(first: int, then: int, step: TraceStep) -> None:
         if first != then:
             after[then].setdefault(first, step)
 
+    positions: dict[str, list[int]] = {}
+    for i, entry in enumerate(entries):
+        positions.setdefault(entry.code, []).append(i)
+    for order in orders:
+        for i in positions.get(order.first, ()):
+            for j in positions.get(order.then, ()):
+                require(i, j, order.step)
     for i, entry in enumerate(entries):
         if entry.role == "manifestation" and entry.source is not None:
             for j, other in enumerate(entries):

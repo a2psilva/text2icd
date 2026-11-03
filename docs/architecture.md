@@ -276,10 +276,15 @@ Shared by every layer, so L2 and L3 can only propose; Tabular verification decid
     so "type 2 DM with CKD stage 3a" gives E11.22 and then N18.31 (`use additional code to
     identify stage of chronic kidney disease (N18.1-N18.6)`). An instruction is *mandatory*,
     *conditional* ("if applicable", "if known", "any", or external causes only, I.C.20), or one
-    of a list of *alternatives*. An optional one is coded only when its path uses a word the
-    source's path does not, so "genetic susceptibility to malignant neoplasm" adds no neoplasm.
-    A mandatory one found nowhere is listed as `required_unresolved`: "use additional code"
-    means "if known", so it asks for review and does not invalidate the set.
+    of a list of *alternatives* (the items under a heading, or notes that are not each a whole
+    "code to identify ..." instruction: I13.0's heart failure and CKD stage notes are both
+    mandatory). An optional one is coded only when its path uses a word the source's path does
+    not, so "genetic susceptibility to malignant neoplasm" adds no neoplasm. A mandatory `use
+    additional code` found nowhere takes the unspecified code it names when the source's title
+    states the condition (I13.0 with no stage documented: N18.9, I.A.9.b); an etiology to code
+    first is never presumed. Otherwise a mandatory instruction is listed as
+    `required_unresolved`: "use additional code" means "if known", so it asks for review and
+    does not invalidate the set.
   - *Excludes1* (I.A.12.a): two codes of different diagnoses that exclude one another cannot
     both stay; the more specific one is kept (more characters, then not an unspecified or
     default code, then the higher score). The other code, and the codes it brought in, are
@@ -292,7 +297,34 @@ Shared by every layer, so L2 and L3 can only propose; Tabular verification decid
     ("anemia in neoplastic disease", D63.0).
   The code set's `sequence` gives each code with its role (`diagnosis`, `manifestation`,
   `code_first`, `use_additional`, `code_also`, `external_cause`) and the code that brought it in.
-- Apply guideline rules, each citing its section (for example I.A.15 "with", I.C.9.a hypertension).
+- Apply the guideline rule pack (`text2icd.resolve.rules`), each rule writing a `rules` trace
+  step with its section:
+  - *Combination codes* (I.B.9): a condition, or a comma-separated part of one, that the code
+    of its diagnosis leaves entirely unused, and that the code's title and inclusion terms do
+    not name either, is coded on its own when the Index codes it in full ("hypertension with CKD
+    stage 4": N18.4 alone says nothing of the hypertension). A part must hold a word of a main
+    term that is not just a site, and the parts of a Drug or Neoplasm Table entry ("substance,
+    form") are names, not conditions. A mechanism of injury is left to the external cause code.
+  - *Acute and chronic* (I.B.8): a condition described as both, whose code is no combination
+    code, gets both codes, the acute one first, when the Index has a subentry for each ("acute
+    on chronic renal failure": N17.9, N18.9).
+  - *Hypertension* (I.C.9.a.1-3): the set's I10-I13 code becomes I11 with a heart condition
+    (I50.-, I51.4-I51.7, I51.89, I51.9), I12 with CKD, I13 with both, the fourth and fifth
+    characters read from the code of each condition on its own (heart failure, stage 5 or ESRD).
+    Hypertension in pregnancy keeps its Chapter 15 codes (I.C.15.d). The I50 and N18 codes follow from the
+    `use additional code` notes; an I51 code the I11 or I13 code includes is excluded by its own
+    Excludes1 note without a conflict flag.
+  - *Sepsis* (I.C.1.d.4): severe sepsis is R65.20, with septic shock R65.21, after the
+    systemic infection, A41.9 when none is documented; a localized infection of the same
+    diagnosis comes after. "Without septic shock" is R65.20: the walk takes no main term the
+    phrase says is absent.
+  - *Diabetes* (I.C.4.a.2-3): a diabetes of no documented type is type 2 (the Index default,
+    traced); insulin, oral and injectable non-insulin drugs, by name too ("on metformin"),
+    answer the `use additional code` notes of E08-E13 with Z79.4, Z79.84, Z79.85, all that
+    apply. Their words are not walked, so "oral" never leads to oral complications.
+  - *Drugs* (I.C.19.e.5): a poisoning or toxic effect code before the manifestations of its
+    diagnosis, an adverse effect or underdosing code after the condition it caused.
+  - *Sequelae* (I.B.10): the residual condition before the injury code with 7th character S.
 
 ### Confidence and escalation
 
@@ -339,7 +371,7 @@ class AssignedCode(BaseModel):
 
 
 class TraceStep(BaseModel):
-    layer: Literal["text", "cache", "index", "tabular", "retrieval", "llm"]
+    layer: Literal["text", "cache", "index", "tabular", "rules", "retrieval", "llm"]
     action: str  # e.g. "subterm", "see", "default_code", "seventh_character"
     detail: str  # human-readable, e.g. "Diabetes, diabetic > type 2 > with"
     guideline: str | None  # e.g. "I.A.15"

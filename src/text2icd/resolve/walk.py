@@ -22,7 +22,8 @@ search (`WIDTH` states per level). A state is a term with the phrase words its p
   when a nonessential modifier and a subentry are mutually exclusive, the subentry wins (I.A.7);
 - a subterm that is only a connector (`with`, `due to`, `in`) is passed through when terms under
   it hold a phrase word; one that says `without` needs `without` in the phrase, and under `with`
-  no subterm may use a word the phrase puts after `without`;
+  no subterm may use a word the phrase puts after `without`; nor may a main term, unless the
+  phrase uses the word elsewhere too ("sepsis without septic shock" is no "Shock, septic");
 - a subterm the phrase does not document is passed through, at its cost, when terms under it hold
   a phrase word;
 - a connector the Index presumes, "with" or "in", links the conditions even when the phrase only
@@ -92,6 +93,8 @@ _CAUSAL = re.compile(
 _CONNECTOR_WORDS = re.compile(r"\b(?:associated with|with|in)\b")
 _WITHOUT = re.compile(r"\bwithout\b([^,;]*?)(?=[,;]|\b(?:with|due to|secondary to|and)\b|$)")
 _UNSPECIFIED = re.compile(r"unspecified\b|NOS$", re.IGNORECASE)
+_DIABETES = re.compile(r"\bdiabet")
+_DRUG_LINK = r"(?:on|with|using|taking|requiring|treated with|controlled (?:with|on|by)|and)"
 
 
 class Candidate(BaseModel):
@@ -153,6 +156,7 @@ class _Context:
     causal: bool  # whether the phrase says one condition causes another ("due to", "from")
     said: frozenset[str]  # the presumed-link connectors the phrase writes
     routes: tuple[Route, ...] = ()
+    negated: frozenset[str] = frozenset()  # absent words the phrase uses nowhere else
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,12 +285,15 @@ class IndexWalker:
         if entries:
             considered = ", ".join(f"{e.term.title} ({e.score:g})" for e in entries)
             trace.append(TraceStep(layer="index", action="main_terms", detail=considered))
+        absent = self._absent(text)
+        elsewhere = self.finder.forms.content(_WITHOUT.sub(" ", text.casefold()))
         context = _Context(
             words=phrase.remaining,
-            absent=self._absent(text),
+            absent=absent,
             causal=bool(_CAUSAL.search(text.casefold())),
             said=frozenset(_CONNECTOR_WORDS.findall(text.casefold())),
             routes=routes,
+            negated=absent - frozenset(elsewhere),
         )
         starts = self._starts(entries)
         external: list[Candidate] = []
@@ -527,6 +534,8 @@ class IndexWalker:
             at = self._coded_term(state)
             if at is None or (at < len(state.path) - 1 and self._sends_on(state.term)):
                 continue  # a "see" the coder must follow, not a default code (task 5.6)
+            if set(state.path[0].took) & context.negated:
+                continue  # a main term the phrase says is absent: "sepsis without septic shock"
             direct = at == len(state.path) - 1
             # At equal scores: the better main term, then a code given directly before one a
             # cross-reference leads to.
@@ -729,13 +738,18 @@ def diagnosis_text(parsed: ParsedPhrase, members: Sequence[int]) -> str:
 
 def _walked(parsed: ParsedPhrase, condition: Condition) -> str:
     text = condition.text
+    diabetes = _DIABETES.search(parsed.normalized) is not None
     for modifier in condition.modifiers:
+        if modifier.kind == "diabetes_drug" and diabetes:
+            # The drug of a diabetes is a status code (Z79, I.C.4.a.3), not Index words.
+            text = re.sub(rf"(?:\b{_DRUG_LINK}\s+)?{re.escape(modifier.text)}", " ", text, count=1)
+            continue
         if modifier.kind != "episode":
             continue
         trailing = parsed.normalized[: modifier.start].rstrip().endswith(",")
         if modifier.value in SEVENTH_ONLY or trailing:
             text = text.replace(modifier.text, " ", 1)
-    return text.strip(" ,")
+    return " ".join(text.split()).strip(" ,")
 
 
 def describe_walk(result: WalkResult, top: int = 5) -> list[str]:

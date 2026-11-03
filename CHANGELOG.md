@@ -222,11 +222,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   codes are sequenced by the notes: `code first` before, `use additional code` after,
   manifestations after their etiology, and a code "in diseases classified elsewhere" never
   first. `CodeSet.sequence` gives each code's role and the code that brought it in.
+- Guideline rule pack (`text2icd.resolve.rules`), each rule traced with its section in a new
+  `rules` trace layer: a condition its diagnosis's code leaves unused is coded on its own
+  (I.B.9); acute and chronic get both codes, acute first (I.B.8); hypertension with heart
+  disease, CKD or both becomes I11, I12 or I13 with its I50 and N18 codes (I.C.9.a.1-3);
+  severe sepsis and septic shock get R65.20 or R65.21 after the systemic infection, A41.9 when
+  none is documented (I.C.1.d.4); diabetes drugs, by name too, add Z79.4, Z79.84 and Z79.85
+  (I.C.4.a.3); poisonings come before their manifestations and adverse effects and underdosing
+  after the condition (I.C.19.e.5); the residual before the sequela (I.B.10).
 - Index-walk tests on FY2027: the worked examples of `docs/coder-workflow.md` and 110 cases drawn
   from the Index across all code chapters (`tests/resolve/fy2027_index_walks.json`).
 
 ### Fixed
 
+- Several `use additional code` notes that each say "code to identify ..." are separate
+  instructions, not a list of alternatives: I13.0 and I13.2 now require both the heart failure
+  and the CKD stage code. A mandatory `use additional code` note left unanswered takes the
+  unspecified code it names when the title of its code states the condition (N18.9, I50.9).
+- "Type 2 diabetes with oral hypoglycemics" no longer gives E11.638 (oral complications): the
+  words of a diabetes drug are not walked.
+- The Index walk no longer starts from a main term the phrase says is absent: "sepsis without
+  septic shock" is no R65.21, and "osteoporosis without current pathological fracture" is M81.0,
+  not M80.00XA.
 - A bare `not` after a condition's first words ("epilepsy not intractable", "hernia not specified
   as recurrent") qualifies what follows it: the condition is no longer judged negated, and "not"
   stays in its text.

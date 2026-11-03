@@ -131,6 +131,15 @@ class MainTermFinder:
                 seen.setdefault(term_id, self._entry(term_id, remaining, phrase.head, "search"))
         return sorted(seen.values(), key=_rank)
 
+    def names_main_term(self, forms: Iterable[str], book: str = "index") -> bool:
+        """Whether a word (in the walk's forms) is in the essential title of a main term that
+        is not only an anatomical site: the words a condition is looked up by."""
+        return any(
+            term_id not in self._site_only
+            for word in forms
+            for term_id in self.profiles.main_terms_with(word, book)
+        )
+
     def _entry(
         self, term_id: int, remaining: frozenset[str], head: str | None, found_by: FoundBy
     ) -> Entry:

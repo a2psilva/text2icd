@@ -220,7 +220,7 @@ FY2027, `dev` split (67,812 phrases), 95% intervals:
 | B1 BM25 | 38.8% (38.5-39.2) | 52.0% (51.6-52.3) | 50.4% (50.0-50.7) | 40.8% (40.4-41.2) | 0% | $0 |
 | B2 embedding | 40.6% (40.2-41.0) | 55.2% (54.8-55.6) | 53.8% (53.4-54.2) | 41.6% (41.3-42.0) | 0% | $0 |
 | `index` (Index walk, before Tabular) | 80.8% (80.5-81.1) | 81.6% (81.3-81.9) | 98.1% (98.0-98.2) | 80.8% (80.5-81.1) | 17.5% | $0 |
-| `coder` (Index walk and Tabular verification) | 95.5% (95.4-95.7) | 96.4% (96.2-96.5) | 98.0% (97.9-98.1) | 95.3% (95.1-95.4) | 0% | $0 |
+| `coder` (Index walk and Tabular verification) | 95.5% (95.4-95.7) | 96.3% (96.2-96.5) | 98.0% (97.9-98.1) | 95.3% (95.1-95.4) | 0% | $0 |
 
 The `coder` row is the deterministic coder (Phase 6): the Index walk, then Tabular verification
 to a billable code, so no code is invalid, then the instructional notes (companion codes,
@@ -228,6 +228,12 @@ Excludes1, sequencing). `cms-synthetic` gives one gold code per phrase, so a com
 require counts against precision, and a `code first` code against Acc@1 ("COVID-19 pneumonia":
 U07.1, J12.82; the gold is J12.82): the notes cost 0.1 point on both (95.6% and 95.4% before).
 They change 0.3% of the phrases; `mimic-gold`, coded as code sets, is the measure for them.
+The guideline rule pack (`text2icd.resolve.rules`) and its walk fix change 74 more phrases
+(0.1%), with the totals unchanged. Severe sepsis and septic shock now put the systemic infection
+first ("severe sepsis": A41.9, R65.20, I.C.1.d.4), where the gold is R65.20 alone (20 phrases).
+A few conditions the walk had left uncoded now get a code of their own. No longer taking a main
+term the phrase says is absent ("osteoporosis without current pathological fracture") fixes
+13 phrases.
 
 The `index` row is the Index walk alone: its codes are often partial (`S72.9-`) or not billable,
 counted as invalid, until Tabular verification completes them (Phase 6): Drug Table codes still

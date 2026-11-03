@@ -100,6 +100,10 @@ class TabularVerifier:
                 self._texts[text.node].append(text.text)
         self._words: dict[str, frozenset[str]] = {}
 
+    def inclusions(self, code: str) -> tuple[str, ...]:
+        """The inclusion terms of `code`."""
+        return tuple(self._texts.get(code, ()))
+
     def complete(self, code: str, evidence: Evidence) -> Completion | None:
         """The billable code the candidate leads to, or None when it leads to none."""
         if code not in self.graph:

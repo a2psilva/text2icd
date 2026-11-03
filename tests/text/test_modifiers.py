@@ -122,6 +122,14 @@ CASES = [
     ("IDDM", [("diabetes_drug", "insulin")]),
     ("DM2 on insulin", [("diabetes_type", "2"), ("diabetes_drug", "insulin")]),
     ("DM2 on oral hypoglycemics", [("diabetes_type", "2"), ("diabetes_drug", "oral_hypoglycemic")]),
+    ("DM2 on metformin", [("diabetes_type", "2"), ("diabetes_drug", "oral_hypoglycemic")]),
+    ("diabetes on lantus", [("diabetes_drug", "insulin")]),
+    ("diabetes on basal insulin", [("diabetes_drug", "insulin")]),
+    ("DM2, insulin therapy", [("diabetes_type", "2"), ("diabetes_drug", "insulin")]),
+    ("diabetes on ozempic", [("diabetes_drug", "injectable_non_insulin")]),
+    ("diabetes on oral semaglutide", [("diabetes_drug", "oral_hypoglycemic")]),
+    ("diabetes with insulin resistance", []),  # a condition, not a drug
+    ("metformin toxicity", []),  # drug names count only next to a diabetes
     ("uncontrolled DM2", [("control", "uncontrolled"), ("diabetes_type", "2")]),
     ("poorly controlled diabetes", [("control", "poorly_controlled")]),
     ("well-controlled HTN", [("control", "controlled")]),
