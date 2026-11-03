@@ -86,7 +86,8 @@ def test_coder(graph: Graph) -> None:
     assert (missing.codes, missing.flags) == ((), (REVIEW,))
     lines = describe_code_set(coder.code("amyloid heart disease"))
     assert lines[1] == "codes: E85.4, I43 (manifestation)"
-    assert lines[2].startswith("1. E85.4 [I43]  Organ-limited amyloidosis")
+    assert lines[2].startswith("confidence: ")  # from the shipped calibration table
+    assert lines[3].startswith("1. E85.4 [I43]  Organ-limited amyloidosis")
     assert describe_code_set(missing)[1] == "no code"
 
 
