@@ -13,7 +13,7 @@ from pydantic import JsonValue
 
 from text2icd import __version__
 from text2icd.config import Settings
-from text2icd.embeddings import EmbeddingsUnavailableError, OnnxEmbedder
+from text2icd.embeddings import EmbeddingsUnavailableError, OnnxEmbedder, load_embedder
 from text2icd.eval import report as eval_report
 from text2icd.eval import retrieval, synthetic
 from text2icd.eval.calibrate import (
@@ -97,8 +97,9 @@ from text2icd.resolve.confidence import (
     read_calibration,
     write_calibration,
 )
+from text2icd.resolve.retrieve import DEFAULT_MODEL as DEFAULT_RETRIEVAL_MODEL
+from text2icd.resolve.retrieve import DEFAULT_SOURCES, Source, build_vectors
 from text2icd.resolve.retrieve import SOURCES as RETRIEVAL_SOURCES
-from text2icd.resolve.retrieve import Source
 from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.text.abbreviations import default_lexicon
 from text2icd.text.parse import Parser, describe_parsed
@@ -352,6 +353,13 @@ def build_graph_command(
         Tokenizer,
         typer.Option(help="FTS5 tokenizer: porter (stemmed words) or unicode61 (exact words)."),
     ] = DEFAULT_TOKENIZER,
+    embeddings: Annotated[
+        bool,
+        typer.Option(
+            "--embeddings/--no-embeddings",
+            help="Also embed the texts for local retrieval (L2), as `graph embed` does.",
+        ),
+    ] = False,
     data_dir: DataDirOption = None,
 ) -> None:
     """Build the knowledge-graph SQLite file of a fetched release."""
@@ -366,6 +374,42 @@ def build_graph_command(
         tokenizer=tokenizer,
     )
     typer.echo("\n".join(report.lines()))
+    if embeddings:
+        with load(path=report.path) as graph:
+            _embed(graph, DEFAULT_RETRIEVAL_MODEL, DEFAULT_SOURCES)
+
+
+@graph_app.command("embed")
+def graph_embed(
+    model: Annotated[
+        str,
+        typer.Option("--model", "-m", help="model2vec:<id> or onnx:<id> (Hugging Face Hub)."),
+    ] = DEFAULT_RETRIEVAL_MODEL,
+    texts_option: Annotated[
+        str, typer.Option("--texts", help="Texts to embed: tabular, index or tabular,index.")
+    ] = ",".join(DEFAULT_SOURCES),
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Embed the graph's texts for local retrieval (L2): a float16 matrix next to the graph
+    file, with a JSON file naming the model and the graph it belongs to."""
+    sources = _sources(texts_option)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        _embed(graph, model, sources)
+
+
+def _embed(graph: Graph, model: str, sources: tuple[Source, ...]) -> None:
+    try:
+        embedder = load_embedder(model)
+    except (ValueError, EmbeddingsUnavailableError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"embedding {graph.release} texts with {model}", err=True)
+    built = build_vectors(
+        graph, embedder, model, sources=sources, progress=_progress(32_768, "texts")
+    )
+    typer.echo("\n".join(built.lines()))
 
 
 @graph_app.command("show")
@@ -790,7 +834,8 @@ def eval_retrieval(
         typer.Option(
             "--model",
             "-m",
-            help="Retriever: bm25, model2vec:<id> or onnx:<id> (Hugging Face Hub). Repeatable.",
+            help="Retriever: bm25, vectors (the graph's vectors file, from `graph embed`), "
+            "model2vec:<id> or onnx:<id> (Hugging Face Hub). Repeatable.",
         ),
     ] = None,
     texts_option: Annotated[
@@ -813,13 +858,7 @@ def eval_retrieval(
     to billable codes, over all examples, those the coder escalates and those it gets wrong;
     with latency and size (aggregates only)."""
     specs = model or ["bm25", f"model2vec:{DEFAULT_EMBEDDING_MODEL}"]
-    settings_list: list[tuple[Source, ...]] = []
-    for value in texts_option or ["tabular"]:
-        parts = tuple(part.strip() for part in value.split(",") if part.strip())
-        if not parts or any(part not in RETRIEVAL_SOURCES for part in parts):
-            typer.echo(f"error: --texts {value!r}: use tabular, index or both", err=True)
-            raise typer.Exit(code=2)
-        settings_list.append(cast(tuple[Source, ...], parts))
+    settings_list = [_sources(value) for value in texts_option or ["tabular"]]
     settings = _settings(data_dir)
     with _open_graph(release, graph_path, data_dir) as graph:
         try:
@@ -928,16 +967,25 @@ def eval_parse(
         )
 
 
-def _progress(every: int = 50) -> Callable[[int], None]:
-    """Report progress on stderr every `every` phrases, for slow (LLM) runs."""
+def _progress(every: int = 50, unit: str = "phrases") -> Callable[[int], None]:
+    """Report progress on stderr every `every` items, for slow runs."""
     done = [0]
 
     def step(n: int) -> None:
         done[0] += n
         if done[0] % every == 0:
-            typer.echo(f"  {done[0]:,} phrases", err=True)
+            typer.echo(f"  {done[0]:,} {unit}", err=True)
 
     return step
+
+
+def _sources(value: str) -> tuple[Source, ...]:
+    """`tabular`, `index` or `tabular,index`, as --texts gives them."""
+    parts = tuple(part.strip() for part in value.split(",") if part.strip())
+    if not parts or any(part not in RETRIEVAL_SOURCES for part in parts):
+        typer.echo(f"error: --texts {value!r}: use tabular, index or both", err=True)
+        raise typer.Exit(code=2)
+    return cast(tuple[Source, ...], parts)
 
 
 def _options(pairs: list[str]) -> dict[str, str]:

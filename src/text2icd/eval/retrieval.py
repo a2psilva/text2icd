@@ -34,6 +34,7 @@ from text2icd.resolve.retrieve import (
     LexicalRetriever,
     Retriever,
     Source,
+    load_vectors,
     texts,
 )
 from text2icd.resolve.tabular import Evidence, TabularVerifier
@@ -111,10 +112,13 @@ def completed(
 
 
 def build_retriever(spec: str, graph: Graph, sources: Sequence[Source]) -> Retriever:
-    """`bm25`, or an embedding model named as `embeddings.load_embedder` reads it."""
+    """`bm25`; `vectors`, the graph's vectors file as built (its own texts); or an embedding
+    model named as `embeddings.load_embedder` reads it."""
     if spec == "bm25":
         return LexicalRetriever(graph, sources)
-    return EmbeddingRetriever(load_embedder(spec), texts(graph, sources))
+    if spec == "vectors":
+        return load_vectors(graph)
+    return EmbeddingRetriever.embed(load_embedder(spec), texts(graph, sources))
 
 
 def measure(
@@ -147,7 +151,9 @@ def measure(
         dim = int(retriever.index.vectors.shape[1])
         vectors = len(retriever.index) * dim * _FLOAT16
         model = getattr(retriever.embedder, "size_bytes", None)
-    entries = len(retriever.nodes) if isinstance(retriever, EmbeddingRetriever) else 0
+    entries = 0
+    if isinstance(retriever, EmbeddingRetriever):
+        entries, sources = len(retriever.nodes), retriever.sources or sources
     return Measured(
         name=spec,
         sources=tuple(sources),

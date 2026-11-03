@@ -29,6 +29,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `model2vec:<id>`, `onnx:<id>`) over chosen texts, with their codes completed to billable ones,
   on all examples, on those the coder escalates and on those it gets wrong; with latency and
   vector and model sizes. `embeddings.load_embedder` reads the model names.
+- The vectors file of local retrieval (task 7.5). `text2icd graph embed`, or `text2icd build-graph
+  --embeddings`, embeds the graph's texts with L2's model: bge-small-en-v1.5 by default, with its
+  full-precision weights, whose vectors do not depend on the batch. It writes
+  a float16 matrix next to the graph file, with a JSON file naming the model, the texts' sources,
+  the graph and the code of each row: 94.8 MB for FY2027. `resolve.retrieve.load_vectors` reads it
+  and refuses vectors built for another graph. `eval retrieval -m vectors` measures it.
+
+### Changed
+
+- Retrieval texts with the same words for the same code are kept once (129,283 to 123,486 for
+  FY2027).
+- `VectorIndex` keeps float16 vectors as they are and widens them block by block while searching.
+- ONNX model names take an optional weights file: `onnx:<id>:<file>`. The default stays the
+  quantized weights.
+- `EmbeddingRetriever` takes the codes and vectors of its texts; `EmbeddingRetriever.embed`
+  embeds texts.
 
 ## [0.1.0] - 2026-11-03
 

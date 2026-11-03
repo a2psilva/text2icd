@@ -362,9 +362,24 @@ never shipped.
 descriptions, inclusion terms and `includes` notes, and the full paths of the Index terms that give
 a code. It returns distinct codes, which Tabular verification completes to billable ones, as it
 does the Index walk's candidates. Embeddings run on the CPU, without torch. The benchmark of task
-7.4 ([evaluation](evaluation.md#local-retrieval-l2)) chose bge-small-en-v1.5, a quantized ONNX
-model run with onnxruntime, over both kinds of text; a static model2vec model is the numpy-only
-fallback. No API cost.
+7.4 ([evaluation](evaluation.md#local-retrieval-l2)) chose bge-small-en-v1.5 over both kinds of
+text, with its full-precision ONNX weights run by onnxruntime; a static model2vec model is the
+numpy-only fallback. No API cost.
+
+The texts are embedded once per graph, by `text2icd graph embed` or `text2icd build-graph
+--embeddings`. Texts with the same words for the same code are kept once. The result sits next to
+the graph file:
+
+- `text2icd-graph-<release>.vectors.npy`, the normalised vectors as a float16 matrix;
+- `text2icd-graph-<release>.vectors.json`, the model, the text sources, the graph's content hash
+  and the code of each row.
+
+For FY2027 that is 123,486 texts in 384 dimensions: 94.8 MB of vectors and 1.2 MB of JSON, within
+the 100 MB budget. Embedding them takes about 2.5 minutes on a laptop CPU. The loader refuses
+vectors built for another graph or a model of another dimension. In memory the vectors stay
+float16 and are widened to float32 a block of rows at a time while searching, at half the memory
+of float32. One phrase takes 8 to 10 ms on a laptop CPU: embedding it, searching all the vectors
+and completing the codes found. Only the escalated phrases need it.
 
 ### L3: LLM navigator
 

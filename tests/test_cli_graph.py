@@ -1,6 +1,9 @@
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
+import numpy as np
+import numpy.typing as npt
 import pytest
 from typer.testing import CliRunner
 
@@ -111,3 +114,44 @@ def test_graph_commands_need_a_built_graph(data_dir: Path) -> None:
     result = runner.invoke(cli.app, ["graph", "code", "E11.22", "--data-dir", str(data_dir)])
     assert result.exit_code == 1
     assert "run `text2icd build-graph -r fy2027`" in result.output
+
+
+class _Letters:
+    """A stand-in embedder: letter counts."""
+
+    model = "test/letters"
+    dim = 26
+
+    def encode(self, batch: Sequence[str]) -> npt.NDArray[np.float32]:
+        vectors = np.zeros((len(batch), 26), dtype=np.float32)
+        for row, text in enumerate(batch):
+            for letter in text.casefold():
+                if "a" <= letter <= "z":
+                    vectors[row, ord(letter) - ord("a")] += 1
+        return vectors
+
+
+def test_build_graph_with_embeddings(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "load_embedder", lambda spec: _Letters())
+    args = ["build-graph", "--embeddings", "--data-dir", str(data_dir)]
+    result = runner.invoke(cli.app, args)
+    assert result.exit_code == 0, result.output
+    vectors = data_dir / "processed" / "text2icd-graph-fy2027.vectors.npy"
+    assert vectors.is_file()
+    assert vectors.with_suffix(".json").is_file()
+    assert "x 26 dimensions, onnx:Xenova/bge-small-en-v1.5" in result.output
+
+
+def test_graph_embed(built: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "load_embedder", lambda spec: _Letters())
+    args = ["graph", "embed", "-m", "test:letters", "--texts", "tabular", "--data-dir", str(built)]
+    result = runner.invoke(cli.app, args)
+    assert result.exit_code == 0, result.output
+    assert "texts (tabular) x 26 dimensions, test:letters" in result.output
+    bad = runner.invoke(cli.app, ["graph", "embed", "--texts", "drugs", "--data-dir", str(built)])
+    assert bad.exit_code == 2
+    assert "use tabular, index or both" in bad.output
+    monkeypatch.undo()  # the real loader refuses the name before downloading anything
+    unknown = runner.invoke(cli.app, ["graph", "embed", "-m", "nope", "--data-dir", str(built)])
+    assert unknown.exit_code == 1
+    assert "expected model2vec:<id> or onnx:<id>" in unknown.output

@@ -404,9 +404,33 @@ phrases.
 
 **Choice for L2: bge-small over the Tabular texts and Index paths.** On the escalated phrases it
 ranks the right code first 60.3% of the time on `cms-synthetic` and 57.9% on `mimic-silver`, 3 and 4
-points above the best static model on each. Its vectors, 99 MB in float16, fit the 100 MB
-budget; the model is 34 MB and needs onnxruntime (the `embeddings` extra), not torch. A phrase takes
-4 to 5 ms. pubmedbert-8M stays the fallback for numpy-only installs: 66 MB of vectors, 2 to 3 ms.
+points above the best static model on each. It needs onnxruntime (the `embeddings` extra), not
+torch. pubmedbert-8M stays the fallback for numpy-only installs: 66 MB of vectors, 2 to 3 ms.
+
+### The vectors file
+
+L2 reads the texts' embeddings from a file built with the graph (`text2icd graph embed`,
+[architecture](architecture.md#l2-local-retrieval)); `eval retrieval -m vectors` measures that file
+as built. Three choices were measured before it was settled:
+
+- **Texts with the same words for the same code are kept once.** 129,283 texts become 123,486,
+  and the vectors 94.8 MB instead of 99.3 MB. On the escalated `mimic-silver` phrases, recall@1
+  drops by 0.5 points; recall@5 and @20 do not change.
+- **Float16 costs nothing.** The same vectors in float32 rank the same codes. Searching float16
+  takes longer, as each block of rows is widened first, but uses half the memory.
+- **The model's full-precision weights, not the quantized ones.** The quantized weights scale
+  each batch by its own range, so a text's vector depends on the texts batched with it. Embedded
+  in blocks rather than in one call, the escalated `mimic-silver` recall@1 fell from 57.5% to
+  55.3%. The full-precision weights (`onnx/model.onnx`, 133 MB) give the same vectors in any batch
+  and the same recall (57.7%), and embed as fast. L2 needs that, since it embeds the texts in large
+  batches and the phrases one at a time.
+
+The file as built, FY2027 dev splits:
+
+| Dataset | Recall@1 / @5 / @20 | Escalated @1 / @5 / @20 | Coder wrong @1 / @20 | p50 / p95 |
+| --- | --- | --- | --- | --- |
+| `cms-synthetic` | 80.6% / 90.6% / 93.4% | 59.9% / 68.0% / 70.8% | 57.2% / 68.6% | 9.7 / 11.5 ms |
+| `mimic-silver` | 73.4% / 94.2% / 98.7% | 57.7% / 87.8% / 95.6% | 32.3% / 95.8% | 8.1 / 10.5 ms |
 
 Embedding runs on the CPU. On Apple silicon, onnxruntime's CoreML provider was no faster for these
 encoders. With variable input shapes it falls back to the CPU; with fixed shapes it pads short

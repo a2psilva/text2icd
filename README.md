@@ -112,6 +112,7 @@ uv run text2icd build-graph  # builds the knowledge graph (data/processed/, abou
 uv run text2icd graph show "Pneumonia > aspiration"   # an Index term, its codes and subterms
 uv run text2icd graph code E11.22                     # a code, its notes, edges and Index terms
 uv run text2icd graph check  # runs the integrity checks on the built graph
+uv run text2icd graph embed  # embeds its texts for local retrieval (about 3 min on a laptop CPU)
 uv run text2icd parse "DM2 w/ CKD 3a, possible UTI 2/2 E. coli"   # how a phrase is read
 uv run text2icd walk "aspiration pneumonia due to food"         # the Index walk's candidates
 uv run text2icd code "type 2 DM with diabetic CKD stage 3a"      # the deterministic coder

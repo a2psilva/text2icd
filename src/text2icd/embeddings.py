@@ -16,6 +16,8 @@ Vectors = npt.NDArray[np.float32]
 
 # Rows of scores held at once when searching (queries x indexed texts).
 _SEARCH_CELLS = 20_000_000
+# Rows of float16 vectors widened to float32 at once when searching.
+_WIDEN_ROWS = 16_384
 
 
 class EmbeddingsUnavailableError(RuntimeError):
@@ -38,14 +40,16 @@ def normalize(vectors: npt.ArrayLike) -> Vectors:
 
 
 def load_embedder(spec: str) -> Embedder:
-    """An embedder named `model2vec:<id>` (a static model) or `onnx:<id>` (a transformer encoder
-    exported to ONNX, quantized), `<id>` a Hugging Face Hub repository."""
+    """An embedder named `model2vec:<id>` (a static model) or `onnx:<id>[:<file>]` (a transformer
+    encoder exported to ONNX; by default its quantized weights, `onnx/model_quantized.onnx`),
+    `<id>` a Hugging Face Hub repository."""
     kind, _, model = spec.partition(":")
     if kind == "model2vec" and model:
         return StaticEmbedder(model)
-    if kind == "onnx" and model:
-        return OnnxEmbedder(model)
-    raise ValueError(f"embedding model {spec!r}: expected model2vec:<id> or onnx:<id>")
+    repo, _, file = model.partition(":")
+    if kind == "onnx" and repo:
+        return OnnxEmbedder(repo, file) if file else OnnxEmbedder(repo)
+    raise ValueError(f"embedding model {spec!r}: expected model2vec:<id> or onnx:<id>[:<file>]")
 
 
 class StaticEmbedder:
@@ -70,10 +74,14 @@ class StaticEmbedder:
 
 
 class VectorIndex:
-    """Normalised vectors searched by cosine similarity."""
+    """Normalised vectors searched by cosine similarity. Float16 vectors (as stored on disk,
+    already normalised) stay float16 in memory, half the size, and are widened a block of rows
+    at a time while searching."""
 
-    def __init__(self, vectors: Vectors) -> None:
-        self.vectors = normalize(vectors)
+    def __init__(self, vectors: npt.NDArray[np.floating]) -> None:
+        self.vectors: npt.NDArray[np.floating] = (
+            vectors if vectors.dtype == np.float16 else normalize(vectors)
+        )
 
     def __len__(self) -> int:
         return int(self.vectors.shape[0])
@@ -86,17 +94,32 @@ class VectorIndex:
         chunk = max(1, _SEARCH_CELLS // max(len(self), 1))
         results: list[list[tuple[int, float]]] = []
         for start in range(0, len(queries), chunk):
-            scores = queries[start : start + chunk] @ self.vectors.T
+            scores = self._scores(queries[start : start + chunk])
             top = np.argpartition(-scores, k - 1, axis=1)[:, :k]
             for row, candidates in zip(scores, top, strict=True):
                 ordered = candidates[np.argsort(-row[candidates], kind="stable")]
                 results.append([(int(i), float(row[i])) for i in ordered])
         return results
 
+    def _scores(self, queries: Vectors) -> Vectors:
+        if self.vectors.dtype != np.float16:
+            return np.asarray(queries @ self.vectors.T, dtype=np.float32)
+        scores = np.empty((len(queries), len(self)), dtype=np.float32)
+        for start in range(0, len(self), _WIDEN_ROWS):
+            block = self.vectors[start : start + _WIDEN_ROWS].astype(np.float32)
+            scores[:, start : start + len(block)] = queries @ block.T
+        return scores
+
 
 class OnnxEmbedder:
     """A transformer encoder exported to ONNX (such as SapBERT), run with onnxruntime on the CPU:
-    the [CLS] vector of each text, L2-normalised. Downloaded once from the Hugging Face Hub."""
+    the [CLS] vector of each text, L2-normalised. Downloaded once from the Hugging Face Hub.
+
+    Dynamically quantized weights (`model_quantized.onnx`) scale each batch by its own range,
+    padding included, so a text's vector shifts slightly with the texts batched with it (mean
+    cosine 0.9993 between two batchings of the graph's texts). The full-precision weights
+    (`model.onnx`) give the same vector in any batch, which L2 needs: its texts are embedded in
+    large batches, its phrases one at a time."""
 
     def __init__(
         self,

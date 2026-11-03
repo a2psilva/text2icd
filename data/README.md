@@ -15,7 +15,7 @@ data/
 │   │       └── <kind>/     their unpacked contents (tables-index, order, addendum, ...)
 │   └── mimic-iv/           PhysioNet credentialed data (local only)
 ├── interim/                intermediate outputs (parsed tables, alignments)
-└── processed/              build outputs (knowledge graph SQLite, evaluation sets)
+└── processed/              build outputs (knowledge graph SQLite and its retrieval vectors, evaluation sets)
 ```
 
 ## CMS ICD-10-CM (public domain)
