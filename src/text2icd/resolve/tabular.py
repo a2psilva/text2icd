@@ -133,20 +133,56 @@ class TabularVerifier:
 
     # -- children -------------------------------------------------------------------------------
 
-    def _child(
-        self, parent: Code, children: Sequence[Code], evidence: Evidence, descent: _Descent
-    ) -> Code | None:
+    def open_choice(
+        self, code: str, evidence: Evidence
+    ) -> tuple[Code, tuple[Code, ...], Code] | None:
+        """The first node on the way from `code` to a billable code where the phrase does not
+        settle the child: none of them matches (the unspecified one is taken, or the first),
+        several match equally, or the 7th character is an episode of care it does not state (the
+        default is assumed). Returns the node, its children and the child the descent takes;
+        None when the phrase settles every step. For L3 (8.3)."""
+        if code not in self.graph:
+            return None
+        node = self.graph.code(code)
+        while not node.billable:
+            children = tuple(self.graph.children(node.key))
+            if not children:
+                return None
+            if all(child.kind == "generated" for child in children):
+                assumed = self._assumed(node, children, evidence)
+                return (node, children, assumed) if assumed is not None else None
+            branch, best = self._ranked(node, children, evidence)
+            ruled = _displaced_rule(best) if len(best) > 1 else best[0]
+            if branch != "match" or ruled is None:
+                return node, children, ruled or best[0]
+            node = ruled
+        return None
+
+    def _ranked(
+        self, parent: Code, children: Sequence[Code], evidence: Evidence
+    ) -> tuple[str, list[Code]]:
+        """How the child is chosen, and the children it is chosen from: those that match the
+        phrase best (`match`), else the unspecified ones (`unspecified`), else all of the best
+        score (`no_detail`)."""
         above = self._forms(parent.description)
         scored = [(self._score(child, above, evidence.words), child) for child in children]
         best_score = max(score for score, _ in scored)
+        best = [child for score, child in scored if score == best_score]
         if best_score > 0:
-            best = [child for score, child in scored if score == best_score]
-            return _displaced(best, descent) if len(best) > 1 else best[0]
+            return "match", best
         unspecified = [  # "unspecified" more often than in the parent: "... of unspecified femur"
             child for child in children if _unspecified(child) > _unspecified(parent)
         ]
         if unspecified:
-            chosen = _displaced(unspecified, descent) if len(unspecified) > 1 else unspecified[0]
+            return "unspecified", unspecified
+        return "no_detail", best
+
+    def _child(
+        self, parent: Code, children: Sequence[Code], evidence: Evidence, descent: _Descent
+    ) -> Code | None:
+        branch, best = self._ranked(parent, children, evidence)
+        chosen = _displaced(best, descent) if len(best) > 1 else best[0]
+        if branch == "unspecified":
             descent.flags.append(UNSPECIFIED)
             descent.step(
                 "unspecified",
@@ -154,14 +190,12 @@ class TabularVerifier:
                 f"{chosen.description}",
                 "I.A.9.b, I.B.18",
             )
-            return chosen
-        best = [child for score, child in scored if score == best_score]
-        chosen = _displaced(best, descent) if len(best) > 1 else best[0]
-        descent.flags.append(REVIEW)
-        descent.step(
-            "no_detail",
-            f"{parent.key}: no child is unspecified and none matches; took {chosen.key}",
-        )
+        elif branch == "no_detail":
+            descent.flags.append(REVIEW)
+            descent.step(
+                "no_detail",
+                f"{parent.key}: no child is unspecified and none matches; took {chosen.key}",
+            )
         return chosen
 
     def _score(self, child: Code, above: frozenset[str], words: Set[str]) -> float:
@@ -216,6 +250,19 @@ class TabularVerifier:
         descent.step("seventh_character", f"{chosen.key[-1]}: {wanted[0]}", "I.A.5")
         return chosen
 
+    def _assumed(self, parent: Code, children: Sequence[Code], evidence: Evidence) -> Code | None:
+        """The child of the default episode when the 7th character is an episode of care that
+        the phrase does not state (`_seventh` assumes it); None otherwise."""
+        meanings = dict(self.graph.seven_char_def(parent.key))
+        by_meaning = {meanings.get(child.key[-1], "").casefold(): child for child in children}
+        if not any(meaning.startswith(EPISODES) for meaning in by_meaning):
+            return None
+        values = evidence.modifier("episode")
+        if any(e in values for e in EPISODES) or any(v in _HEALING for v in values):
+            return None
+        wanted = [m for m in by_meaning if m.startswith(self.default_episode)]
+        return by_meaning[wanted[0]] if wanted else None
+
     def _fracture(self, meanings: list[str], evidence: Evidence, descent: _Descent) -> list[str]:
         """The 7th characters of a fracture, narrowed by open or closed and the healing."""
         kinds = evidence.modifier("fracture")
@@ -243,17 +290,23 @@ def _unspecified(code: Code) -> int:
     return len(re.findall(r"\bunspecified\b", code.description.casefold()))
 
 
-def _displaced(children: Sequence[Code], descent: _Descent) -> Code:
+def _displaced_rule(children: Sequence[Code]) -> Code | None:
     """Of children that differ only as displaced or not, the displaced one (I.C.19.c.1)."""
     displaced = [c for c in children if re.search(r"\bdisplaced\b", c.description.casefold())]
     nondisplaced = [c for c in children if "nondisplaced" in c.description.casefold()]
-    if displaced and nondisplaced:
+    return displaced[0] if displaced and nondisplaced else None
+
+
+def _displaced(children: Sequence[Code], descent: _Descent) -> Code:
+    """The displaced child by I.C.19.c.1, or else the first of tied children."""
+    ruled = _displaced_rule(children)
+    if ruled is not None:
         descent.step(
             "displaced",
             "a fracture not stated as displaced or nondisplaced is coded as displaced",
             "I.C.19.c.1",
         )
-        return displaced[0]
+        return ruled
     descent.flags.append(TIE)
     descent.step("tie", f"{', '.join(c.key for c in children)} tie: took {children[0].key}")
     return children[0]

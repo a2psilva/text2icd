@@ -143,6 +143,8 @@ def test_check_refuses_other_runs() -> None:
     l2 = {**header(), "system": {"name": "coder", "retrieval": "test/model"}}
     keyed = expectations(systems={"coder + L2": {"accuracy@1": {"min": 0.9}}})
     assert [(o.system, o.ok) for o in check([(l2, report(0.99))], keyed)] == [("coder + L2", True)]
+    l3 = {**header(), "system": {"name": "coder", "retrieval": "m", "llm": {"model": "x-1"}}}
+    assert [o.system for o in check([(l3, report(0.99))], keyed)] == ["coder + L2 + L3 (x-1)"]
 
 
 def test_committed_sample_expectations() -> None:

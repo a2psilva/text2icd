@@ -29,7 +29,7 @@ from text2icd.eval.mimic.splits import FrozenSplitError, check_frozen
 from text2icd.eval.predictions import Prediction
 from text2icd.eval.systems import System
 from text2icd.graph.model import Graph
-from text2icd.llm.providers import EndpointNotAllowedError, check_endpoint
+from text2icd.llm.providers import EndpointNotAllowedError, LLMUnavailableError, check_endpoint
 
 SplitChoice = Literal["dev", "test", "all"]
 RESTRICTED_SOURCES = ("mimic",)
@@ -81,6 +81,8 @@ def predict(
             prediction = next(stream)
         except StopIteration:
             prediction = Prediction(id=example.id, error="no prediction returned")
+        except LLMUnavailableError:  # bad credentials or no access: every call would fail
+            raise
         except Exception as exc:
             prediction = Prediction(id=example.id, error=f"{type(exc).__name__}: {exc}")
             stream = system.predict_many(phrases[len(out) + 1 :])

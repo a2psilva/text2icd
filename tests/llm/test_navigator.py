@@ -7,7 +7,7 @@ import pytest
 
 from text2icd.config import Settings
 from text2icd.llm.cost import CostMeter, Price, PriceError, Usage, load_prices
-from text2icd.llm.decisions import Choice, Decision
+from text2icd.llm.decisions import Choice, Decision, Offer
 from text2icd.llm.navigator import LLMNavigator, NoNavigator, build_navigator
 from text2icd.llm.prompts import (
     ANSWER_TOKENS,
@@ -29,9 +29,13 @@ def decision(phrase: str = "aspiration pneumonia due to food") -> Decision:
         "subterm",
         phrase,
         [
-            ("Pneumonia > aspiration > due to > food (regurgitated)", "J69.0", None),
-            ("Pneumonia > aspiration", "J69.0", None),
-            ("Pneumonitis due to inhalation of other solids and liquids", "J69.8", "retrieval"),
+            Offer("Pneumonia > aspiration > due to > food (regurgitated)", "J69.0", "Pneumonitis"),
+            Offer("Pneumonia > aspiration", "J69.0"),
+            Offer(
+                "Pneumonitis due to inhalation of other solids and liquids",
+                "J69.8",
+                note="retrieval",
+            ),
         ],
         path=("Pneumonia",),
     )
@@ -87,17 +91,15 @@ def test_prompt_layout() -> None:
         "Path so far: Pneumonia",
         "",
         "Options:",
-        "1. Pneumonia > aspiration > due to > food (regurgitated): J69.0",
+        "1. Pneumonia > aspiration > due to > food (regurgitated): J69.0 Pneumonitis",
         "2. Pneumonia > aspiration: J69.0",
         "3. Pneumonitis due to inhalation of other solids and liquids: J69.8 (retrieval)",
         "none. None of the options fits the phrase.",
     ]
-    sense = Decision.of(
-        "abbreviation", "MS flare", [("multiple sclerosis", None, None)], subject="MS"
-    )
+    sense = Decision.of("abbreviation", "MS flare", [Offer("multiple sclerosis")], subject="MS")
     assert 'Decision: What does "MS" mean in this phrase?' in decision_prompt(sense)
     assert "Path so far" not in decision_prompt(sense)
-    child = Decision.of("tabular_child", "x", [("Cholera", "A00.9", None)], subject="A00")
+    child = Decision.of("tabular_child", "x", [Offer("Cholera", "A00.9")], subject="A00")
     assert "Which code under A00 does the phrase support?" in decision_prompt(child)
 
 

@@ -27,6 +27,10 @@ finds compete with the coder's code and alternates, each scored by the table, an
 wins. A retrieved code goes through the coder again as the first candidate of its diagnosis, so
 that its 7th character, companion codes and Excludes1 notes are read like those of any other
 candidate.
+
+A code set still escalated after that goes to L3 when the coder has a navigator (`navigate`,
+task 8.3): an LLM chooses among the options the graph gives (an abbreviation's meaning, the main
+term, the Index entry, the Tabular child), and the coder codes the phrase again with each choice.
 """
 
 import re
@@ -37,8 +41,9 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict
 
 from text2icd.graph.model import Graph
+from text2icd.llm.navigator import Navigator
 from text2icd.ontology.codes import dot
-from text2icd.resolve import choice, confidence, rules
+from text2icd.resolve import choice, confidence, navigate, rules
 from text2icd.resolve.confidence import (
     Calibration,
     CalibrationError,
@@ -78,7 +83,7 @@ from text2icd.resolve.walk import (
 from text2icd.text.model import Modifier, ParsedPhrase, Setting
 from text2icd.trace import TraceStep
 
-Resolver = Literal["index", "retrieval"]
+Resolver = Literal["index", "retrieval", "llm"]
 
 ALTERNATES = 4  # completed alternates kept per diagnosis
 MAX_COMPANIONS = 8  # companion codes added per phrase
@@ -166,6 +171,9 @@ class CodeSet(BaseModel):
     escalated: tuple[Resolver, ...] = ()  # the layers whose confidence was below their threshold
     resolver: Resolver = "index"  # where the primary code's candidate comes from
     choice: dict[str, float] = {}  # the features L2 chose the primary code by (`choice`)
+    llm_calls: int = 0  # L3's calls for this phrase, and what they cost
+    cost_usd: float = 0.0
+    usage: dict[str, int] = {}
 
     @property
     def codes(self) -> tuple[str, ...]:
@@ -210,11 +218,14 @@ class Coder:
         verifier: TabularVerifier | None = None,
         calibration: Calibration | None = None,
         retriever: Retriever | None = None,
+        navigator: Navigator | None = None,
     ) -> None:
         """`calibration` turns features into a confidence; by default the shipped table.
         `retriever`, L2's (`retrieve.load_vectors`): it runs on escalated code sets when the
-        table has a retrieval stage fitted with the same embedding model."""
+        table has a retrieval stage fitted with the same embedding model. `navigator`, L3's
+        (`llm.navigator`): it runs on code sets still escalated after L1 and L2."""
         self.graph = graph
+        self.navigator = navigator
         self.walker = walker or IndexWalker(graph)
         self.verifier = verifier or TabularVerifier(graph, self.walker.finder.forms)
         self.notes = Notes(graph)
@@ -240,20 +251,46 @@ class Coder:
         default_episode: Episode = "initial",
         calibration: Calibration | None = None,
         retriever: Retriever | None = None,
+        navigator: Navigator | None = None,
     ) -> "Coder":
         walker = IndexWalker.from_graph(graph, setting)
         verifier = TabularVerifier(graph, walker.finder.forms, default_episode)
-        return cls(graph, walker, verifier, calibration, retriever)
+        return cls(graph, walker, verifier, calibration, retriever, navigator)
 
     def code(self, phrase: str) -> CodeSet:
+        result, code_set, origin = self.deterministic(phrase)
+        if not code_set.escalate or self.navigator is None:
+            return code_set
+        return navigate.navigate(self, self.navigator, result, code_set, origin)
+
+    def deterministic(self, phrase: str) -> tuple[WalkResult, CodeSet, int]:
+        """L1, then L2 when it runs: the walk the code set was assembled from, the code set, and
+        the diagnosis of the walk its primary code codes."""
         result = self.walker.walk(phrase)
-        code_set, origin = self._assemble(result)
+        code_set, origin = self.assemble(result)
         stage = self.stage
         if not code_set.escalate or self.retriever is None or stage is None:
-            return code_set
+            return result, code_set, origin
         return self._retrieve(result, code_set, origin, stage)
 
-    def _assemble(self, result: WalkResult) -> tuple[CodeSet, int]:
+    def recode(
+        self, result: WalkResult, origin: int, candidate: Candidate
+    ) -> tuple[WalkResult, CodeSet] | None:
+        """The code set with `candidate` first in diagnosis `origin`, which goes first, since
+        its code becomes the primary one; None when the notes take its code out."""
+        walk = result.diagnoses[origin]
+        rest = [c for c in walk.candidates if c != candidate]
+        others = [w for i, w in enumerate(result.diagnoses) if i != origin]
+        walks = (walk.model_copy(update={"candidates": (candidate, *rest)}), *others)
+        changed = result.model_copy(update={"diagnoses": walks})
+        second, _ = self.assemble(changed)
+        if not second.diagnoses or second.diagnoses[0].candidate != candidate:
+            return None
+        if second.diagnoses[0].code not in second.codes:  # Excludes1 took it out
+            return None
+        return changed, second
+
+    def assemble(self, result: WalkResult) -> tuple[CodeSet, int]:
         """The code set of a walk, and the diagnosis of the walk its primary code codes."""
         parsed = result.parsed
         groups: list[_Group] = []
@@ -359,14 +396,14 @@ class Coder:
 
     def _retrieve(
         self, result: WalkResult, first: CodeSet, origin: int, stage: RetrievalStage
-    ) -> CodeSet:
+    ) -> tuple[WalkResult, CodeSet, int]:
         """L2: the best of the pool by the table's retrieval stage. The coder's code keeps its
         code set; another code is coded again as the first candidate of the diagnosis, which
         goes first, since the code chosen is the primary one."""
         pool = self.options(first)
         chosen = choice.choose(pool, stage)
         if chosen is None:
-            return first
+            return result, first, origin
         option, sure = chosen
         escalate = sure < stage.threshold
         update = {
@@ -377,13 +414,18 @@ class Coder:
         }
         step = self._choice_step(first, pool, option, sure, stage)
         if option.coder or not result.diagnoses:
-            return first.model_copy(update={**update, "trace": (*first.trace, step)})
+            return (
+                result,
+                first.model_copy(update={**update, "trace": (*first.trace, step)}),
+                origin,
+            )
         origin = min(origin, len(result.diagnoses) - 1)
         walk = result.diagnoses[origin]
-        candidate, rest = self._first_candidate(first.parsed, walk, option)
+        candidate, rest = self.first_candidate(first.parsed, walk, option)
         others = [w for i, w in enumerate(result.diagnoses) if i != origin]
         walks = (walk.model_copy(update={"candidates": (candidate, *rest)}), *others)
-        second, _ = self._assemble(result.model_copy(update={"diagnoses": walks}))
+        changed = result.model_copy(update={"diagnoses": walks})
+        second, _ = self.assemble(changed)
         if option.code not in second.codes:  # the notes took it out: keep the coder's set
             coder = next((o for o in pool if o.coder), None)
             sure = stage.probability(coder.features) if coder is not None else 0.0
@@ -394,13 +436,18 @@ class Coder:
                 "escalated": ("index", "retrieval") if escalate else ("index",),
                 "choice": coder.features if coder is not None else {},
             }
-            return first.model_copy(update={**update, "trace": (*first.trace, step)})
+            return (
+                result,
+                first.model_copy(update={**update, "trace": (*first.trace, step)}),
+                origin,
+            )
         resolver: Resolver = "retrieval" if candidate.book == choice.BOOK else "index"
-        return second.model_copy(
+        second = second.model_copy(
             update={**update, "resolver": resolver, "trace": (*second.trace, step)}
         )
+        return changed, second, 0
 
-    def _first_candidate(
+    def first_candidate(
         self, parsed: ParsedPhrase, walk: DiagnosisWalk, option: choice.Option
     ) -> tuple[Candidate, list[Candidate]]:
         """The candidate the chosen code is coded from, and the walk's others after it: the
@@ -1041,6 +1088,8 @@ def describe_code_set(code_set: CodeSet) -> list[str]:
     lines += _steps(code_set.trace, "   ")
     if code_set.flags:
         lines.append(f"flags: {', '.join(code_set.flags)}")
+    if code_set.llm_calls or code_set.resolver == "llm":
+        lines.append(f"llm: {code_set.llm_calls} calls, ${code_set.cost_usd:.6f}")
     return lines
 
 

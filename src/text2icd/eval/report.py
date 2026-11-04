@@ -120,7 +120,12 @@ def system_label(header: dict[str, Any]) -> str:
     system = header["system"]
     model = system.get("model")
     label = f"{system['name']} ({model})" if model else str(system["name"])
-    return f"{label} + L2" if system.get("retrieval") else label
+    if system.get("retrieval"):
+        label += " + L2"
+    llm = system.get("llm")
+    if isinstance(llm, dict):
+        label += f" + L3 ({llm.get('model')})"
+    return label
 
 
 def _latency(report: Report, key: str) -> str:

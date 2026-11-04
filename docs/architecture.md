@@ -406,11 +406,28 @@ the embedding model it was fitted with, and is refused with vectors of another m
 
 ### L3: LLM navigator
 
-The LLM never writes a code. It chooses among options the graph provides:
+The LLM never writes a code. It runs on the code sets L1 and L2 still escalate
+(`resolve.navigate`), and chooses among options the graph provides, in a coder's order, each only
+when it arises:
 
-- which candidate main term is right,
-- which child to take at an ambiguous Index or Tabular node,
-- what an unknown abbreviation means, from a short candidate list.
+1. **Abbreviation**: an abbreviation with several meanings that no word of the phrase chose. The
+   phrase is rewritten with the chosen meaning and coded again by L1 and L2; if that code set is
+   confident, L3 ends there.
+2. **Main term**: when the primary diagnosis's Index entries come from several main terms and are
+   more than one question holds (8), the main term is chosen first.
+3. **Index entry**: the Index entries (each path with its completed code and title), then the
+   codes retrieval found that no entry gives. The chosen one is coded as the first candidate of
+   its diagnosis, so its 7th character, companions and Excludes1 notes are read as usual.
+4. **Tabular child**: when the chosen code was completed through a node where the phrase does not
+   settle the child (none matches, several tie, or the 7th character's episode of care was assumed,
+   as when "subsequent encountter" is misspelled), the node's children are offered.
+
+When no option is chosen (none fits, a limit, an error, no provider), the coder's code set stays,
+flagged `needs_review`. A chosen entry clears `escalate`; the confidence stays the calibrated
+layers' one, since L3's choices are not calibrated yet. The trace records each decision, and the
+code set its calls, cost and token usage. A decision cache (`.text2icd/decisions.sqlite`) answers
+an identical decision again for free: its key hashes the decision, the provider, model, effort
+and prompt version, and it stores no phrase.
 
 Prompt layout, from most stable to least, so caching works: a fixed system prompt with the coding
 rules (long enough to meet the provider's minimum for prompt caching), then the phrase, the

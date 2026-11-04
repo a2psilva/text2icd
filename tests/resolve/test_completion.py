@@ -101,6 +101,7 @@ def test_coder_system(graph: Graph) -> None:
         "setting": "inpatient",
         "episode": "subsequent",
         "retrieval": None,
+        "llm": None,
     }
     assert system.predict("accidental poisoning by 1-propanol").codes == ("T51.3X1D",)
     with pytest.raises(SystemSetupError, match="episode"):

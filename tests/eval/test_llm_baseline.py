@@ -262,6 +262,21 @@ def test_runner_endpoint_policy(graph: Graph, tmp_path: Path) -> None:
     assert Retriever().endpoint is None
 
 
+class Locked(Retriever):
+    """A system whose provider refuses every call (bad credentials)."""
+
+    def predict_many(self, phrases: Sequence[str]) -> Iterator[Prediction]:
+        raise LLMUnavailableError("anthropic refused the call: AuthenticationError 401")
+        yield  # pragma: no cover
+
+
+def test_runner_stops_when_the_provider_refuses(graph: Graph, tmp_path: Path) -> None:
+    """Every call would fail the same way: the run stops instead of recording an error each."""
+    public = restricted_dataset(tmp_path, "cms-synthetic")
+    with pytest.raises(LLMUnavailableError, match="AuthenticationError 401"):
+        evaluate(Locked(), graph, public, resamples=0)
+
+
 def test_llm_system_needs_settings(graph: Graph, graph_file: Path, tmp_path: Path) -> None:
     with pytest.raises(SystemSetupError, match="needs a provider and a model"):
         build_system("llm", graph, Settings(llm_provider="none"), {})
