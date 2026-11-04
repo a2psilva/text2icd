@@ -715,11 +715,14 @@ def eval_run(
                 frozen_dir=settings.eval_dir(),
                 require_compliant_endpoint=settings.require_dua_compliant_endpoint,
             )
-        except (RunError, DatasetError) as exc:
+            notes = runner_system.warnings()
+        except (RunError, DatasetError, LLMUnavailableError) as exc:
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
         finally:
             runner_system.close()
+    for note in notes:
+        typer.echo(f"warning: {note}", err=True)
     target = output or default_output(settings, run.header)
     metrics = write_run(target, run, report)
     typer.echo(f"{target}\n{metrics}")

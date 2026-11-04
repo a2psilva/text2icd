@@ -11,6 +11,7 @@ from typing import Any
 
 MILLION = 1_000_000
 PRICES = "prices.toml"
+WARM_UP = 3  # calls after which a cached system prompt must have been read from the cache
 
 
 class PriceError(ValueError):
@@ -165,6 +166,22 @@ class CostMeter:
                 f"budget of ${self.budget_usd:.2f} spent (${self.spent_usd:.4f} on {self.calls} "
                 "calls)"
             )
+
+    @property
+    def cache_rate(self) -> float | None:
+        """The share of prompt tokens read from the prompt cache; None before any call."""
+        prompt = self.usage.prompt_tokens
+        return self.usage.cache_read_input_tokens / prompt if prompt else None
+
+    def cache_warning(self, after: int = WARM_UP) -> str | None:
+        """A warning when `after` calls or more read nothing from the prompt cache: the cached
+        prefix is shorter than the model's minimum, or the provider does not cache it (8.7)."""
+        if self.calls < after or self.usage.cache_read_input_tokens > 0:
+            return None
+        return (
+            f"no prompt-cache reads in {self.calls} calls: the system prompt may be shorter than "
+            f"the minimum cacheable prefix of {self.price.id}, so every call pays for it in full"
+        )
 
     def charge(self, usage: Usage) -> float:
         """Record one call; returns its cost."""

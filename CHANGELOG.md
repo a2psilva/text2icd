@@ -8,6 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The L3 navigator interface (tasks 8.1, 8.4 to 8.7, 8.10): `text2icd.llm.navigator`
+  (`Navigator.choose(decision) -> Choice`, `LLMNavigator`, `NoNavigator` for provider `none`) with
+  decisions of four kinds (main term, Index entry, Tabular child, abbreviation sense). One cached
+  system prompt with the coding rules (about 850 tokens, above the 512-token minimum Claude
+  caches), then the fenced phrase, the path and the numbered options; the answer schema is an enum
+  of the option ids and `none`, and any other answer counts as `none`. Limits: calls per phrase,
+  the run's budget, `TEXT2ICD_LLM_TIMEOUT_S` per attempt and `TEXT2ICD_LLM_MAX_RETRIES` retries of
+  retryable errors only. Prompt-injection tests check that a phrase cannot get an unlisted answer
+  through.
+- Amazon Bedrock (`bedrock`, `AnthropicBedrockMantle`) and Google Cloud Vertex AI (`vertex`,
+  `AnthropicVertex`) providers, with the extras `bedrock` and `vertex` and the settings
+  `TEXT2ICD_LLM_REGION` and `TEXT2ICD_LLM_PROJECT`. Neither has a price in `prices.toml` yet, so
+  runs on them are refused until one is added.
+- `eval run` warns when an LLM system's prompt cache was never read after its first calls.
 - `text2icd eval check` (task 3.14): checks result files against an expectations file of
   bounds per system (`accuracy@1`, a subset's `kept/accuracy@1`, counts such as `errors`) and
   exits 1 when any fails or when a run is of another dataset, split, release or sample size.
@@ -58,6 +72,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- The endpoint allow-list for restricted data now holds `bedrock` as well as `anthropic`, both
+  re-checked against the PhysioNet guidance on 2026-11-04; `vertex` is not on it, since the
+  guidance names Vertex AI for Gemini models only.
+- The B3/B4 baseline (`llm` eval system) builds its model with the new provider settings, so it
+  runs on Bedrock and Vertex AI too, with the same timeout and retry limits.
+- `.env.example`: the `TEXT2ICD_LLM_REGION`/`PROJECT`/`TIMEOUT_S`/`MAX_RETRIES` settings replace
+  the `GOOGLE_CLOUD_*` lines, which the SDK does not read.
 - Retrieval texts with the same words for the same code are kept once (129,283 to 123,486 for
   FY2027).
 - `VectorIndex` keeps float16 vectors as they are and widens them block by block while searching.

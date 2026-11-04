@@ -5,12 +5,20 @@ A provider answers one constrained question: given a system prompt, a user promp
 schema, it returns the JSON object the model produced and the call's token usage. Nothing else of
 the response is kept, and no input text is logged.
 
+Three platforms serve Claude through the same Messages API, each with the official `anthropic`
+SDK client: the Anthropic API (`anthropic`), Amazon Bedrock (`bedrock`, `AnthropicBedrockMantle`,
+model ids with an `anthropic.` prefix) and Google Cloud Vertex AI (`vertex`, `AnthropicVertex`).
+The SDK retries connection errors, timeouts (408), conflicts (409), rate limits (429) and server
+errors (5xx) up to `max_retries` times with exponential backoff, and nothing else; `timeout`
+bounds each attempt.
+
 Restricted data (MIMIC-IV) may go only to an endpoint on `ALLOW_LIST`, and only while
 `TEXT2ICD_REQUIRE_DUA_COMPLIANT_ENDPOINT` is on. Each entry cites the basis for its approval; the
 list is reviewed whenever PhysioNet updates its guidance.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -20,12 +28,27 @@ PHYSIONET_GUIDANCE = (
     "PhysioNet, 'Responsible use of MIMIC data with online services like GPT' (2023-04-18), "
     "https://physionet.org/news/post/gpt-responsible-use"
 )
+# Google Cloud Vertex AI is not listed: the guidance names it for Google's Gemini models only, so
+# Claude on Vertex AI needs its own check before it may receive restricted data.
 ALLOW_LIST: dict[str, str] = {
     "anthropic": (
         f"{PHYSIONET_GUIDANCE}: Claude does not use prompts or responses to train its models by "
-        "default, and routine human review of data is not performed. Checked 2026-11-01."
+        "default, and routine human review of data is not performed. Checked 2026-11-04."
+    ),
+    "bedrock": (
+        f"{PHYSIONET_GUIDANCE}: Amazon Bedrock is named as an acceptable service; data is not "
+        "shared back to the base model for training. Claude in Amazon Bedrock runs on AWS-managed "
+        "infrastructure with no Anthropic operator access, under Amazon Bedrock's data protection "
+        "terms. Checked 2026-11-04."
     ),
 }
+PROVIDERS = ("anthropic", "bedrock", "vertex")
+# Models that accept `thinking: disabled` (the others always think; effort bounds them).
+CAN_DISABLE_THINKING = frozenset({"claude-haiku-5-5"})
+BEDROCK_PREFIX = "anthropic."
+VERTEX_REGION = "global"  # the endpoint Google recommends, with no regional price premium
+TIMEOUT_S = 30.0
+MAX_RETRIES = 2
 
 
 class LLMUnavailableError(RuntimeError):
@@ -64,14 +87,20 @@ class Answer:
 class ChoiceModel(Protocol):
     provider: str
     model: str
+    thinking: bool  # whether the model reasons before it answers (its output needs more room)
 
     def ask(
         self, *, system: str, prompt: str, schema: dict[str, Any], max_tokens: int
     ) -> Answer: ...
 
 
-class AnthropicModel:
-    """Claude through the Anthropic API, with a JSON-schema constrained answer.
+def fatal(exc: BaseException) -> bool:
+    """An error no retry or later call can fix: bad credentials, no access, unknown model."""
+    return getattr(exc, "status_code", None) in (401, 403, 404)
+
+
+class MessagesModel:
+    """Claude through a Messages API client, with a JSON-schema constrained answer.
 
     The system prompt carries a cache breakpoint, so repeated calls read it from the prompt cache
     when it is long enough to be cached. Thinking is turned off when `thinking` is False, which
@@ -79,31 +108,11 @@ class AnthropicModel:
 
     provider = "anthropic"
 
-    def __init__(
-        self,
-        model: str,
-        *,
-        api_key: str | None = None,
-        effort: str = "low",
-        thinking: bool = False,
-        client: Any = None,
-    ) -> None:
+    def __init__(self, model: str, client: Any, *, effort: str = "low", thinking: bool) -> None:
         self.model = model
         self.effort = effort
         self.thinking = thinking
-        if client is not None:
-            self._client = client
-            return
-        try:
-            import anthropic
-        except ImportError as exc:
-            raise LLMUnavailableError(
-                "the Anthropic provider needs the optional dependency: uv sync --extra llm"
-            ) from exc
-        try:
-            self._client = anthropic.Anthropic(api_key=api_key)
-        except anthropic.AnthropicError as exc:
-            raise LLMUnavailableError(f"cannot create the Anthropic client: {exc}") from exc
+        self._client = client
 
     def ask(self, *, system: str, prompt: str, schema: dict[str, Any], max_tokens: int) -> Answer:
         request: dict[str, Any] = {
@@ -135,17 +144,142 @@ class AnthropicModel:
         return Answer(data, usage, stop)
 
 
-PROVIDERS = ("anthropic",)
-# Models that accept `thinking: disabled` (the others always think; effort bounds them).
-CAN_DISABLE_THINKING = frozenset({"claude-haiku-5-5"})
+class AnthropicModel(MessagesModel):
+    """Claude through the Anthropic API (`anthropic.Anthropic`)."""
+
+    provider = "anthropic"
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        api_key: str | None = None,
+        effort: str = "low",
+        thinking: bool = False,
+        timeout: float = TIMEOUT_S,
+        max_retries: int = MAX_RETRIES,
+        client: Any = None,
+    ) -> None:
+        if client is None:
+            anthropic = _sdk("the Anthropic provider", "llm")
+            client = _client(
+                lambda: anthropic.Anthropic(
+                    api_key=api_key, timeout=timeout, max_retries=max_retries
+                ),
+                "Anthropic",
+            )
+        super().__init__(model, client, effort=effort, thinking=thinking)
 
 
-def choice_model(provider: str, model: str, *, api_key: str | None, effort: str) -> ChoiceModel:
+class BedrockModel(MessagesModel):
+    """Claude in Amazon Bedrock (`anthropic.AnthropicBedrockMantle`). The model id takes the
+    `anthropic.` prefix Bedrock uses ("anthropic.claude-haiku-5-5"); AWS credentials and the
+    region come from the standard AWS chain unless `region` is given."""
+
+    provider = "bedrock"
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        region: str | None = None,
+        effort: str = "low",
+        thinking: bool = False,
+        timeout: float = TIMEOUT_S,
+        max_retries: int = MAX_RETRIES,
+        client: Any = None,
+    ) -> None:
+        if client is None:
+            anthropic = _sdk("the Bedrock provider", "bedrock")
+            client = _client(
+                lambda: anthropic.AnthropicBedrockMantle(
+                    aws_region=region, timeout=timeout, max_retries=max_retries
+                ),
+                "Bedrock",
+            )
+        super().__init__(bedrock_model_id(model), client, effort=effort, thinking=thinking)
+
+
+class VertexModel(MessagesModel):
+    """Claude on Google Cloud Vertex AI (`anthropic.AnthropicVertex`), with Application Default
+    Credentials. The region is `region`, else `CLOUD_ML_REGION`, else the global endpoint."""
+
+    provider = "vertex"
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        project: str | None = None,
+        region: str | None = None,
+        effort: str = "low",
+        thinking: bool = False,
+        timeout: float = TIMEOUT_S,
+        max_retries: int = MAX_RETRIES,
+        client: Any = None,
+    ) -> None:
+        if client is None:
+            anthropic = _sdk("the Vertex AI provider", "vertex")
+            where = region or os.environ.get("CLOUD_ML_REGION") or VERTEX_REGION
+            options: dict[str, Any] = {"region": where}
+            if project:
+                options["project_id"] = project
+            client = _client(
+                lambda: anthropic.AnthropicVertex(
+                    **options, timeout=timeout, max_retries=max_retries
+                ),
+                "Vertex AI",
+            )
+        super().__init__(model, client, effort=effort, thinking=thinking)
+
+
+def bedrock_model_id(model: str) -> str:
+    return model if model.startswith(BEDROCK_PREFIX) else BEDROCK_PREFIX + model
+
+
+def thinks(model: str) -> bool:
+    """Whether the model reasons before it answers, even when asked not to."""
+    return model.removeprefix(BEDROCK_PREFIX) not in CAN_DISABLE_THINKING
+
+
+def choice_model(
+    provider: str,
+    model: str,
+    *,
+    api_key: str | None = None,
+    effort: str = "low",
+    region: str | None = None,
+    project: str | None = None,
+    timeout: float = TIMEOUT_S,
+    max_retries: int = MAX_RETRIES,
+) -> ChoiceModel:
+    limits: dict[str, Any] = {"effort": effort, "timeout": timeout, "max_retries": max_retries}
     if provider == "anthropic":
-        return AnthropicModel(
-            model, api_key=api_key, effort=effort, thinking=model not in CAN_DISABLE_THINKING
-        )
+        return AnthropicModel(model, api_key=api_key, thinking=thinks(model), **limits)
+    if provider == "bedrock":
+        return BedrockModel(model, region=region, thinking=thinks(model), **limits)
+    if provider == "vertex":
+        return VertexModel(model, project=project, region=region, thinking=thinks(model), **limits)
     known = ", ".join(PROVIDERS)
     raise LLMUnavailableError(
         f"unknown LLM provider {provider!r} (known: {known}); set TEXT2ICD_LLM_PROVIDER"
     )
+
+
+def _sdk(what: str, extra: str) -> Any:
+    try:
+        import anthropic
+    except ImportError as exc:
+        raise LLMUnavailableError(
+            f"{what} needs the optional dependency: uv sync --extra {extra}"
+        ) from exc
+    return anthropic
+
+
+def _client(make: Any, platform: str) -> Any:
+    try:
+        return make()
+    except ImportError as exc:  # the platform's own dependencies (boto3, google-auth)
+        raise LLMUnavailableError(f"the {platform} client needs its extra: {exc}") from exc
+    except Exception as exc:  # no region, no credentials
+        raise LLMUnavailableError(f"cannot create the {platform} client: {exc}") from exc

@@ -30,15 +30,23 @@ class Settings(BaseSettings):
     llm_provider: str = "none"
     llm_model: str = ""
     llm_api_key: SecretStr | None = None
+    # The AWS region (bedrock) or Google Cloud region (vertex), and the Google Cloud project;
+    # None leaves them to the platform's own settings (AWS_REGION, CLOUD_ML_REGION).
+    llm_region: str | None = None
+    llm_project: str | None = None
     require_dua_compliant_endpoint: bool = True
     llm_max_calls_per_phrase: int = Field(default=4, ge=0)
     llm_budget_usd: float = Field(default=1.0, ge=0)
+    llm_timeout_s: float = Field(default=30.0, gt=0)  # per attempt
+    llm_max_retries: int = Field(default=2, ge=0)  # of retryable errors only (429, 5xx, network)
     # The 7th character's episode of care when an injury phrase states none.
     default_episode: Literal["initial", "subsequent", "sequela"] = "initial"
     # A confidence calibration table (`text2icd eval calibrate`); None uses the shipped one.
     calibration: Path | None = None
 
-    @field_validator("release", "llm_api_key", "calibration", mode="before")
+    @field_validator(
+        "release", "llm_api_key", "llm_region", "llm_project", "calibration", mode="before"
+    )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
