@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `text2icd eval check` (task 3.14): checks result files against an expectations file of
+  bounds per system (`accuracy@1`, a subset's `kept/accuracy@1`, counts such as `errors`) and
+  exits 1 when any fails or when a run is of another dataset, split, release or sample size.
+  `benchmarks/cms-synthetic/fy2027-sample.expected.toml` holds the bounds for the committed sample,
+  and the CI integration job now runs the coder on it and fails on a regression.
 - Confidence for the deterministic coder (tasks 7.1 to 7.3). Each code set carries its `features`
   (path coverage, score margin, default or unspecified codes, Tabular ties, typo corrections,
   cross-references, rule changes, text flags), a calibrated `confidence` that the primary code is

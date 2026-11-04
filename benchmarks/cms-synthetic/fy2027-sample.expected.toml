@@ -1,0 +1,58 @@
+# Regression bounds for the committed cms-synthetic sample (FY2027 release, all splits), checked
+# by `text2icd eval check` in the CI integration job:
+#
+#   uv run text2icd eval run -d cms-synthetic-sample -s coder --split all -r fy2027 -o out/coder.jsonl
+#   uv run text2icd eval check out/*.jsonl -e benchmarks/cms-synthetic/fy2027-sample.expected.toml
+#
+# Floors sit half a point (about 5 of the 1,067 phrases) below the value measured on 2026-11-04,
+# so small platform differences in embedding scores pass and a real regression does not. Raise a
+# floor when a change improves its number; lower one only with the reason in the pull request.
+# Systems are keyed by their label in the report tables. "coder + L2" needs the vectors file
+# (`text2icd graph embed`), which CI does not build, so it is checked locally only.
+
+dataset = "cms-synthetic-sample"
+split = "all"
+release = "fy2027"
+sha256 = "0e542f5e197254b4e3a500c6afcd1e83a4be26bbc3749555605e85f1cc5e048b"
+
+[systems.coder]
+"accuracy@1" = { min = 0.952 }          # measured 0.958
+"accuracy@5" = { min = 0.959 }          # 0.964
+"category accuracy" = { min = 0.981 }   # 0.987
+"code-set F1" = { min = 0.951 }         # 0.956
+"invalid-code rate" = { max = 0 }
+"calibration error" = { max = 0.03 }    # 0.010; the Phase 7 target is under 0.05
+"kept/accuracy@1" = { min = 0.976 }     # 0.982 on the 1,029 kept phrases; the target is 98%
+"kept/scored" = { min = 1024 }          # 1,029: the coder escalates no more than 43
+"LLM call rate" = { max = 0 }
+"cost per 1,000 phrases" = { max = 0 }
+"errors" = { max = 0 }
+"missing" = { max = 0 }
+
+[systems."coder + L2"]
+"accuracy@1" = { min = 0.965 }          # 0.971
+"accuracy@5" = { min = 0.970 }          # 0.976
+"category accuracy" = { min = 0.988 }   # 0.993
+"code-set F1" = { min = 0.962 }         # 0.968
+"invalid-code rate" = { max = 0 }
+"calibration error" = { max = 0.03 }    # 0.009
+"kept/accuracy@1" = { min = 0.976 }     # 0.982: L2 leaves the kept phrases alone
+"escalated/accuracy@1" = { min = 0.65 } # 0.684 on 38 phrases (one phrase is 2.6 points)
+"LLM call rate" = { max = 0 }
+"cost per 1,000 phrases" = { max = 0 }
+"errors" = { max = 0 }
+"missing" = { max = 0 }
+
+[systems.bm25]
+"accuracy@1" = { min = 0.392 }          # 0.397
+"accuracy@5" = { min = 0.510 }          # 0.515
+"code-set F1" = { min = 0.409 }         # 0.414
+"invalid-code rate" = { max = 0 }
+"errors" = { max = 0 }
+
+[systems."embedding (NeuML/pubmedbert-base-embeddings-8M)"]
+"accuracy@1" = { min = 0.392 }          # 0.397
+"accuracy@5" = { min = 0.523 }          # 0.529
+"code-set F1" = { min = 0.398 }         # 0.404
+"invalid-code rate" = { max = 0 }
+"errors" = { max = 0 }

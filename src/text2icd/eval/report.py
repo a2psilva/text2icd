@@ -42,7 +42,7 @@ def comparison(runs: Sequence[tuple[dict[str, Any], Report]], intervals: bool = 
     for header, report in runs:
         dataset = header["dataset"]
         cells = [
-            _system_label(header),
+            system_label(header),
             f"{dataset['name']} ({dataset['split']})",
             f"{report.scored:,}",
             *(fmt(report.metrics.get(metric), kind, intervals) for _, metric, kind in COLUMNS),
@@ -66,7 +66,7 @@ def selective(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for header, report in shown:
         dataset = header["dataset"]
-        cells = [_system_label(header), f"{dataset['name']} ({dataset['split']})"]
+        cells = [system_label(header), f"{dataset['name']} ({dataset['split']})"]
         cells += [fmt(report.selective.get(c), "share", False) for c in coverages]
         lines.append("| " + " | ".join(cells) + " |")
     return lines
@@ -84,7 +84,7 @@ def escalation(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for header, report in shown:
         dataset = header["dataset"]
-        cells = [_system_label(header), f"{dataset['name']} ({dataset['split']})"]
+        cells = [system_label(header), f"{dataset['name']} ({dataset['split']})"]
         for name in ("kept", "escalated"):
             part = report.subsets.get(name)
             if part is None:
@@ -99,7 +99,7 @@ def escalation(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
 def by_group(header: dict[str, Any], report: Report, label: str = "Chapter") -> list[str]:
     """One row per group (chapter) of a single run."""
     head = [label, "n", "Acc@1", "Acc@5", "Category", "Code-set F1"]
-    lines = [f"{_system_label(header)} on {header['dataset']['name']}", ""]
+    lines = [f"{system_label(header)} on {header['dataset']['name']}", ""]
     lines += ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for name, group in sorted(report.groups.items(), key=lambda item: _group_key(item[0])):
         cells = [name, f"{group.scored:,}"]
@@ -115,7 +115,8 @@ def _group_key(name: str) -> tuple[int, str]:
     return (int(name), "") if name.isdigit() else (10_000, name)
 
 
-def _system_label(header: dict[str, Any]) -> str:
+def system_label(header: dict[str, Any]) -> str:
+    """The system as the tables name it, which is also its key in an expectations file."""
     system = header["system"]
     model = system.get("model")
     label = f"{system['name']} ({model})" if model else str(system["name"])
@@ -142,7 +143,7 @@ def _notes(runs: Sequence[tuple[dict[str, Any], Report]]) -> list[str]:
             extra.append(f"{report.missing:,} missing, {report.errors:,} errors")
         tail = f"; {'; '.join(extra)}" if extra else ""
         notes.append(
-            f"- {_system_label(header)}: {header['release']}, commit {commit}, dataset "
+            f"- {system_label(header)}: {header['release']}, commit {commit}, dataset "
             f"{dataset['sha256'][:12]}, {header['started']}{tail}"
         )
     return notes
