@@ -54,6 +54,10 @@ class System(ABC):
         """The hosted service the system sends phrases to, or None if it runs locally."""
         return None
 
+    def warnings(self) -> list[str]:
+        """What the run should report besides its metrics (an LLM prompt cache never read)."""
+        return []
+
     def close(self) -> None:  # noqa: B027  (optional hook)
         """Release what the system holds (clients, models)."""
 

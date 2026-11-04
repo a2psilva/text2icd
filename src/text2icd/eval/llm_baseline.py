@@ -21,7 +21,8 @@ from text2icd.eval.predictions import Prediction
 from text2icd.eval.systems import EmbeddingSystem, Options, System, SystemSetupError, option
 from text2icd.graph.model import Graph
 from text2icd.llm.cost import BudgetExceededError, CostMeter, load_prices
-from text2icd.llm.providers import ChoiceModel, choice_model
+from text2icd.llm.navigator import provider_model
+from text2icd.llm.providers import ChoiceModel, LLMUnavailableError
 
 CANDIDATES = 20
 MAX_TOKENS = 200
@@ -90,20 +91,18 @@ class LLMChoiceSystem(System):
             raise SystemSetupError(f"unknown options for llm: {', '.join(sorted(unknown))}")
         self.graph = graph
         self.candidates = option(options, "candidates", CANDIDATES)
-        self.provider = options.get("provider") or settings.llm_provider
-        model_id = options.get("model") or settings.llm_model
-        if model is None and (self.provider == "none" or not model_id):
-            raise SystemSetupError(
-                "the llm system needs a provider and a model: set TEXT2ICD_LLM_PROVIDER and "
-                "TEXT2ICD_LLM_MODEL, or pass -O provider=... -O model=..."
-            )
         try:
             budget = float(options.get("budget", settings.llm_budget_usd))
         except ValueError:
             raise SystemSetupError("option budget must be a number of US dollars") from None
         effort = options.get("effort", "low")
-        api_key = settings.llm_api_key.get_secret_value() if settings.llm_api_key else None
-        self.model = model or choice_model(self.provider, model_id, api_key=api_key, effort=effort)
+        named = {key: options.get(key) for key in ("provider", "model")}
+        if model is None:
+            try:
+                model = provider_model(settings, effort=effort, **named)
+            except LLMUnavailableError as exc:
+                raise SystemSetupError(f"the llm system: {exc}") from exc
+        self.model = model
         self.meter = CostMeter(load_prices().get(self.model.provider, self.model.model), budget)
         retriever_options = {"top": str(self.candidates)}
         if "retriever_model" in options:
@@ -174,6 +173,10 @@ class LLMChoiceSystem(System):
     @property
     def endpoint(self) -> str | None:
         return self.model.provider
+
+    def warnings(self) -> list[str]:
+        warning = self.meter.cache_warning()
+        return [warning] if warning else []
 
     def close(self) -> None:
         self.retriever.close()

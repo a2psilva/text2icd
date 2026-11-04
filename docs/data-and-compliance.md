@@ -62,10 +62,18 @@ text2icd therefore:
 
 The allow-list is `ALLOW_LIST` in `src/text2icd/llm/providers.py`; each entry quotes its basis in
 the PhysioNet guidance and the date it was checked. It holds the providers that text2icd implements
-and that the guidance names, currently only `anthropic` (the guidance, checked 2026-11-01, says
-Claude does not train on prompts or responses by default and that routine human review is not
-performed). `text2icd eval run` refuses an LLM system on a MIMIC-IV dataset when the flag is off or
-the provider is not on the list.
+and that the guidance names (checked 2026-11-04):
+
+- `anthropic`: the guidance says Claude does not train on prompts or responses by default and that
+  routine human review is not performed;
+- `bedrock`: the guidance names Amazon Bedrock and says data is not shared back to the base model
+  for training. Claude in Amazon Bedrock runs on AWS-managed infrastructure under Amazon Bedrock's
+  data protection terms.
+
+`vertex` (Claude on Google Cloud Vertex AI) is implemented but **not** on the list: the guidance
+names Vertex AI for Google's Gemini models only. Check Google Cloud's data governance terms and your
+own data use agreement before adding it. `text2icd eval run` refuses an LLM system on a MIMIC-IV
+dataset when the flag is off or the provider is not on the list.
 
 Re-read the PhysioNet page before running MIMIC-IV experiments with an LLM. It may have changed since
 this document was written.

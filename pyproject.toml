@@ -48,6 +48,14 @@ embeddings = [
 llm = [
     "anthropic>=2.3",
 ]
+# The same LLM navigator on Amazon Bedrock (boto3 for AWS credentials) or Google Cloud Vertex AI
+# (google-auth for Application Default Credentials).
+bedrock = [
+    "anthropic[bedrock]>=2.3",
+]
+vertex = [
+    "anthropic[vertex]>=2.3",
+]
 
 [dependency-groups]
 dev = [

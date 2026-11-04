@@ -27,6 +27,8 @@ def test_defaults() -> None:
     assert settings.require_dua_compliant_endpoint is True
     assert settings.llm_max_calls_per_phrase == 4
     assert settings.llm_budget_usd == 1.0
+    assert (settings.llm_region, settings.llm_project) == (None, None)
+    assert (settings.llm_timeout_s, settings.llm_max_retries) == (30.0, 2)
 
 
 def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -51,9 +53,12 @@ def test_dotenv_file_is_read(tmp_path: Path) -> None:
 def test_blank_values_mean_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEXT2ICD_RELEASE", "")
     monkeypatch.setenv("TEXT2ICD_LLM_API_KEY", "  ")
+    monkeypatch.setenv("TEXT2ICD_LLM_REGION", "")
+    monkeypatch.setenv("TEXT2ICD_LLM_PROJECT", " ")
     settings = Settings()
     assert settings.release is None
     assert settings.llm_api_key is None
+    assert (settings.llm_region, settings.llm_project) == (None, None)
 
 
 @pytest.mark.parametrize("release", ["2026", "FY2026", "fy26", "fy2026-oct", "fy2026apr"])

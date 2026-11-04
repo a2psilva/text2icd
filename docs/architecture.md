@@ -417,13 +417,25 @@ rules (long enough to meet the provider's minimum for prompt caching), then the 
 path so far, and the numbered options. The response is a structured output whose `choice` field is
 an enum of the option ids plus `none`. Requests use low reasoning effort and a small output limit.
 
-Limits: a per-phrase call cap, a per-run dollar budget, and a cost log entry per call. When a limit is
-reached the cascade returns the best deterministic answer with a `needs_review` flag.
+The navigator (`text2icd.llm`, `Navigator.choose(decision) -> Choice`) keeps only an answer that
+names one of the decision's options; an answer outside them counts as `none`, and `none` keeps the
+coder's own answer. The phrase is fenced in `<phrase>` tags and the system prompt says it is data,
+not instructions, so a phrase cannot talk the model into another code.
 
-Providers: hosted LLM services (for example Amazon Bedrock or Google Vertex AI) behind one
-interface. With `require_dua_compliant_endpoint` on, only endpoints listed as approved in
+Limits: a per-phrase call cap (`TEXT2ICD_LLM_MAX_CALLS_PER_PHRASE`, 4), a per-run dollar budget
+(`TEXT2ICD_LLM_BUDGET_USD`), a timeout per attempt (`TEXT2ICD_LLM_TIMEOUT_S`, 30 s) and retries of
+rate limits, server and network errors only (`TEXT2ICD_LLM_MAX_RETRIES`, 2). When a limit is
+reached, a call fails or the answer is unusable, the cascade returns the best deterministic answer
+with a `needs_review` flag. Errors no retry can fix (bad credentials, no access, unknown model) stop
+the run. Each call's cost comes from its `usage` fields and the price table, and a run warns when
+the prompt cache is never read after the first calls.
+
+Providers, each through the official `anthropic` SDK client: the Anthropic API (`anthropic`),
+Amazon Bedrock (`bedrock`, extra `bedrock`) and Google Cloud Vertex AI (`vertex`, extra `vertex`).
+With `require_dua_compliant_endpoint` on, only endpoints listed as approved in
 [data-and-compliance.md](data-and-compliance.md) can be used. Offline evaluation uses the
-provider's batch API where one exists, since batch requests are usually discounted.
+provider's batch API where one exists (the Anthropic API's Message Batches), since batch requests
+are discounted.
 
 ## Output schema
 
