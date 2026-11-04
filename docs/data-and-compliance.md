@@ -24,7 +24,8 @@ These follow from the data use agreement. When in doubt, do not share, and ask P
 4. **Keep restricted files in git-ignored locations**: `data/` and `notebooks/local/`. Result caches go
    to `.text2icd/`, which is also git-ignored. The L3 decision cache there
    (`decisions.sqlite`) holds only hashes of the decisions and the option ids chosen, never a
-   phrase.
+   phrase. Message Batches (`-O llm=batch`) keep a batch's results on the provider for up to 29
+   days; text2icd deletes each batch as soon as its results are read.
 5. **LLM calls on MIMIC-IV text must go only to an approved endpoint** (next section).
 6. Each person who runs MIMIC-IV experiments needs their own PhysioNet credentialing and signed DUA.
 

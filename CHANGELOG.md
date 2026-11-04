@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Offline evaluation through Message Batches (task 8.8): `coder -O llm=batch` answers L3's
+  decisions in rounds of batches (`llm.batch`: `BatchModel`, `Collector`, `Replay`,
+  `answer_in_rounds`) at the batch price, keyed by their decision-cache key, then codes every
+  phrase from the cache. The budget holds before each batch (an upper bound of each request's
+  cost), answers are checked against the options, and each batch is deleted from the provider
+  once its results are read. Anthropic API only; Bedrock and Vertex AI offer no batches.
 - L3 in the coder (tasks 8.3 and 8.9): `resolve.navigate` asks the navigator, for a phrase L1
   and L2 still escalate, an abbreviation's meaning, the main term (when the Index entries are
   many), the Index entry (with retrieval's codes after the entries) and the Tabular child (when
