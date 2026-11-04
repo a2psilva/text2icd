@@ -367,6 +367,8 @@ _FORMULAS: dict[str, Formula] = {
     "LLM calls per phrase": _ratio("llm_calls", "one"),
     "cost per 1,000 phrases": _ratio("cost", "one", 1000.0),
 }
+# Every metric a report can hold; calibration error only when the system gives a confidence.
+METRICS = (*_FORMULAS, "calibration error")
 
 
 def report_to_json(report: Report) -> dict[str, JsonValue]:

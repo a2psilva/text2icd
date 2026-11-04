@@ -9,6 +9,16 @@ examples), used for regression tests in CI. The format is described in
 [docs/evaluation.md](../../docs/evaluation.md#file-format); `fy2027-sample.manifest.json` records
 the seed, the graph it was generated from and the hash of the full set.
 
+`fy2027-sample.expected.toml` holds the regression bounds that CI checks after running each system
+on the sample:
+
+```bash
+uv run text2icd eval run -d cms-synthetic-sample -s coder --split all -r fy2027 -o out/coder.jsonl
+uv run text2icd eval check out/*.jsonl -e benchmarks/cms-synthetic/fy2027-sample.expected.toml
+```
+
+Regenerating the sample changes its hash, so the bounds must be measured again.
+
 ## How the phrases are made
 
 | Generator | Source | Example |

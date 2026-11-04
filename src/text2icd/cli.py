@@ -30,6 +30,7 @@ from text2icd.eval.calibrate import (
     refuse_output,
 )
 from text2icd.eval.calibrate import lines as calibration_lines
+from text2icd.eval.check import check, check_lines, load_expectations
 from text2icd.eval.datasets import (
     DatasetError,
     Example,
@@ -876,6 +877,32 @@ def eval_report_command(
         typer.echo(str(output))
     else:
         typer.echo(text, nl=False)
+
+
+@eval_app.command("check")
+def eval_check(
+    results: Annotated[list[Path], typer.Argument(help="Result files (or their .metrics.json).")],
+    expected: Annotated[
+        Path, typer.Option("--expected", "-e", help="Expectations file (TOML) with the bounds.")
+    ],
+) -> None:
+    """Check runs against the bounds of an expectations file; exit 1 when any fails."""
+    try:
+        expectations = load_expectations(expected)
+        runs = [read_metrics(path) for path in results]
+    except (OSError, KeyError, ValueError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    outcomes = check(runs, expectations)
+    typer.echo("\n".join(check_lines(outcomes)))
+    ran = {eval_report.system_label(header) for header, _ in runs}
+    if skipped := [label for label in expectations.systems if label not in ran]:
+        typer.echo(f"not run, not checked: {', '.join(skipped)}")
+    failed = sum(not o.ok for o in outcomes)
+    if failed:
+        typer.echo(f"{failed} of {len(outcomes)} checks failed", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"all {len(outcomes)} checks passed")
 
 
 @eval_app.command("main-terms")

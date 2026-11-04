@@ -542,8 +542,14 @@ diagnoses, and at least 95% of expansions right. Results so far, FY2027:
 - Runs of the `coder` system also show accuracy on the phrases the coder keeps and on those it
   escalates (each prediction records the layers that escalated it). `-O retrieval=on` adds L2 to
   the coder, so the two runs compare L2 on the same escalated phrases.
-- The CI integration job runs B1 on the committed `cms-synthetic` sample, so the harness itself is
-  exercised on every pull request.
+- The CI integration job runs the coder, B1 and B2 on the committed `cms-synthetic` sample and
+  checks them against the bounds in `benchmarks/cms-synthetic/fy2027-sample.expected.toml`
+  (`text2icd eval check RESULT... -e FILE`, exit 1 on any failure). The file pins the sample's hash
+  and release, and gives each system, by its report label, floors half a point below the measured
+  accuracy and code-set F1, plus exact bounds: no invalid codes, no errors, $0, and for the coder
+  the calibration error and the accuracy of the phrases it keeps. A pull request that improves a
+  number raises its floor; one that lowers a floor says why. `coder + L2` is in the file too but
+  checked only locally, since CI does not build the vectors.
 - Ablations switch off one component at a time: no Index walk, no Tabular verification, no
   abbreviation lexicon, no L2, no L3.
 - Error analysis groups failures into buckets (wrong main term, wrong subterm, wrong Tabular child,
