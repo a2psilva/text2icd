@@ -61,10 +61,16 @@ phrase supports; a subentry is supported only when the phrase states it, in the 
 words. Words in parentheses are nonessential modifiers and need not be stated. When the phrase \
 gives no detail for any subentry, choose the main term's own code (its default code). Options \
 marked "retrieval" were found by searching the Tabular List, not by the Index: choose one only \
-when no Index path fits the phrase.
+when no Index path fits the phrase. A later question may refine the code (a more specific \
+code under it, or its 7th character), so choose the entry that is right in everything else.
 - Tabular child: each option is a code under the code shown in the path. Choose the code whose \
 title the phrase supports. When the phrase does not state the detail that separates the codes, \
-choose the unspecified code; never choose a more specific code on a guess (I.A.9, I.B.18).
+choose the unspecified code; never choose a more specific code on a guess (I.A.9, I.B.18). \
+When a poisoning or toxic effect states no intent, its intent is accidental; "undetermined" is \
+only for a record that says the intent cannot be determined (I.C.19.e.5.b). When the options \
+differ only in the episode of care (the 7th character), choose the episode the phrase states, \
+also when it is misspelled or abbreviated ("subsequent encountter", "subs enc"); when it states \
+none, answer "none" so the program keeps its default.
 - Abbreviation: each option is one meaning of the abbreviation as it is written in the phrase. \
 Choose the meaning a coder would read in a hospital record, given the rest of the phrase.
 
@@ -97,6 +103,8 @@ def decision_prompt(decision: Decision) -> str:
         line = f"{option.id}. {option.text}"
         if option.code:
             line += f": {option.code}"
+            if option.title:
+                line += f" {option.title}"
         if option.note:
             line += f" ({option.note})"
         lines.append(line)

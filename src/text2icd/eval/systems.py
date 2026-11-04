@@ -18,6 +18,10 @@ from text2icd.config import Settings
 from text2icd.embeddings import Embedder, StaticEmbedder, VectorIndex
 from text2icd.eval.predictions import Prediction
 from text2icd.graph.model import Graph
+from text2icd.llm.cost import PriceError
+from text2icd.llm.navigator import LLMNavigator, Navigator, build_navigator
+from text2icd.llm.prompts import PROMPT_VERSION
+from text2icd.llm.providers import LLMUnavailableError
 from text2icd.resolve.coder import Coder
 from text2icd.resolve.confidence import CalibrationError, read_calibration
 from text2icd.resolve.retrieve import VectorsError, load_vectors
@@ -33,7 +37,7 @@ class SystemSetupError(ValueError):
 
 class System(ABC):
     name: ClassVar[str]
-    uses_llm: ClassVar[bool] = False
+    uses_llm: bool = False  # sends phrases to an LLM (a class may set it per instance)
 
     @abstractmethod
     def predict(self, phrase: str) -> Prediction:
@@ -222,16 +226,21 @@ class CoderSystem(System):
 
     `-O retrieval=on` adds L2 (task 7.6): an escalated phrase is coded again from the best of
     the coder's codes and the retrieved ones, by the table's retrieval stage, with the graph's
-    vectors file. Each prediction records the layers that escalated it."""
+    vectors file. Each prediction records the layers that escalated it.
+
+    `-O llm=on` adds L3 (task 8.3) with the settings' provider and model (`TEXT2ICD_LLM_*`), or
+    `-O provider=... -O model=... -O effort=... -O budget=...`; `-O cache=off` skips the decision
+    cache. Each prediction records its LLM calls, cost and token usage."""
 
     name = "coder"
+    LLM_OPTIONS = ("llm", "provider", "model", "effort", "budget", "cache")
 
     def __init__(self, graph: Graph, settings: Settings, options: Options) -> None:
         self.width = option(options, "width", WIDTH)
         setting = options.get("setting", "inpatient")
         episode = options.get("episode", settings.default_episode)
         retrieval = options.get("retrieval", "off")
-        unknown = set(options) - {"width", "setting", "episode", "retrieval"}
+        unknown = set(options) - {"width", "setting", "episode", "retrieval", *self.LLM_OPTIONS}
         if unknown:
             raise SystemSetupError(f"unknown options for coder: {', '.join(sorted(unknown))}")
         if setting not in ("inpatient", "outpatient"):
@@ -260,10 +269,35 @@ class CoderSystem(System):
                 retriever = load_vectors(graph)
             except (VectorsError, ValueError) as exc:
                 raise SystemSetupError(str(exc)) from exc
+        self.navigator = self._navigator(settings, options)
         try:
-            self.coder = Coder(graph, walker, verifier, self.calibration, retriever)
+            self.coder = Coder(graph, walker, verifier, self.calibration, retriever, self.navigator)
         except CalibrationError as exc:
             raise SystemSetupError(str(exc)) from exc
+        self.uses_llm = self.endpoint is not None
+
+    def _navigator(self, settings: Settings, options: Options) -> Navigator | None:
+        llm = options.get("llm", "off")
+        cache = options.get("cache", "on")
+        for name, value in (("llm", llm), ("cache", cache)):
+            if value not in ("on", "off"):
+                raise SystemSetupError(f"option {name} must be on or off, got {value!r}")
+        if llm == "off":
+            given = sorted(set(options) & set(self.LLM_OPTIONS) - {"llm"})
+            if given:
+                raise SystemSetupError(f"options {', '.join(given)} need llm=on")
+            return None
+        if self.calibration is None:
+            raise SystemSetupError("llm=on needs a calibration table: L3 runs on escalated phrases")
+        try:
+            budget = float(options["budget"]) if "budget" in options else None
+        except ValueError:
+            raise SystemSetupError("option budget must be a number of US dollars") from None
+        named = {key: options.get(key) for key in ("provider", "model", "effort")}
+        try:
+            return build_navigator(settings, budget=budget, cache=cache == "on", **named)
+        except (LLMUnavailableError, PriceError) as exc:
+            raise SystemSetupError(f"llm=on: {exc}") from exc
 
     def predict(self, phrase: str) -> Prediction:
         code_set = self.coder.code(phrase)
@@ -274,18 +308,49 @@ class CoderSystem(System):
             alternates=first,
             confidence=code_set.confidence,
             escalated=code_set.escalated if self.calibration is not None else None,
+            llm_calls=code_set.llm_calls,
+            cost_usd=code_set.cost_usd,
+            usage=code_set.usage,
         )
 
     def settings(self) -> dict[str, JsonValue]:
         fitted = self.calibration.fitted if self.calibration is not None else {}
         retriever = self.coder.retriever
+        llm: dict[str, JsonValue] | None = None
+        if isinstance(self.navigator, LLMNavigator):
+            llm = {
+                "provider": self.navigator.provider,
+                "model": self.navigator.model,
+                "effort": getattr(self.navigator.chooser, "effort", None),
+                "calls_per_phrase": self.navigator.calls_per_phrase,
+                "budget_usd": self.navigator.meter.budget_usd,
+                "prompt_version": PROMPT_VERSION,
+                "decision_cache": self.navigator.cache is not None,
+            }
         return {
             "width": self.width,
             "setting": self.setting,
             "episode": self.episode,
             "calibration": fitted.get("name"),
             "retrieval": retriever.name if retriever is not None else None,
+            "llm": llm,
         }
+
+    @property
+    def endpoint(self) -> str | None:
+        if self.navigator is None or self.navigator.provider == "none":
+            return None
+        return self.navigator.provider
+
+    def warnings(self) -> list[str]:
+        if isinstance(self.navigator, LLMNavigator):
+            warning = self.navigator.meter.cache_warning()
+            return [warning] if warning else []
+        return []
+
+    def close(self) -> None:
+        if self.navigator is not None:
+            self.navigator.close()
 
 
 Factory = Callable[[Graph, Settings, Options], System]

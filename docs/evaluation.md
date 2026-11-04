@@ -541,7 +541,11 @@ diagnoses, and at least 95% of expansions right. Results so far, FY2027:
   provenance line per run; `--by-chapter` adds per-chapter tables. Only aggregate numbers appear.
 - Runs of the `coder` system also show accuracy on the phrases the coder keeps and on those it
   escalates (each prediction records the layers that escalated it). `-O retrieval=on` adds L2 to
-  the coder, so the two runs compare L2 on the same escalated phrases.
+  the coder, so the two runs compare L2 on the same escalated phrases. `-O llm=on` adds L3 with the
+  settings' provider and model (or `-O provider=... -O model=... -O budget=...`); the escalated
+  phrases stay the ones L1 and L2 escalated, so a run with L3 shows what it changes there, with
+  its LLM call rate and cost per 1,000 phrases. Answers are kept in the decision cache
+  (`.text2icd/decisions.sqlite`, `-O cache=off` to skip it), so a repeated run costs nothing.
 - The CI integration job runs the coder, B1 and B2 on the committed `cms-synthetic` sample and
   checks them against the bounds in `benchmarks/cms-synthetic/fy2027-sample.expected.toml`
   (`text2icd eval check RESULT... -e FILE`, exit 1 on any failure). The file pins the sample's hash

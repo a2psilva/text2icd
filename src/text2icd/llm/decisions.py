@@ -9,7 +9,7 @@ numbered, and the answer names one of them or `none`; a choice is never anything
 import hashlib
 import json
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,15 +21,25 @@ NONE = "none"
 ChosenBy = Literal["llm", "cache", "limit", "error", "off"]
 
 
+class Offer(NamedTuple):
+    """An option before it is numbered."""
+
+    text: str  # an Index path, a code title, a meaning
+    code: str | None = None  # the billable code it leads to, if it leads to one
+    title: str | None = None  # that code's title in the Tabular List
+    note: str | None = None  # how it was found, when that matters ("retrieval")
+
+
 class Option(BaseModel):
     """One way forward."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str  # what the answer names: "1", "2", ...
-    text: str  # an Index path, a code title, a meaning
-    code: str | None = None  # the billable code it leads to, if it leads to one
-    note: str | None = None  # how it was found, when that matters ("retrieval")
+    text: str
+    code: str | None = None
+    title: str | None = None
+    note: str | None = None
 
 
 class Decision(BaseModel):
@@ -46,15 +56,14 @@ class Decision(BaseModel):
         cls,
         kind: DecisionKind,
         phrase: str,
-        options: Sequence[tuple[str, str | None, str | None]],
+        offers: Sequence[Offer],
         *,
         subject: str | None = None,
         path: Sequence[str] = (),
     ) -> "Decision":
         """A decision with its options numbered from 1, in the order given."""
         numbered = tuple(
-            Option(id=str(n), text=text, code=code, note=note)
-            for n, (text, code, note) in enumerate(options, start=1)
+            Option(id=str(n), **Offer(*offer)._asdict()) for n, offer in enumerate(offers, start=1)
         )
         return cls(kind=kind, phrase=phrase, subject=subject, path=tuple(path), options=numbered)
 

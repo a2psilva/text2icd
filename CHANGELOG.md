@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- L3 in the coder (tasks 8.3 and 8.9): `resolve.navigate` asks the navigator, for a phrase L1
+  and L2 still escalate, an abbreviation's meaning, the main term (when the Index entries are
+  many), the Index entry (with retrieval's codes after the entries) and the Tabular child (when
+  the phrase does not settle it, the 7th character's episode of care included), and codes the phrase again with each choice. No option keeps the
+  coder's code set, flagged `needs_review`. `TabularVerifier.open_choice` finds the node to ask
+  about. `CodeSet` records `llm_calls`, `cost_usd` and `usage`, and `resolver` is `llm` when L3
+  changed the primary code. The `coder` eval system takes `-O llm=on` (and `provider`, `model`,
+  `effort`, `budget`, `cache`), reports the provider as its endpoint for the MIMIC-IV policy, and
+  is labelled `coder + L2 + L3 (<model>)`. `llm.cache.DecisionCache` stores answers by hash in
+  `.text2icd/decisions.sqlite`, never the phrase.
+- `eval run` stops at the first error no retry can fix (bad credentials, no access, unknown
+  model) instead of recording it on every phrase.
 - The L3 navigator interface (tasks 8.1, 8.4 to 8.7, 8.10): `text2icd.llm.navigator`
   (`Navigator.choose(decision) -> Choice`, `LLMNavigator`, `NoNavigator` for provider `none`) with
   decisions of four kinds (main term, Index entry, Tabular child, abbreviation sense). One cached

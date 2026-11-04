@@ -22,7 +22,9 @@ These follow from the data use agreement. When in doubt, do not share, and ask P
 3. **Only aggregate results may be published**, for example "accuracy@1 on the MIMIC test split".
    Do not publish individual examples, even in error analysis.
 4. **Keep restricted files in git-ignored locations**: `data/` and `notebooks/local/`. Result caches go
-   to `.text2icd/`, which is also git-ignored.
+   to `.text2icd/`, which is also git-ignored. The L3 decision cache there
+   (`decisions.sqlite`) holds only hashes of the decisions and the option ids chosen, never a
+   phrase.
 5. **LLM calls on MIMIC-IV text must go only to an approved endpoint** (next section).
 6. Each person who runs MIMIC-IV experiments needs their own PhysioNet credentialing and signed DUA.
 

@@ -11,13 +11,15 @@ an unusable answer gives a choice without an option, and the coder keeps its own
 that no later call can fix (bad credentials, no access, unknown model) stop the run instead.
 
 Every call is charged to the meter from the response's `usage` (task 8.7); the choice carries
-its calls, cost, usage and latency, so each phrase records what it spent.
+its calls, cost, usage and latency, so each phrase records what it spent. With a decision cache
+(task 8.9), a decision answered before is answered from it, free and before any limit.
 """
 
 import time
 from typing import Protocol
 
 from text2icd.config import Settings
+from text2icd.llm.cache import FILE, DecisionCache, namespace
 from text2icd.llm.cost import BudgetExceededError, CostMeter, load_prices
 from text2icd.llm.decisions import NONE, Choice, Decision
 from text2icd.llm.prompts import SYSTEM_PROMPT, choice_schema, decision_prompt, max_tokens
@@ -43,6 +45,8 @@ class Navigator(Protocol):
         """The choice for `decision`; `calls`, the calls already made for this phrase."""
         ...
 
+    def close(self) -> None: ...
+
 
 class NoNavigator:
     """No LLM: every decision keeps the coder's own answer."""
@@ -53,14 +57,24 @@ class NoNavigator:
     def choose(self, decision: Decision, *, calls: int = 0) -> Choice:
         return Choice(by="off", reason="no LLM provider (TEXT2ICD_LLM_PROVIDER=none)")
 
+    def close(self) -> None:
+        pass
+
 
 class LLMNavigator:
     def __init__(
-        self, model: ChoiceModel, meter: CostMeter, *, calls_per_phrase: int = CALLS_PER_PHRASE
+        self,
+        model: ChoiceModel,
+        meter: CostMeter,
+        *,
+        calls_per_phrase: int = CALLS_PER_PHRASE,
+        cache: DecisionCache | None = None,
     ) -> None:
         self.chooser = model
         self.meter = meter
         self.calls_per_phrase = calls_per_phrase
+        self.cache = cache
+        self.space = namespace(model.provider, model.model, getattr(model, "effort", ""))
 
     @property
     def provider(self) -> str:
@@ -71,6 +85,8 @@ class LLMNavigator:
         return self.chooser.model
 
     def choose(self, decision: Decision, *, calls: int = 0) -> Choice:
+        if self.cache is not None and (stored := self.cache.get(decision, self.space)):
+            return stored
         if calls >= self.calls_per_phrase:
             return Choice(by="limit", reason=f"{self.calls_per_phrase} calls for this phrase")
         try:
@@ -101,10 +117,18 @@ class LLMNavigator:
             return Choice(by="error", reason=answer.error, **spent)
         chosen = answer.data.get("choice")
         if chosen == NONE:
-            return Choice(by="llm", reason="no option fits", **spent)
-        if not isinstance(chosen, str) or decision.option(chosen) is None:
-            return Choice(by="llm", reason="the answer is not one of the options", **spent)
-        return Choice(option=chosen, by="llm", **spent)
+            choice = Choice(by="llm", reason="no option fits", **spent)
+        elif not isinstance(chosen, str) or decision.option(chosen) is None:
+            choice = Choice(by="llm", reason="the answer is not one of the options", **spent)
+        else:
+            choice = Choice(option=chosen, by="llm", **spent)
+        if self.cache is not None:
+            self.cache.put(decision, self.space, choice.option)
+        return choice
+
+    def close(self) -> None:
+        if self.cache is not None:
+            self.cache.close()
 
 
 def provider_model(settings: Settings, **overrides: str | None) -> ChoiceModel:
@@ -124,10 +148,15 @@ def provider_model(settings: Settings, **overrides: str | None) -> ChoiceModel:
 
 
 def build_navigator(
-    settings: Settings, *, budget: float | None = None, **overrides: str | None
+    settings: Settings,
+    *,
+    budget: float | None = None,
+    cache: bool = True,
+    **overrides: str | None,
 ) -> Navigator:
     """The navigator the settings describe: `NoNavigator` for provider `none`, else the model's,
-    with its price (`PriceError` when the price table has none) and the run's limits."""
+    with its price (`PriceError` when the price table has none), the run's limits and, unless
+    `cache` is False, the decision cache in the settings' cache directory."""
     if (overrides.get("provider") or settings.llm_provider) == "none":
         return NoNavigator()
     provider, model = _named(settings, overrides)
@@ -135,7 +164,12 @@ def build_navigator(
     price = load_prices().get(provider, priced)  # before any client is made
     chooser = provider_model(settings, **overrides)
     meter = CostMeter(price, settings.llm_budget_usd if budget is None else budget)
-    return LLMNavigator(chooser, meter, calls_per_phrase=settings.llm_max_calls_per_phrase)
+    return LLMNavigator(
+        chooser,
+        meter,
+        calls_per_phrase=settings.llm_max_calls_per_phrase,
+        cache=DecisionCache(settings.cache_dir / FILE) if cache else None,
+    )
 
 
 def _named(settings: Settings, overrides: dict[str, str | None]) -> tuple[str, str]:
