@@ -115,6 +115,13 @@ class MessagesModel:
         self._client = client
 
     def ask(self, *, system: str, prompt: str, schema: dict[str, Any], max_tokens: int) -> Answer:
+        request = self.request(system=system, prompt=prompt, schema=schema, max_tokens=max_tokens)
+        return read_answer(self._client.messages.create(**request))
+
+    def request(
+        self, *, system: str, prompt: str, schema: dict[str, Any], max_tokens: int
+    ) -> dict[str, Any]:
+        """The Messages API request of one question, as `ask` sends it and a batch holds it."""
         request: dict[str, Any] = {
             "model": self.model,
             "max_tokens": max_tokens,
@@ -127,21 +134,29 @@ class MessagesModel:
         }
         if not self.thinking:
             request["thinking"] = {"type": "disabled"}
-        response = self._client.messages.create(**request)
-        usage = Usage.from_response(response.usage)
-        stop = str(response.stop_reason)
-        if stop == "refusal":
-            return Answer(None, usage, stop, "the model refused")
-        text = next((b.text for b in response.content if getattr(b, "type", "") == "text"), None)
-        if stop == "max_tokens" or text is None:
-            return Answer(None, usage, stop, f"no complete answer (stop reason {stop})")
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            return Answer(None, usage, stop, "the answer is not JSON")
-        if not isinstance(data, dict):
-            return Answer(None, usage, stop, "the answer is not a JSON object")
-        return Answer(data, usage, stop)
+        return request
+
+    @property
+    def client(self) -> Any:
+        return self._client
+
+
+def read_answer(response: Any) -> Answer:
+    """The JSON object of a Messages API response (or a batch result's message)."""
+    usage = Usage.from_response(response.usage)
+    stop = str(response.stop_reason)
+    if stop == "refusal":
+        return Answer(None, usage, stop, "the model refused")
+    text = next((b.text for b in response.content if getattr(b, "type", "") == "text"), None)
+    if stop == "max_tokens" or text is None:
+        return Answer(None, usage, stop, f"no complete answer (stop reason {stop})")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return Answer(None, usage, stop, "the answer is not JSON")
+    if not isinstance(data, dict):
+        return Answer(None, usage, stop, "the answer is not a JSON object")
+    return Answer(data, usage, stop)
 
 
 class AnthropicModel(MessagesModel):

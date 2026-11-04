@@ -318,7 +318,7 @@ def test_coder_system_options(
 ) -> None:
     with pytest.raises(SystemSetupError, match="options model, provider need llm=on"):
         build_system("coder", graph, Settings(), {"provider": "anthropic", "model": "m"})
-    with pytest.raises(SystemSetupError, match="llm must be on or off"):
+    with pytest.raises(SystemSetupError, match="llm must be on, off or batch"):
         build_system("coder", graph, Settings(), {"llm": "yes"})
     with pytest.raises(SystemSetupError, match="no price for claude-unknown"):
         build_system(
@@ -344,9 +344,74 @@ def test_coder_system_options(
         "budget_usd": 0.5,
         "prompt_version": 1,
         "decision_cache": True,
+        "batch": False,
     }
     assert (tmp_path / "cache" / FILE).exists()
     assert system.warnings() == []
     system.close()
+    batched = build_system("coder", graph, settings, {"llm": "batch"})
+    assert batched.settings()["llm"]["batch"] is True  # type: ignore[index]
+    batched.close()
+    with pytest.raises(SystemSetupError, match="keeps the batch answers in the decision cache"):
+        build_system("coder", graph, settings, {"llm": "batch", "cache": "off"})
     uncached = build_system("coder", graph, settings, {"llm": "on", "cache": "off"})
     assert uncached.settings()["llm"]["decision_cache"] is False  # type: ignore[index]
+
+
+def test_batch_rounds(graph: Graph, tmp_path: Path) -> None:
+    """Task 8.8 end to end: decisions go out in rounds of batches until no phrase waits, then
+    every phrase is coded from the cache; the first phrase that uses an answer pays for it."""
+    from types import SimpleNamespace
+
+    from text2icd.llm.batch import BatchModel, Collector, Replay, answer_in_rounds
+    from text2icd.llm.providers import AnthropicModel
+
+    created: list[list[dict[str, Any]]] = []
+
+    def message(text: str) -> Any:
+        usage = SimpleNamespace(input_tokens=100, output_tokens=6)
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="text", text=text)], stop_reason="end_turn", usage=usage
+        )
+
+    def reply(request: dict[str, Any]) -> str:
+        prompt = request["params"]["messages"][0]["content"]
+        number = next(line.split(".")[0] for line in prompt.splitlines() if ": E85.4" in line)
+        return f'{{"choice": "{number}"}}'
+
+    batches = SimpleNamespace(
+        create=lambda requests: (
+            created.append(list(requests)) or SimpleNamespace(id=str(len(created)))
+        ),
+        retrieve=lambda batch_id: SimpleNamespace(processing_status="ended"),
+        results=lambda batch_id: [
+            SimpleNamespace(
+                custom_id=r["custom_id"],
+                result=SimpleNamespace(type="succeeded", message=message(reply(r))),
+            )
+            for r in created[int(batch_id) - 1]
+        ],
+        delete=lambda batch_id: None,
+    )
+    model = AnthropicModel(
+        "claude-haiku-5-5", client=SimpleNamespace(messages=SimpleNamespace(batches=batches))
+    )
+    price = load_prices().get("anthropic", "claude-haiku-5-5")
+    space = namespace("anthropic", "claude-haiku-5-5", "low")
+    with DecisionCache(tmp_path / FILE) as cache:
+        batch = BatchModel(model, CostMeter(price, 1.0, batch=True), cache, space)
+        tool = coder(graph, None)
+        collector = Collector(cache, space, "anthropic", "claude-haiku-5-5")
+        tool.navigator = collector
+        phrases = [DIABETES, "aspiration pneumonia", DIABETES]
+        answered = answer_in_rounds(tool.code, phrases, collector, batch, rounds=4)
+        assert len(created) == 1  # one round: the chosen entry raises no further decision
+        assert len(created[0]) == 1  # the repeated phrase asks once
+        tool.navigator = Replay(cache, space, "anthropic", "claude-haiku-5-5", answered, 4)
+        first, confident, again = (tool.code(p) for p in phrases)
+    assert first.codes[0] == "E85.4"
+    assert (first.llm_calls, first.resolver, first.escalate) == (1, "llm", False)
+    assert first.cost_usd == pytest.approx(price.cost(Usage(100, 6), batch=True))
+    assert (again.codes[0], again.llm_calls, again.cost_usd) == ("E85.4", 0, 0.0)
+    assert "chose 2 (cached)" in again.trace[-1].detail
+    assert confident.llm_calls == 0

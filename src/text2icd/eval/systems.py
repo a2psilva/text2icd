@@ -18,10 +18,11 @@ from text2icd.config import Settings
 from text2icd.embeddings import Embedder, StaticEmbedder, VectorIndex
 from text2icd.eval.predictions import Prediction
 from text2icd.graph.model import Graph
-from text2icd.llm.cost import PriceError
+from text2icd.llm.batch import BatchError, BatchModel, Collector, Replay, answer_in_rounds
+from text2icd.llm.cost import CostMeter, PriceError
 from text2icd.llm.navigator import LLMNavigator, Navigator, build_navigator
 from text2icd.llm.prompts import PROMPT_VERSION
-from text2icd.llm.providers import LLMUnavailableError
+from text2icd.llm.providers import LLMUnavailableError, MessagesModel
 from text2icd.resolve.coder import Coder
 from text2icd.resolve.confidence import CalibrationError, read_calibration
 from text2icd.resolve.retrieve import VectorsError, load_vectors
@@ -230,7 +231,9 @@ class CoderSystem(System):
 
     `-O llm=on` adds L3 (task 8.3) with the settings' provider and model (`TEXT2ICD_LLM_*`), or
     `-O provider=... -O model=... -O effort=... -O budget=...`; `-O cache=off` skips the decision
-    cache. Each prediction records its LLM calls, cost and token usage."""
+    cache. Each prediction records its LLM calls, cost and token usage. `-O llm=batch` answers
+    the decisions through Message Batches first (task 8.8, Anthropic API only, half price), then
+    codes every phrase from the cache."""
 
     name = "coder"
     LLM_OPTIONS = ("llm", "provider", "model", "effort", "budget", "cache")
@@ -269,6 +272,7 @@ class CoderSystem(System):
                 retriever = load_vectors(graph)
             except (VectorsError, ValueError) as exc:
                 raise SystemSetupError(str(exc)) from exc
+        self.batch: BatchModel | None = None
         self.navigator = self._navigator(settings, options)
         try:
             self.coder = Coder(graph, walker, verifier, self.calibration, retriever, self.navigator)
@@ -279,9 +283,12 @@ class CoderSystem(System):
     def _navigator(self, settings: Settings, options: Options) -> Navigator | None:
         llm = options.get("llm", "off")
         cache = options.get("cache", "on")
-        for name, value in (("llm", llm), ("cache", cache)):
-            if value not in ("on", "off"):
-                raise SystemSetupError(f"option {name} must be on or off, got {value!r}")
+        if llm not in ("on", "off", "batch"):
+            raise SystemSetupError(f"option llm must be on, off or batch, got {llm!r}")
+        if cache not in ("on", "off"):
+            raise SystemSetupError(f"option cache must be on or off, got {cache!r}")
+        if llm == "batch" and cache == "off":
+            raise SystemSetupError("llm=batch keeps the batch answers in the decision cache")
         if llm == "off":
             given = sorted(set(options) & set(self.LLM_OPTIONS) - {"llm"})
             if given:
@@ -295,9 +302,37 @@ class CoderSystem(System):
             raise SystemSetupError("option budget must be a number of US dollars") from None
         named = {key: options.get(key) for key in ("provider", "model", "effort")}
         try:
-            return build_navigator(settings, budget=budget, cache=cache == "on", **named)
+            navigator = build_navigator(settings, budget=budget, cache=cache == "on", **named)
         except (LLMUnavailableError, PriceError) as exc:
-            raise SystemSetupError(f"llm=on: {exc}") from exc
+            raise SystemSetupError(f"llm={llm}: {exc}") from exc
+        if llm == "batch":
+            if not isinstance(navigator, LLMNavigator) or navigator.cache is None:
+                raise SystemSetupError("llm=batch needs a provider and a model")
+            chooser = navigator.chooser
+            if not isinstance(chooser, MessagesModel):
+                raise SystemSetupError("llm=batch needs a Messages API model")
+            meter = CostMeter(navigator.meter.price, navigator.meter.budget_usd, batch=True)
+            try:
+                self.batch = BatchModel(chooser, meter, navigator.cache, navigator.space)
+            except BatchError as exc:
+                raise SystemSetupError(str(exc)) from exc
+        return navigator
+
+    def predict_many(self, phrases: Sequence[str]) -> Iterator[Prediction]:
+        navigator = self.navigator
+        if self.batch is not None and isinstance(navigator, LLMNavigator):
+            cache = self.batch.cache
+            named = (navigator.provider, navigator.model)
+            collector = Collector(cache, navigator.space, *named)
+            self.coder.navigator = collector
+            answered = answer_in_rounds(
+                self.coder.code, phrases, collector, self.batch, navigator.calls_per_phrase
+            )
+            self.coder.navigator = Replay(
+                cache, navigator.space, *named, answered, navigator.calls_per_phrase
+            )
+        for phrase in phrases:
+            yield self.predict(phrase)
 
     def predict(self, phrase: str) -> Prediction:
         code_set = self.coder.code(phrase)
@@ -326,7 +361,10 @@ class CoderSystem(System):
                 "budget_usd": self.navigator.meter.budget_usd,
                 "prompt_version": PROMPT_VERSION,
                 "decision_cache": self.navigator.cache is not None,
+                "batch": self.batch is not None,
             }
+            if self.batch is not None:
+                llm["budget_usd"] = self.batch.meter.budget_usd
         return {
             "width": self.width,
             "setting": self.setting,
@@ -343,10 +381,13 @@ class CoderSystem(System):
         return self.navigator.provider
 
     def warnings(self) -> list[str]:
-        if isinstance(self.navigator, LLMNavigator):
+        if self.batch is not None:
+            warning = self.batch.meter.cache_warning()
+        elif isinstance(self.navigator, LLMNavigator):
             warning = self.navigator.meter.cache_warning()
-            return [warning] if warning else []
-        return []
+        else:
+            return []
+        return [warning] if warning else []
 
     def close(self) -> None:
         if self.navigator is not None:
