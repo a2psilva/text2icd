@@ -40,6 +40,11 @@ STOPWORDS = frozenset(
 MIN_CORRECTED = 5  # letters
 LONG_WORD = 9  # letters: two edits allowed from here on
 _SINGULAR_AS = frozenset({"pancreas", "atlas", "alias"})  # other -as words are plurals: hernias
+# Memo sizes (task 9.10). The words come from user input, so a server must not grow without
+# bound; a full memo is emptied, which only costs recomputing the words seen again.
+FORMS_CACHE = 1 << 18
+SPELLING_CACHE = 1 << 16
+_MISSING = "\0missing"  # no word contains NUL
 
 
 def singular(word: str) -> str:
@@ -103,6 +108,8 @@ class WordForms:
         if found is None:
             base = self.plurals.get(word) or singular(word)
             found = self.adjectives.get(base, base)
+            if len(self._forms) >= FORMS_CACHE:  # words come from user input: stay bounded
+                self._forms.clear()
             self._forms[word] = found
         return found
 
@@ -123,7 +130,7 @@ class Speller:
         self._choices = sorted(counts, key=lambda word: (-counts[word], word))
         self._index = frozenset(counts)
         self._known = known
-        self._cache: dict[str, str | None] = {}
+        self._cache: dict[str, str | None] = {}  # bounded by SPELLING_CACHE
 
     @classmethod
     def from_texts(cls, texts: Iterable[str], known: Container[str] = ()) -> "Speller":
@@ -140,8 +147,13 @@ class Speller:
         single nearest Index word."""
         if len(word) < MIN_CORRECTED or not word.isalpha() or self.known(word):
             return None
-        if word not in self._cache:
-            limit = 2 if len(word) >= LONG_WORD else 1
-            best = process.extractOne(word, self._choices, scorer=OSA.distance, score_cutoff=limit)
-            self._cache[word] = None if best is None else best[0]
-        return self._cache[word]
+        cached = self._cache.get(word, _MISSING)
+        if cached is not _MISSING:
+            return cached
+        limit = 2 if len(word) >= LONG_WORD else 1
+        best = process.extractOne(word, self._choices, scorer=OSA.distance, score_cutoff=limit)
+        found = None if best is None else best[0]
+        if len(self._cache) >= SPELLING_CACHE:  # unknown words come from user input
+            self._cache.clear()
+        self._cache[word] = found
+        return found
