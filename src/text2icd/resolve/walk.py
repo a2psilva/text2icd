@@ -249,8 +249,9 @@ class IndexWalker:
     ) -> "IndexWalker":
         return cls(graph, Parser.from_graph(graph, setting), width=width)
 
-    def walk(self, phrase: str) -> WalkResult:
-        parsed = self.parser.parse(phrase)
+    def walk(self, phrase: str, setting: Setting | None = None) -> WalkResult:
+        """`setting`: inpatient or outpatient for this phrase (default: the parser's)."""
+        parsed = self.parser.parse(phrase, setting)
         walks = []
         for members in parsed.diagnoses:
             if not any(parsed.conditions[i].reportable for i in members):

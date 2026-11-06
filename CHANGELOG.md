@@ -6,25 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-### Fixed
-
-- Thread safety for a server (task 9.10). Coding a phrase from any thread but the one that
-  loaded the graph failed with `sqlite3.ProgrammingError` when it reached the Index search.
-  - A `Graph` now opens one read-only connection per thread (and per process after a fork), so
-    searches in different threads also run in parallel.
-  - `DecisionCache` shares its connection under a lock, in WAL mode with a busy timeout, so
-    another process can use the same file.
-  - `CostMeter` updates its totals under a lock.
-  - The word-form and spelling memos, keyed by words from the input, are bounded.
-  - A file that is not a graph raises `GraphError` instead of `sqlite3.DatabaseError`.
-- Index search within one book (task 9.9): SQLite's planner ran one full-text MATCH per term
-  of the book (340 ms for "of" in the Table of Drugs). The query now scans the search table
-  first: 2 ms, the same rows. The coder codes the sample about 1.8 times as fast (644 against
-  361 phrases/s), its slowest phrase drops from 489 to 268 ms, and with L2 from 491 to 21 ms. A
-  test checks the query plan, since SQLite versions differ.
-
 ### Added
 
+- `text2icd.resolve.resolver.Resolver` (tasks 9.2 and 9.3). It is the one place that builds
+  the cascade from the settings:
+  - one Index walker for both settings, since the setting is now per phrase;
+    `IndexWalker.walk`, `Coder.code` and `Coder.deterministic` take `setting`;
+  - a Tabular verifier per episode of care, built when first asked for;
+  - the calibration;
+  - L2's retriever, loaded on the first escalated phrase (`retrieve.LazyRetriever`; the vectors
+    are memory-mapped);
+  - L3 with `llm=True`.
+
+  It keeps the last 4,096 code sets in memory, marked `cached`; nothing derived from a phrase
+  is written to disk, in place of the planned SQLite L0. It refuses phrases over 1,000
+  characters and is safe to share between threads. The CLI's `code` and the `coder` eval system
+  are built through it.
+- `text2icd.result.CodingResult` (task 9.1), the public result:
+  - chunks with their spans in the input;
+  - codes in coding order, with role, `primary`, source and the chunks each one codes;
+  - one calibrated confidence, alternatives, a flat trace, flags, cost;
+  - with `explain`, the per-diagnosis Index paths, notes, Excludes1, L2's pool and L3's
+    decisions.
+
+  Its JSON Schema is `docs/schema/coding-result.json` (`python -m text2icd.result`).
+- `text2icd code --explain` and `--llm` (L3, opt-in; refused without a provider and a model).
 - Spans in the phrase as written (task 9.11, for the UI's chunk view).
   - Normalisation runs on a `text.tracked.Tracked` text, which records where each character came
     from, so `ParsedPhrase.source(start, end)` maps a condition, modifier, cue or relation span
@@ -135,6 +141,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `text2icd code --json` prints a `CodingResult` instead of the internal `CodeSet`.
+- The `Resolver` literal of `resolve.coder` (the cascade's layers) is now `Layer`.
 - Tests no longer read the developer's `.env` file or `TEXT2ICD_*` and `ANTHROPIC_*` variables
   (an autouse fixture in `tests/conftest.py`). Before, a local `.env` that named a provider
   failed three tests, and an API key in it could have reached a paid endpoint.
@@ -152,6 +160,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   quantized weights.
 - `EmbeddingRetriever` takes the codes and vectors of its texts; `EmbeddingRetriever.embed`
   embeds texts.
+
+### Fixed
+
+- Thread safety for a server (task 9.10). Coding a phrase from any thread but the one that
+  loaded the graph failed with `sqlite3.ProgrammingError` when it reached the Index search.
+  - A `Graph` now opens one read-only connection per thread (and per process after a fork), so
+    searches in different threads also run in parallel.
+  - `DecisionCache` shares its connection under a lock, in WAL mode with a busy timeout, so
+    another process can use the same file.
+  - `CostMeter` updates its totals under a lock.
+  - The word-form and spelling memos, keyed by words from the input, are bounded.
+  - A file that is not a graph raises `GraphError` instead of `sqlite3.DatabaseError`.
+- Index search within one book (task 9.9): SQLite's planner ran one full-text MATCH per term
+  of the book (340 ms for "of" in the Table of Drugs). The query now scans the search table
+  first: 2 ms, the same rows. The coder codes the sample about 1.8 times as fast (644 against
+  361 phrases/s), its slowest phrase drops from 489 to 268 ms, and with L2 from 491 to 21 ms. A
+  test checks the query plan, since SQLite versions differ.
 
 ## [0.1.0] - 2026-11-03
 

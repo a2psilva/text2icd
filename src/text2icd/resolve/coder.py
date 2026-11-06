@@ -85,7 +85,8 @@ from text2icd.resolve.walk import (
 from text2icd.text.model import Modifier, ParsedPhrase, Setting
 from text2icd.trace import TraceStep
 
-Resolver = Literal["index", "retrieval", "llm"]
+# The cascade's layers: L1 (the Index walk), L2 (retrieval) and L3 (the LLM navigator).
+Layer = Literal["index", "retrieval", "llm"]
 
 ALTERNATES = 4  # completed alternates kept per diagnosis
 MAX_COMPANIONS = 8  # companion codes added per phrase
@@ -172,8 +173,8 @@ class CodeSet(BaseModel):
     features: dict[str, float] = {}  # what the coder's confidence is computed from (`confidence`)
     confidence: float | None = None  # that the primary code is right; None without a table
     escalate: bool = False  # confidence below the threshold: for the next layer (L2, then L3)
-    escalated: tuple[Resolver, ...] = ()  # the layers whose confidence was below their threshold
-    resolver: Resolver = "index"  # where the primary code's candidate comes from
+    escalated: tuple[Layer, ...] = ()  # the layers whose confidence was below their threshold
+    resolver: Layer = "index"  # where the primary code's candidate comes from
     choice: dict[str, float] = {}  # the features L2 chose the primary code by (`choice`)
     llm_calls: int = 0  # L3's calls for this phrase, and what they cost
     cost_usd: float = 0.0
@@ -263,16 +264,19 @@ class Coder:
         verifier = TabularVerifier(graph, walker.finder.forms, default_episode)
         return cls(graph, walker, verifier, calibration, retriever, navigator)
 
-    def code(self, phrase: str) -> CodeSet:
-        result, code_set, origin = self.deterministic(phrase)
+    def code(self, phrase: str, setting: Setting | None = None) -> CodeSet:
+        """`setting`: inpatient or outpatient for this phrase (default: the walker's)."""
+        result, code_set, origin = self.deterministic(phrase, setting)
         if not code_set.escalate or self.navigator is None:
             return code_set
         return navigate.navigate(self, self.navigator, result, code_set, origin)
 
-    def deterministic(self, phrase: str) -> tuple[WalkResult, CodeSet, int]:
+    def deterministic(
+        self, phrase: str, setting: Setting | None = None
+    ) -> tuple[WalkResult, CodeSet, int]:
         """L1, then L2 when it runs: the walk the code set was assembled from, the code set, and
         the diagnosis of the walk its primary code codes."""
-        result = self.walker.walk(phrase)
+        result = self.walker.walk(phrase, setting)
         code_set, origin = self.assemble(result)
         stage = self.stage
         if not code_set.escalate or self.retriever is None or stage is None:
@@ -465,7 +469,7 @@ class Coder:
                 first.model_copy(update={**update, "trace": (*first.trace, step)}),
                 origin,
             )
-        resolver: Resolver = "retrieval" if candidate.book == choice.BOOK else "index"
+        resolver: Layer = "retrieval" if candidate.book == choice.BOOK else "index"
         second = second.model_copy(
             update={**update, "resolver": resolver, "trace": (*second.trace, step)}
         )
