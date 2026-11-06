@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Thread safety for a server (task 9.10). Coding a phrase from any thread but the one that
+  loaded the graph failed with `sqlite3.ProgrammingError` when it reached the Index search.
+  - A `Graph` now opens one read-only connection per thread (and per process after a fork), so
+    searches in different threads also run in parallel.
+  - `DecisionCache` shares its connection under a lock, in WAL mode with a busy timeout, so
+    another process can use the same file.
+  - `CostMeter` updates its totals under a lock.
+  - The word-form and spelling memos, keyed by words from the input, are bounded.
+  - A file that is not a graph raises `GraphError` instead of `sqlite3.DatabaseError`.
 - Index search within one book (task 9.9): SQLite's planner ran one full-text MATCH per term
   of the book (340 ms for "of" in the Table of Drugs). The query now scans the search table
   first: 2 ms, the same rows. The coder codes the sample about 1.8 times as fast (644 against
