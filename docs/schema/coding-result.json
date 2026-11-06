@@ -1,0 +1,995 @@
+{
+  "$defs": {
+    "AssignedCode": {
+      "additionalProperties": false,
+      "description": "One code of the result, always billable in the release.",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "diagnosis",
+            "manifestation",
+            "code_first",
+            "use_additional",
+            "code_also",
+            "external_cause"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "primary": {
+          "title": "Primary",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "chunks": {
+          "default": [],
+          "items": {
+            "type": "integer"
+          },
+          "title": "Chunks",
+          "type": "array"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        }
+      },
+      "required": [
+        "code",
+        "description",
+        "role",
+        "primary"
+      ],
+      "title": "AssignedCode",
+      "type": "object"
+    },
+    "Chunk": {
+      "additionalProperties": false,
+      "description": "One condition of the phrase, as written (`start`, `end` index the input).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        },
+        "condition": {
+          "title": "Condition",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "current",
+            "history",
+            "family_history",
+            "status_post",
+            "resolved"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "certainty": {
+          "enum": [
+            "affirmed",
+            "negated",
+            "uncertain"
+          ],
+          "title": "Certainty",
+          "type": "string"
+        },
+        "reportable": {
+          "title": "Reportable",
+          "type": "boolean"
+        },
+        "diagnosis": {
+          "title": "Diagnosis",
+          "type": "integer"
+        },
+        "modifiers": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Mark"
+          },
+          "title": "Modifiers",
+          "type": "array"
+        },
+        "cues": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Mark"
+          },
+          "title": "Cues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "start",
+        "end",
+        "condition",
+        "status",
+        "certainty",
+        "reportable",
+        "diagnosis"
+      ],
+      "title": "Chunk",
+      "type": "object"
+    },
+    "CodeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "description"
+      ],
+      "title": "CodeRef",
+      "type": "object"
+    },
+    "Companion": {
+      "additionalProperties": false,
+      "description": "What a `code first`, `use additional code` or `code also` note led to.",
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "codeFirst",
+            "useAdditionalCode",
+            "codeAlso"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "added",
+            "present",
+            "required_unresolved"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "source",
+        "kind",
+        "note",
+        "status"
+      ],
+      "title": "Companion",
+      "type": "object"
+    },
+    "Decided": {
+      "additionalProperties": false,
+      "description": "A decision L3 was asked and its answer, kept on the code set for the UI and audits (task\n9.11). The phrase is not repeated: the code set holds it.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "main_term",
+            "subterm",
+            "tabular_child",
+            "abbreviation"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject"
+        },
+        "path": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Path",
+          "type": "array"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/Option"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "chosen": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chosen"
+        },
+        "by": {
+          "enum": [
+            "llm",
+            "cache",
+            "limit",
+            "error",
+            "off"
+          ],
+          "title": "By",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "kind",
+        "options",
+        "by"
+      ],
+      "title": "Decided",
+      "type": "object"
+    },
+    "Detail": {
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DiagnosisPath"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "companions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Companion"
+          },
+          "title": "Companions",
+          "type": "array"
+        },
+        "excluded": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Exclusion"
+          },
+          "title": "Excluded",
+          "type": "array"
+        },
+        "pool": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Pooled"
+          },
+          "title": "Pool",
+          "type": "array"
+        },
+        "decisions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Decided"
+          },
+          "title": "Decisions",
+          "type": "array"
+        }
+      },
+      "title": "Detail",
+      "type": "object"
+    },
+    "DiagnosisPath": {
+      "additionalProperties": false,
+      "description": "How one diagnosis was coded: its path through the Index, then the Tabular List.",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "manifestation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Manifestation"
+        },
+        "role": {
+          "default": "diagnosis",
+          "enum": [
+            "diagnosis",
+            "external_cause"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "chunks": {
+          "default": [],
+          "items": {
+            "type": "integer"
+          },
+          "title": "Chunks",
+          "type": "array"
+        },
+        "book": {
+          "title": "Book",
+          "type": "string"
+        },
+        "written": {
+          "title": "Written",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "steps": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PathStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "coded_step": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coded Step"
+        },
+        "alternates": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          },
+          "title": "Alternates",
+          "type": "array"
+        },
+        "flags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Flags",
+          "type": "array"
+        },
+        "trace": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TraceStep"
+          },
+          "title": "Trace",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "description",
+        "book",
+        "written",
+        "path"
+      ],
+      "title": "DiagnosisPath",
+      "type": "object"
+    },
+    "Exclusion": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "kept": {
+          "title": "Kept",
+          "type": "string"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "kept",
+        "note"
+      ],
+      "title": "Exclusion",
+      "type": "object"
+    },
+    "Expansion": {
+      "additionalProperties": false,
+      "description": "An abbreviation read as one of its meanings.",
+      "properties": {
+        "written": {
+          "title": "Written",
+          "type": "string"
+        },
+        "expansion": {
+          "title": "Expansion",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "alternatives": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "chosen_by": {
+          "default": "only",
+          "enum": [
+            "only",
+            "hint",
+            "default"
+          ],
+          "title": "Chosen By",
+          "type": "string"
+        }
+      },
+      "required": [
+        "written",
+        "expansion"
+      ],
+      "title": "Expansion",
+      "type": "object"
+    },
+    "Mark": {
+      "additionalProperties": false,
+      "description": "A modifier or cue of a chunk, where it was written.",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "value",
+        "text",
+        "start",
+        "end"
+      ],
+      "title": "Mark",
+      "type": "object"
+    },
+    "Option": {
+      "additionalProperties": false,
+      "description": "One way forward.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "Option",
+      "type": "object"
+    },
+    "PathStep": {
+      "additionalProperties": false,
+      "description": "One term on a candidate's path through the Index (task 9.11).",
+      "properties": {
+        "term": {
+          "title": "Term",
+          "type": "integer"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "took": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Took",
+          "type": "array"
+        },
+        "via": {
+          "default": "",
+          "enum": [
+            "",
+            "see",
+            "see_also"
+          ],
+          "title": "Via",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "column": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Column"
+        }
+      },
+      "required": [
+        "term",
+        "title"
+      ],
+      "title": "PathStep",
+      "type": "object"
+    },
+    "Pooled": {
+      "additionalProperties": false,
+      "description": "A code L2 weighed, kept on the code set for the UI and audits (task 9.11).",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "coder",
+            "alternate",
+            "retrieved"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "probability": {
+          "title": "Probability",
+          "type": "number"
+        },
+        "node": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node"
+        },
+        "similarity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Similarity"
+        }
+      },
+      "required": [
+        "code",
+        "description",
+        "origin",
+        "probability"
+      ],
+      "title": "Pooled",
+      "type": "object"
+    },
+    "TraceStep": {
+      "additionalProperties": false,
+      "properties": {
+        "layer": {
+          "enum": [
+            "text",
+            "cache",
+            "index",
+            "tabular",
+            "rules",
+            "retrieval",
+            "llm"
+          ],
+          "title": "Layer",
+          "type": "string"
+        },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "guideline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guideline"
+        },
+        "term": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Term"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        }
+      },
+      "required": [
+        "layer",
+        "action",
+        "detail"
+      ],
+      "title": "TraceStep",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "input": {
+      "title": "Input",
+      "type": "string"
+    },
+    "normalized": {
+      "title": "Normalized",
+      "type": "string"
+    },
+    "release": {
+      "title": "Release",
+      "type": "string"
+    },
+    "graph": {
+      "title": "Graph",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "setting": {
+      "enum": [
+        "inpatient",
+        "outpatient"
+      ],
+      "title": "Setting",
+      "type": "string"
+    },
+    "chunks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Chunk"
+      },
+      "title": "Chunks",
+      "type": "array"
+    },
+    "expansions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Expansion"
+      },
+      "title": "Expansions",
+      "type": "array"
+    },
+    "codes": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AssignedCode"
+      },
+      "title": "Codes",
+      "type": "array"
+    },
+    "alternatives": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CodeRef"
+      },
+      "title": "Alternatives",
+      "type": "array"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "escalated": {
+      "default": [],
+      "items": {
+        "enum": [
+          "index",
+          "retrieval",
+          "llm"
+        ],
+        "type": "string"
+      },
+      "title": "Escalated",
+      "type": "array"
+    },
+    "resolver": {
+      "default": "index",
+      "enum": [
+        "index",
+        "retrieval",
+        "llm"
+      ],
+      "title": "Resolver",
+      "type": "string"
+    },
+    "cached": {
+      "default": false,
+      "title": "Cached",
+      "type": "boolean"
+    },
+    "flags": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Flags",
+      "type": "array"
+    },
+    "trace": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TraceStep"
+      },
+      "title": "Trace",
+      "type": "array"
+    },
+    "llm_calls": {
+      "default": 0,
+      "title": "Llm Calls",
+      "type": "integer"
+    },
+    "cost_usd": {
+      "default": 0.0,
+      "title": "Cost Usd",
+      "type": "number"
+    },
+    "detail": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Detail"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "input",
+    "normalized",
+    "release",
+    "graph",
+    "version",
+    "setting"
+  ],
+  "title": "CodingResult",
+  "type": "object"
+}

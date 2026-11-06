@@ -139,7 +139,8 @@ def _meanings(coder: "Coder", run: _Run, state: _State) -> bool:
         if rewritten.text == run.phrase:
             continue
         run.written = rewritten
-        state.result, state.code_set, state.origin = coder.deterministic(rewritten.text)
+        setting = state.result.parsed.setting
+        state.result, state.code_set, state.origin = coder.deterministic(rewritten.text, setting)
         if not state.code_set.escalate:
             return True
     return False
