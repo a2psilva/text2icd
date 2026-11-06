@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Index search within one book (task 9.9): SQLite's planner ran one full-text MATCH per term
+  of the book (340 ms for "of" in the Table of Drugs). The query now scans the search table
+  first: 2 ms, the same rows. The coder codes the sample about 1.8 times as fast (644 against
+  361 phrases/s), its slowest phrase drops from 489 to 268 ms, and with L2 from 491 to 21 ms. A
+  test checks the query plan, since SQLite versions differ.
+
 ### Added
 
 - `text2icd eval bench` (task 9.8) times a local system on one thread. It reports the import,
