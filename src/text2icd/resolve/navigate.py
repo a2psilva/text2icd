@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from text2icd.llm.cost import Usage
-from text2icd.llm.decisions import Choice, Decision, Offer, Option
+from text2icd.llm.decisions import Choice, Decided, Decision, Offer, Option
 from text2icd.llm.navigator import Navigator
 from text2icd.resolve.choice import BOOK
 from text2icd.resolve.tabular import REVIEW, Completion
@@ -62,6 +62,7 @@ class _Run:
     cost_usd: float = 0.0
     usage: Usage = field(default_factory=Usage)
     steps: list[TraceStep] = field(default_factory=list)
+    decided: list[Decided] = field(default_factory=list)  # kept on the code set (task 9.11)
 
     @property
     def phrase(self) -> str:
@@ -74,6 +75,7 @@ class _Run:
         self.usage = self.usage + Usage(**made.usage)
         option = decision.option(made.option)
         self.steps.append(_step(decision, made, option))
+        self.decided.append(Decided.of(decision, made))
         return option
 
 
@@ -115,6 +117,8 @@ def navigate(
             "llm_calls": run.calls,
             "cost_usd": run.cost_usd,
             "usage": run.usage.as_dict(),
+            "decisions": tuple(run.decided),
+            "pool": current.pool or first.pool,  # L2's, when L3 coded the phrase again
         }
     )
 

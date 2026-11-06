@@ -41,9 +41,11 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict
 
 from text2icd.graph.model import Graph
+from text2icd.llm.decisions import Decided
 from text2icd.llm.navigator import Navigator
 from text2icd.ontology.codes import dot
 from text2icd.resolve import choice, confidence, navigate, rules
+from text2icd.resolve.choice import Pooled
 from text2icd.resolve.confidence import (
     Calibration,
     CalibrationError,
@@ -112,6 +114,7 @@ class CodedDiagnosis(BaseModel):
     alternates: tuple[str, ...] = ()
     flags: tuple[str, ...] = ()
     trace: tuple[TraceStep, ...] = ()
+    conditions: tuple[int, ...] = ()  # what it codes: indexes into `ParsedPhrase.conditions`
 
 
 class Companion(BaseModel):
@@ -149,6 +152,7 @@ class SequencedCode(BaseModel):
     description: str
     role: Role
     source: str | None = None  # the code whose Index pair or note brought it in
+    conditions: tuple[int, ...] = ()  # the conditions of the phrase it codes (task 9.11)
 
 
 class CodeSet(BaseModel):
@@ -174,6 +178,8 @@ class CodeSet(BaseModel):
     llm_calls: int = 0  # L3's calls for this phrase, and what they cost
     cost_usd: float = 0.0
     usage: dict[str, int] = {}
+    pool: tuple[Pooled, ...] = ()  # the codes L2 weighed, most probable first
+    decisions: tuple[Decided, ...] = ()  # what L3 was asked and answered, in order
 
     @property
     def codes(self) -> tuple[str, ...]:
@@ -313,7 +319,8 @@ class Coder:
             trace += steps
             cause = self._coded(walk.external_causes, evidence, ())
             if cause is not None:
-                external.append(cause.model_copy(update={"role": "external_cause"}))
+                update = {"role": "external_cause", "conditions": walk.conditions}
+                external.append(cause.model_copy(update=update))
             groups += self._uncoded(parsed, group, alone)
         if not groups and result.diagnoses:
             flags.add(REVIEW)
@@ -332,11 +339,22 @@ class Coder:
         if any(companion.status == UNRESOLVED for companion in companions):
             flags.add(UNRESOLVED)
         ordered = [
-            SequencedCode(code=e.code, description=e.description, role=e.role, source=e.source)
+            SequencedCode(
+                code=e.code,
+                description=e.description,
+                role=e.role,
+                source=e.source,
+                conditions=groups[e.group].walk.conditions,
+            )
             for e in entries
         ]
         ordered += [
-            SequencedCode(code=c.code, description=c.description, role="external_cause")
+            SequencedCode(
+                code=c.code,
+                description=c.description,
+                role="external_cause",
+                conditions=c.conditions,
+            )
             for c in external
         ]
         unique: dict[str, SequencedCode] = {}
@@ -355,7 +373,10 @@ class Coder:
         )
         code_set = CodeSet(
             parsed=result.parsed,
-            diagnoses=tuple(group.coded for group in groups),
+            diagnoses=tuple(
+                group.coded.model_copy(update={"conditions": group.walk.conditions})
+                for group in groups
+            ),
             external_causes=tuple(external),
             companions=tuple(companions),
             excluded=tuple(Exclusion(code=e.code, kept=e.kept, note=e.note) for e in excluded),
@@ -406,11 +427,13 @@ class Coder:
             return result, first, origin
         option, sure = chosen
         escalate = sure < stage.threshold
+        pooled = _pooled(pool, stage)
         update = {
             "confidence": sure,
             "escalate": escalate,
             "escalated": ("index", "retrieval") if escalate else ("index",),
             "choice": option.features,
+            "pool": pooled,
         }
         step = self._choice_step(first, pool, option, sure, stage)
         if option.coder or not result.diagnoses:
@@ -435,6 +458,7 @@ class Coder:
                 "escalate": escalate,
                 "escalated": ("index", "retrieval") if escalate else ("index",),
                 "choice": coder.features if coder is not None else {},
+                "pool": pooled,
             }
             return (
                 result,
@@ -1107,3 +1131,19 @@ def _steps(trace: Sequence[TraceStep], indent: str = "     ") -> list[str]:
         + (f"  ({step.guideline})" if step.guideline else "")
         for step in trace
     ]
+
+
+def _pooled(pool: Sequence[choice.Option], stage: RetrievalStage) -> tuple[Pooled, ...]:
+    """L2's pool as kept on the code set: each code with its probability, most probable first."""
+    weighed = [
+        Pooled(
+            code=option.code,
+            description=option.description,
+            origin="coder" if option.coder else "alternate" if option.index else "retrieved",
+            probability=round(stage.probability(option.features), 6),
+            node=option.node,
+            similarity=None if option.similarity is None else round(option.similarity, 6),
+        )
+        for option in pool
+    ]
+    return tuple(sorted(weighed, key=lambda pooled: -pooled.probability))

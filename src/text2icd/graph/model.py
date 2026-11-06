@@ -240,6 +240,10 @@ class Graph:
         """The `see` and `see also` of a term."""
         return self._xrefs.get(term_id, ())
 
+    def xrefs_to(self, term_id: int) -> tuple[CrossRef, ...]:
+        """The `see` and `see also` that lead to a term, for the graph explorer (task 9.11)."""
+        return self._xrefs_to.get(term_id, ())
+
     def column_heading(self, book: str, column: int) -> str | None:
         """The heading of a Neoplasm Table or Table of Drugs column: `Malignant Primary`."""
         return self._columns.get((book, column))
@@ -399,6 +403,15 @@ class Graph:
                 if pointer.target is not None:
                     found.setdefault(pointer.target, []).append(pointer)
         return {target: tuple(pointers) for target, pointers in found.items()}
+
+    @cached_property
+    def _xrefs_to(self) -> dict[int, tuple[CrossRef, ...]]:
+        found: dict[int, list[CrossRef]] = {}
+        for xrefs in self._xrefs.values():
+            for xref in xrefs:
+                if xref.target is not None:
+                    found.setdefault(xref.target, []).append(xref)
+        return {target: tuple(xrefs) for target, xrefs in found.items()}
 
 
 def load(
