@@ -67,6 +67,8 @@ class Parser:
                 head=number[id(link.head)],
                 linked=number[id(link.linked)],
                 text=link.text,
+                start=link.start,
+                end=link.end,
             )
             for fragment in fragments
             for link in fragment.links
@@ -113,6 +115,8 @@ class Parser:
             diagnoses=diagnoses,
             expansions=normalized.expansions,
             unknown=normalized.unknown,
+            starts=normalized.starts,
+            ends=normalized.ends,
             flags=_flags(conditions, normalized.expansions, normalized.unknown),
             trace=tuple(trace),
         )

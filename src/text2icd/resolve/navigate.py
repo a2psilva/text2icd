@@ -39,6 +39,7 @@ from text2icd.resolve.choice import BOOK
 from text2icd.resolve.tabular import REVIEW, Completion
 from text2icd.resolve.walk import Candidate, DiagnosisWalk, WalkResult
 from text2icd.text.model import ParsedPhrase
+from text2icd.text.tracked import Tracked
 from text2icd.trace import TraceStep
 
 if TYPE_CHECKING:
@@ -56,11 +57,15 @@ class _Run:
     """One phrase's decisions: what they cost and the trace they leave."""
 
     navigator: Navigator
-    phrase: str
+    written: Tracked  # the phrase as coded now: what the user wrote, with any meaning chosen
     calls: int = 0
     cost_usd: float = 0.0
     usage: Usage = field(default_factory=Usage)
     steps: list[TraceStep] = field(default_factory=list)
+
+    @property
+    def phrase(self) -> str:
+        return self.written.text
 
     def ask(self, decision: Decision) -> Option | None:
         made = self.navigator.choose(decision, calls=self.calls)
@@ -84,7 +89,7 @@ def navigate(
 ) -> "CodeSet":
     """L3 on an escalated code set: `result`, the walk it was assembled from, and `origin`, the
     diagnosis of the walk its primary code codes."""
-    run = _Run(navigator, result.parsed.original)
+    run = _Run(navigator, Tracked.of(result.parsed.original))
     state = _State(result, first, origin)
     settled_by_text = _meanings(coder, run, state)
     settled = settled_by_text or _index_entry(coder, run, state)
@@ -94,8 +99,13 @@ def navigate(
     flags = current.flags if settled else tuple(sorted({*current.flags, REVIEW}))
     resolver = "llm" if current.codes[:1] != first.codes[:1] else first.resolver
     l2 = [s for s in first.trace if s.layer == "retrieval" and s not in current.trace]
+    # Coded again from a rewritten phrase: its spans point back at what the user wrote.
+    parsed = current.parsed
+    if run.phrase != result.parsed.original:
+        parsed = parsed.rebased(result.parsed.original, run.written)
     return current.model_copy(
         update={
+            "parsed": parsed,
             "flags": flags,
             "escalate": not settled,
             "escalated": first.escalated,
@@ -121,11 +131,11 @@ def _meanings(coder: "Coder", run: _Run, state: _State) -> bool:
         option = run.ask(decision)
         if option is None or option.text == expansion.expansion:
             continue
-        rewritten = rewrite(run.phrase, expansion.written, option.text)
-        if rewritten == run.phrase:
+        rewritten = rewrite(run.written, expansion.written, option.text)
+        if rewritten.text == run.phrase:
             continue
-        run.phrase = rewritten
-        state.result, state.code_set, state.origin = coder.deterministic(rewritten)
+        run.written = rewritten
+        state.result, state.code_set, state.origin = coder.deterministic(rewritten.text)
         if not state.code_set.escalate:
             return True
     return False
@@ -246,10 +256,11 @@ def main_term(candidate: Candidate) -> str:
     return candidate.path.split(SEPARATOR)[0]
 
 
-def rewrite(phrase: str, written: str, meaning: str) -> str:
-    """The phrase with the abbreviation, as written, replaced by its meaning."""
-    pattern = rf"(?<![A-Za-z0-9]){re.escape(written)}(?![A-Za-z0-9])"
-    return re.sub(pattern, lambda _: meaning, phrase)
+def rewrite(phrase: Tracked, written: str, meaning: str) -> Tracked:
+    """The phrase with the abbreviation, as written, replaced by its meaning, tracked so the
+    final spans still point at what the user wrote."""
+    pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(written)}(?![A-Za-z0-9])")
+    return phrase.sub(pattern, lambda _: meaning)
 
 
 def _step(decision: Decision, made: Choice, option: Option | None) -> TraceStep:

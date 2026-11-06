@@ -191,7 +191,12 @@ entry (`text2icd.trace.TraceStep`). `text2icd parse "<phrase>"` shows the result
 A `ParsedPhrase` holds the original and normalised text, the conditions (text without cue words,
 span, modifiers, cues, status, certainty, reportable), the relations, the diagnoses (conditions
 joined by linking relations), the abbreviation expansions, unknown abbreviation-like tokens, flags
-and the trace. The graph's terms (`text.terms.Terms`) are optional: without them, any words
+and the trace. Its spans point into the normalised text. `ParsedPhrase.source(start, end)` maps
+any of them back to the phrase as written (`DM2 w/ CKD 3a`: the condition `chronic kidney disease
+stage 3a` was written `CKD 3a`). Every rewrite runs on a `text.tracked.Tracked` text, which
+records the original span of each character. Expansions also keep where they were written, and
+relations keep their connector's span. When L3 chooses an abbreviation's meaning and the phrase
+is coded again, the spans are moved back to what the user wrote. The graph's terms (`text.terms.Terms`) are optional: without them, any words
 besides modifiers and cues name a condition.
 
 ### L0: result cache

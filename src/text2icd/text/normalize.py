@@ -24,6 +24,7 @@ from collections.abc import Callable, Container, Sequence
 from dataclasses import dataclass
 
 from text2icd.text.abbreviations import Expansion, Lexicon
+from text2icd.text.tracked import Replace, Tracked
 from text2icd.trace import TraceStep, change, text_step
 
 _DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2043\u2212\ufe58\ufe63\uff0d"
@@ -137,6 +138,9 @@ class Normalized:
     trace: tuple[TraceStep, ...]
     expansions: tuple[Expansion, ...] = ()
     unknown: tuple[str, ...] = ()  # abbreviation-like tokens the lexicon does not know
+    # Per character of `text`, the span of `original` it comes from (`text.tracked`).
+    starts: tuple[int, ...] = ()
+    ends: tuple[int, ...] = ()
 
 
 def normalize(
@@ -147,33 +151,52 @@ def normalize(
     """`vocabulary`, the case-folded words of the CMS files, keeps abbreviations the Index lists
     as written (GERD, STEMI) out of the unknown ones."""
     trace: list[TraceStep] = []
-    text = clean(phrase)
-    if text != phrase:
-        trace.append(text_step("clean", change(phrase, text)))
-    text = clean(rewrite(text, SHORTHAND, "shorthand", trace))
+    tracked = clean_tracked(Tracked.of(phrase))
+    if tracked.text != phrase:
+        trace.append(text_step("clean", change(phrase, tracked.text)))
+    tracked = clean_tracked(rewrite(tracked, SHORTHAND, "shorthand", trace))
     expansions: list[Expansion] = []
     unknown: tuple[str, ...] = ()
     if abbreviations is not None:
         # Judged on the phrase as written: the shorthand step adds lower-case words.
         shouting = abbreviations.shouting(clean(phrase))
-        unknown = abbreviations.unknown(text, shouting=shouting, vocabulary=vocabulary)
-        text, expansions = abbreviations.expand(text, shouting=shouting)
-        text = clean(text)
+        unknown = abbreviations.unknown(tracked.text, shouting=shouting, vocabulary=vocabulary)
+        tracked, expansions = abbreviations.expand_tracked(tracked, shouting=shouting)
+        tracked = clean_tracked(tracked)
         trace.extend(expansion.step() for expansion in expansions)
         trace.extend(text_step("unknown_abbreviation", f'"{token}"') for token in unknown)
-    text = rewrite(text.casefold(), NUMERALS, "numeral", trace)
-    return Normalized(phrase, text, tuple(trace), tuple(expansions), unknown)
+    tracked = rewrite(tracked.map_chars(str.casefold), NUMERALS, "numeral", trace)
+    return Normalized(
+        phrase,
+        tracked.text,
+        tuple(trace),
+        tuple(expansions),
+        unknown,
+        tracked.starts,
+        tracked.ends,
+    )
 
 
 def clean(text: str) -> str:
     """NFKC, one kind of dash and quote, no list marker, and single spaces after `,` and `;`."""
-    text = unicodedata.normalize("NFKC", text).translate(_TRANSLATION)
-    text = "".join(" " if unicodedata.category(char) == "Cc" else char for char in text)
-    text = _LIST_MARKER.sub("", text)
-    text = _SPACE_BEFORE.sub(r"\1", text)
-    text = _SPACE_AFTER_PAREN.sub("(", text)
-    text = _SEPARATOR.sub(_separate, text)
-    return _EDGES.sub("", _SPACES.sub(" ", text))
+    text = _clean_chars(unicodedata.normalize("NFKC", text))
+    for pattern, replace in CLEAN_RULES:
+        text = pattern.sub(replace, text)
+    return text
+
+
+def clean_tracked(text: Tracked) -> Tracked:
+    """`clean`, keeping track of where each character came from."""
+    text = text.nfkc().map_chars(_clean_chars)
+    for pattern, replace in CLEAN_RULES:
+        text = text.sub(pattern, replace)
+    return text
+
+
+def _clean_chars(text: str) -> str:
+    """One kind of dash and quote, no invisible character, control characters as spaces."""
+    text = text.translate(_TRANSLATION)
+    return "".join(" " if unicodedata.category(char) == "Cc" else char for char in text)
 
 
 def _separate(match: re.Match[str]) -> str:
@@ -183,7 +206,18 @@ def _separate(match: re.Match[str]) -> str:
     return match[1] + " "
 
 
-def rewrite(text: str, rules: Sequence[Rule], action: str, trace: list[TraceStep]) -> str:
+# The regex steps of `clean`, in order, shared by `clean` and `clean_tracked`.
+CLEAN_RULES: tuple[tuple[re.Pattern[str], Replace], ...] = (
+    (_LIST_MARKER, ""),
+    (_SPACE_BEFORE, r"\1"),
+    (_SPACE_AFTER_PAREN, "("),
+    (_SEPARATOR, _separate),
+    (_SPACES, " "),
+    (_EDGES, ""),
+)
+
+
+def rewrite(text: Tracked, rules: Sequence[Rule], action: str, trace: list[TraceStep]) -> Tracked:
     """Apply each rule in turn, recording every match that changes the text."""
     for pattern, replace in rules:
 
@@ -193,5 +227,5 @@ def rewrite(text: str, rules: Sequence[Rule], action: str, trace: list[TraceStep
                 trace.append(text_step(action, change(match[0], result.strip())))
             return result
 
-        text = pattern.sub(record, text)
+        text = text.sub(pattern, record)
     return text
