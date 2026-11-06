@@ -148,7 +148,10 @@ and checks them.
 At run time `text2icd.graph.model.load(release)` reads the graph into plain dicts and named tuples,
 so traversal never touches disk; search runs on the FTS5 tables through a read-only connection. For
 FY2027 (98,722 Tabular nodes, 99,108 Index terms) loading takes about 0.85 s and peaks at about
-255 MB resident on a recent laptop (targets: under 1 s and under 300 MB). SQLite was chosen over
+255 MB resident on a recent laptop (targets: under 1 s and under 300 MB). A loaded graph is
+safe to share between threads: each thread that searches opens its own read-only connection.
+The decision cache and the cost meter take a lock, and the memos keyed by input words are
+bounded. SQLite was chosen over
 networkx (memory-heavy, no full-text search) and over a graph database (an extra service to run):
 it is a single portable file, needs no server, and can be attached to a GitHub Release because the
 CMS content is public domain.
