@@ -16,6 +16,7 @@ from text2icd.config import Settings
 from text2icd.embeddings import EmbeddingsUnavailableError, OnnxEmbedder, load_embedder
 from text2icd.eval import report as eval_report
 from text2icd.eval import retrieval, synthetic
+from text2icd.eval.bench import bench
 from text2icd.eval.calibrate import (
     FOLDS,
     TARGET,
@@ -85,7 +86,7 @@ from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reco
 from text2icd.fetch import FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
 from text2icd.graph.integrity import check_graph, failed
-from text2icd.graph.model import Graph, GraphError, graph_file, load
+from text2icd.graph.model import Graph, GraphError, graph_file, load, read_meta
 from text2icd.graph.search import DEFAULT_TOKENIZER, Tokenizer
 from text2icd.graph.show import show_code, show_term
 from text2icd.llm.cost import PriceError
@@ -731,6 +732,61 @@ def eval_run(
         typer.echo("\n".join(["Selective accuracy@1", "", *table]))
     if table := eval_report.escalation([(run.header, report)]):
         typer.echo("\n".join(["", "Kept and escalated by the coder", "", *table]))
+
+
+@eval_app.command("bench")
+def eval_bench(
+    dataset: Annotated[
+        str, typer.Option("--dataset", "-d", help="Dataset file or name.")
+    ] = "cms-synthetic-sample",
+    system: Annotated[
+        str, typer.Option("--system", "-s", help=f"System: {', '.join(sorted(SYSTEMS))}.")
+    ] = "coder",
+    split: Annotated[SplitChoice, typer.Option(help="Split to time.")] = "all",
+    limit: Annotated[
+        int | None, typer.Option(min=1, help="Time a seeded random sample of this many.")
+    ] = None,
+    option: Annotated[
+        list[str] | None, typer.Option("--option", "-O", help="System option key=value.")
+    ] = None,
+    rounds: Annotated[int, typer.Option(min=1, help="Times to code every phrase.")] = 1,
+    seed: Annotated[int, typer.Option(help="Seed for --limit.")] = 0,
+    imports: Annotated[
+        bool, typer.Option("--import/--no-import", help="Also time the import in a new process.")
+    ] = True,
+    as_json: Annotated[
+        Path | None, typer.Option("--json", help="Also write the numbers to this JSON file.")
+    ] = None,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Time a system on one thread: start-up, peak memory, latency per phrase (p50 to max) and
+    phrases per second (task 9.8). Prints example ids and numbers only."""
+    settings = _settings(data_dir)
+    options = _options(option or [])
+    path = _graph_path(release, graph_path, data_dir)
+    try:
+        release_id = read_meta(path)["release"]
+        dataset_path = resolve_dataset(dataset, release_id, settings)
+        examples = select(read_dataset(dataset_path), split, limit, seed)
+        result = bench(
+            path, system, settings, options, examples, f"{dataset} ({split})", rounds, imports
+        )
+    except (
+        RunError,
+        DatasetError,
+        SystemSetupError,
+        EmbeddingsUnavailableError,
+        GraphError,
+        ValueError,
+    ) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo("\n".join(result.lines()))
+    if as_json is not None:
+        as_json.parent.mkdir(parents=True, exist_ok=True)
+        as_json.write_text(result.model_dump_json(indent=2) + "\n", "utf-8")
 
 
 @eval_app.command("calibrate")

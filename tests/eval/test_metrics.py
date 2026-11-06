@@ -86,7 +86,12 @@ def test_invalid_codes_llm_and_cost(report: Report) -> None:
     assert value(report, "LLM call rate") == pytest.approx(2 / 6)
     assert value(report, "LLM calls per phrase") == pytest.approx(3 / 6)
     assert value(report, "cost per 1,000 phrases") == pytest.approx(0.5)
-    assert report.latency_ms == {"p50": 20.0, "p95": pytest.approx(38.0)}
+    assert report.latency_ms == {
+        "p50": 20.0,
+        "p95": pytest.approx(38.0),
+        "p99": pytest.approx(39.6),
+        "max": 40.0,
+    }
 
 
 def test_calibration_and_selective_accuracy(report: Report) -> None:
