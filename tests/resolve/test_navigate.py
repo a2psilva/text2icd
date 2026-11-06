@@ -21,6 +21,7 @@ from text2icd.resolve.retrieve import Hits
 from text2icd.resolve.tabular import REVIEW, Evidence
 from text2icd.resolve.walk import Candidate
 from text2icd.text.model import Modifier
+from text2icd.text.tracked import Tracked
 
 DIABETES = "type 2 diabetes mellitus with diabetic chronic kidney disease"  # L1: N11.9, L2: E11.22
 RETINOPATHY = "diabetes due to underlying condition with mild nonproliferative retinopathy"
@@ -187,13 +188,17 @@ def test_abbreviation_meaning(graph: Graph) -> None:
         "mitral stenosis",
         "mental status",
     ]
-    assert code_set.parsed.original == "mitral stenosis"  # coded again with the meaning
+    # Coded again with the meaning; the spans still point at what was written.
+    parsed = code_set.parsed
+    assert (parsed.original, parsed.normalized) == ("MS", "mitral stenosis")
+    assert parsed.source(0, len(parsed.normalized)) == (0, 2)
     llm = [(step.action, step.detail) for step in code_set.trace if step.layer == "llm"]
     assert llm == [("abbreviation", "3 options: chose 2, mitral stenosis")]
     assert (code_set.escalate, REVIEW in code_set.flags) == (True, True)  # nothing codes it here
-    assert navigate.rewrite("MS flare, h/o MSK pain", "MS", "mitral stenosis") == (
-        "mitral stenosis flare, h/o MSK pain"
-    )
+    rewritten = navigate.rewrite(Tracked.of("MS flare, h/o MSK pain"), "MS", "mitral stenosis")
+    assert rewritten.text == "mitral stenosis flare, h/o MSK pain"
+    assert rewritten.origin(0, len("mitral stenosis")) == (0, 2)
+    assert rewritten.origin(16, 21) == (3, 8)  # "flare" stays where it was
 
 
 def test_tabular_child(graph: Graph) -> None:
@@ -228,7 +233,7 @@ def test_tabular_child(graph: Graph) -> None:
     scripted = Scripted(
         tabular_child=code(tool.verifier.complete("E08.329", Evidence(frozenset())).code)
     )  # type: ignore[union-attr]
-    run = navigate._Run(scripted, RETINOPATHY)
+    run = navigate._Run(scripted, Tracked.of(RETINOPATHY))
     state = navigate._State(result, first, 0)
     navigate._tabular_children(tool, run, state)
     (asked,) = scripted.decisions
@@ -247,7 +252,7 @@ def test_tabular_child(graph: Graph) -> None:
     assert run.steps[-1].action == "tabular_child"
     same = Scripted(tabular_child=lambda d: d.options[0].id)  # the coder's child: no change
     unchanged = navigate._State(result, first, 0)
-    navigate._tabular_children(tool, navigate._Run(same, RETINOPATHY), unchanged)
+    navigate._tabular_children(tool, navigate._Run(same, Tracked.of(RETINOPATHY)), unchanged)
     assert unchanged.code_set is first
 
 
