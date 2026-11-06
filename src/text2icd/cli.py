@@ -103,6 +103,7 @@ from text2icd.resolve.confidence import (
     read_calibration,
     write_calibration,
 )
+from text2icd.resolve.resolver import Resolver, ResolverError
 from text2icd.resolve.retrieve import DEFAULT_MODEL as DEFAULT_RETRIEVAL_MODEL
 from text2icd.resolve.retrieve import (
     DEFAULT_SOURCES,
@@ -116,6 +117,7 @@ from text2icd.resolve.retrieve import (
 from text2icd.resolve.retrieve import SOURCES as RETRIEVAL_SOURCES
 from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.text.abbreviations import default_lexicon
+from text2icd.text.model import Setting
 from text2icd.text.parse import Parser, describe_parsed
 from text2icd.text.terms import vocabulary
 
@@ -296,7 +298,16 @@ def code_command(
         str,
         typer.Option(help="inpatient (uncertain diagnoses coded as if established) or outpatient."),
     ] = "inpatient",
-    as_json: Annotated[bool, typer.Option("--json", help="Print the code set as JSON.")] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option("--json", help="Print the result as JSON (docs/schema/coding-result.json)."),
+    ] = False,
+    explain: Annotated[
+        bool,
+        typer.Option(
+            "--explain", help="With --json: add each code's Index path and the L2/L3 decisions."
+        ),
+    ] = False,
     use_retrieval: Annotated[
         bool | None,
         typer.Option(
@@ -305,44 +316,45 @@ def code_command(
             "table with a retrieval stage (default: when both are there).",
         ),
     ] = None,
+    use_llm: Annotated[
+        bool,
+        typer.Option(
+            "--llm",
+            help="L3 for a phrase still escalated: sends it to TEXT2ICD_LLM_PROVIDER, at a cost "
+            "(TEXT2ICD_LLM_BUDGET_USD caps it).",
+        ),
+    ] = False,
     release: ReleaseOption = None,
     graph_path: GraphFileOption = None,
     data_dir: DataDirOption = None,
 ) -> None:
-    """Code a phrase with the deterministic coder (Index walk, then Tabular verification) and,
-    when it is escalated, local retrieval (L2)."""
+    """Code a phrase: the Index walk and Tabular verification (L1), then local retrieval (L2)
+    when the coder is unsure, and the LLM navigator (L3) only with --llm."""
     if setting not in ("inpatient", "outpatient"):
         typer.echo("error: --setting is inpatient or outpatient", err=True)
         raise typer.Exit(code=2)
+    chosen: Setting = "outpatient" if setting == "outpatient" else "inpatient"
     settings = _settings(data_dir)
-    calibration = _calibration(settings)
     with _open_graph(release, graph_path, data_dir) as graph:
-        staged = calibration is not None and calibration.retrieval is not None
-        if use_retrieval and not staged:
-            typer.echo(
-                "error: the calibration table has no retrieval stage; fit one with "
-                "text2icd eval calibrate",
-                err=True,
-            )
-            raise typer.Exit(code=1)
-        wanted = use_retrieval or (
-            use_retrieval is None and staged and vectors_path(graph.path).is_file()
-        )
         try:
-            coder = Coder.from_graph(
-                graph,
-                "outpatient" if setting == "outpatient" else "inpatient",
-                settings.default_episode,
-                calibration,
-                _retriever(graph) if wanted else None,
+            resolver = Resolver(
+                settings=settings, graph=graph, retrieval=use_retrieval, llm=use_llm
             )
-        except CalibrationError as exc:
+        except (ResolverError, CalibrationError, LLMUnavailableError, PriceError) as exc:
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
-        code_set = coder.code(phrase)
-    if as_json:
-        typer.echo(code_set.model_dump_json(indent=2))
-        return
+        with resolver:
+            for warning in resolver.warnings:
+                typer.echo(f"warning: {warning}", err=True)
+            try:
+                if as_json:
+                    result = resolver.code(phrase, setting=chosen, explain=explain)
+                    typer.echo(result.model_dump_json(indent=2))
+                    return
+                code_set = resolver.code_set(phrase, setting=chosen)
+            except (ResolverError, EmbeddingsUnavailableError, OSError) as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
     typer.echo("\n".join(describe_code_set(code_set)))
 
 
