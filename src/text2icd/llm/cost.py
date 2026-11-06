@@ -2,6 +2,7 @@
 `resources/prices.toml`, accumulated per run against a budget (ADR 0003).
 """
 
+import threading
 import tomllib
 from dataclasses import dataclass, field, fields
 from datetime import date
@@ -159,13 +160,20 @@ class CostMeter:
     usage: Usage = field(default_factory=Usage)
     spent_usd: float = 0.0
     calls: int = 0
+    # The totals change together under this lock, so threads that share a meter (a server's
+    # requests) never lose a charge (task 9.10). Calls already under way when the budget runs
+    # out still finish, so concurrent calls can overshoot it by what they cost.
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False, compare=False
+    )
 
     def check(self) -> None:
-        if self.spent_usd >= self.budget_usd:
-            raise BudgetExceededError(
-                f"budget of ${self.budget_usd:.2f} spent (${self.spent_usd:.4f} on {self.calls} "
-                "calls)"
-            )
+        with self._lock:
+            if self.spent_usd >= self.budget_usd:
+                raise BudgetExceededError(
+                    f"budget of ${self.budget_usd:.2f} spent (${self.spent_usd:.4f} on "
+                    f"{self.calls} calls)"
+                )
 
     @property
     def cache_rate(self) -> float | None:
@@ -186,7 +194,8 @@ class CostMeter:
     def charge(self, usage: Usage) -> float:
         """Record one call; returns its cost."""
         cost = self.price.cost(usage, batch=self.batch)
-        self.usage = self.usage + usage
-        self.spent_usd += cost
-        self.calls += 1
+        with self._lock:
+            self.usage = self.usage + usage
+            self.spent_usd += cost
+            self.calls += 1
         return cost

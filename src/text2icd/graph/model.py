@@ -8,7 +8,9 @@ their global id or by book and path (`Pneumonia > aspiration`).
 """
 
 import json
+import os
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import closing
 from functools import cached_property
@@ -118,10 +120,18 @@ class Graph:
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self._conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
-        self.meta: dict[str, str] = dict(self._conn.execute("SELECT key, value FROM meta"))
+        self._uri = f"{path.resolve().as_uri()}?mode=ro"
+        self._local = threading.local()
+        self._opened: list[tuple[int, sqlite3.Connection]] = []  # (process id, connection)
+        self._opening = threading.Lock()
+        self._closed = False
+        try:
+            self.meta: dict[str, str] = dict(self._conn.execute("SELECT key, value FROM meta"))
+        except sqlite3.DatabaseError as exc:
+            self.close()
+            raise GraphError(f"{path} is not a readable graph file: {exc}") from exc
         if self.meta.get("schema_version") != str(SCHEMA_VERSION):
-            self._conn.close()
+            self.close()
             raise GraphError(
                 f"{path} has schema version {self.meta.get('schema_version')}, this text2icd "
                 f"reads {SCHEMA_VERSION}; rebuild it with `text2icd build-graph`"
@@ -256,8 +266,34 @@ class Graph:
 
     # -- Lifecycle ----------------------------------------------------------------------------
 
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        """This thread's read-only connection (task 9.10). SQLite connections are not shared
+        between threads, so each thread that reads the file (search, `tabular_texts`) opens its
+        own on first use, and searches in different threads run in parallel. A forked process
+        opens new ones."""
+        if self._closed:
+            raise sqlite3.ProgrammingError(f"the graph {self.path} is closed")
+        pid = os.getpid()
+        held: tuple[int, sqlite3.Connection] | None = getattr(self._local, "held", None)
+        if held is None or held[0] != pid:
+            # check_same_thread=False only so that `close` may close it from another thread.
+            conn = sqlite3.connect(self._uri, uri=True, check_same_thread=False)
+            held = (pid, conn)
+            with self._opening:
+                self._opened.append(held)
+            self._local.held = held
+        return held[1]
+
     def close(self) -> None:
-        self._conn.close()
+        """Close the connections this process opened, in every thread."""
+        pid = os.getpid()
+        with self._opening:
+            self._closed = True
+            mine = [conn for owner, conn in self._opened if owner == pid]
+            self._opened = [held for held in self._opened if held[0] != pid]
+        for conn in mine:
+            conn.close()
 
     def __enter__(self) -> Self:
         return self
