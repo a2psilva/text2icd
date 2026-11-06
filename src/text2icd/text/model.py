@@ -1,10 +1,14 @@
-"""The structures text understanding produces, with spans into the normalised phrase."""
+"""The structures text understanding produces, with spans into the normalised phrase.
+
+`ParsedPhrase.source(start, end)` maps any of those spans back to the phrase as written.
+"""
 
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 from text2icd.text.abbreviations import Expansion
+from text2icd.text.tracked import Tracked, source_span
 from text2icd.trace import TraceStep
 
 ModifierKind = Literal[
@@ -105,6 +109,8 @@ class Relation(BaseModel):
     head: int
     linked: int
     text: str  # the connector, as in the normalised phrase
+    start: int | None = None  # the connector's span in the normalised phrase
+    end: int | None = None
 
     @property
     def links(self) -> bool:
@@ -145,3 +151,36 @@ class ParsedPhrase(BaseModel):
     unknown: tuple[str, ...] = ()  # abbreviation-like tokens with no lexicon entry
     flags: tuple[str, ...] = ()
     trace: tuple[TraceStep, ...] = ()
+    # Per character of `normalized`, the span of `original` it comes from (task 9.11). Empty
+    # when the phrase was built without normalisation; then `source` takes spans as they are.
+    starts: tuple[int, ...] = ()
+    ends: tuple[int, ...] = ()
+
+    def source(self, start: int, end: int) -> tuple[int, int]:
+        """The span of `original` that `normalized[start:end]` comes from: where a condition,
+        modifier or cue was written. `"DM2 w/ CKD 3a"` normalises to `"diabetes mellitus type 2
+        with chronic kidney disease stage 3a"`; the span of `chronic kidney disease stage 3a`
+        maps back to `CKD 3a`."""
+        if not self.starts:
+            size = len(self.original)
+            return min(start, size), min(end, size)
+        return source_span(self.starts, self.ends, start, end)
+
+    def rebased(self, original: str, written: Tracked) -> "ParsedPhrase":
+        """This phrase, parsed from `written.text`, a rewrite of `original` (L3 chose an
+        abbreviation's meaning), with its spans moved back to `original`."""
+        spans = [written.origin(*self.source(i, i + 1)) for i in range(len(self.normalized))]
+        expansions = []
+        for expansion in self.expansions:
+            if expansion.start is not None and expansion.end is not None:
+                start, end = written.origin(expansion.start, expansion.end)
+                expansion = expansion.model_copy(update={"start": start, "end": end})
+            expansions.append(expansion)
+        return self.model_copy(
+            update={
+                "original": original,
+                "starts": tuple(start for start, _ in spans),
+                "ends": tuple(end for _, end in spans),
+                "expansions": tuple(expansions),
+            }
+        )

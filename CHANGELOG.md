@@ -16,6 +16,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Spans in the phrase as written (task 9.11, for the UI's chunk view).
+  - Normalisation runs on a `text.tracked.Tracked` text, which records where each character came
+    from, so `ParsedPhrase.source(start, end)` maps a condition, modifier, cue or relation span
+    back to the input: "chronic kidney disease stage 3a" was written "CKD 3a".
+  - `Expansion` gains `start`/`end` in the input, and `Relation` gains its connector's span.
+  - L3's abbreviation rewrite keeps the spans on the user's text (`ParsedPhrase.rebased`); the
+    code set's `parsed.original` is now what the user wrote, not the rewritten phrase.
+  - Codes and the rest of the JSON are unchanged on the cms-synthetic and mimic-silver dev sets.
+
 - `text2icd eval bench` (task 9.8) times a local system on one thread. It reports the import,
   graph load and setup times; peak memory; the first phrase; p50, p95, p99 and max latency;
   phrases per second; and the slowest example ids (ids only, never phrases). A `benchmark` test
