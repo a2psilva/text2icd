@@ -82,6 +82,34 @@ class Decision(BaseModel):
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+class Decided(BaseModel):
+    """A decision L3 was asked and its answer, kept on the code set for the UI and audits (task
+    9.11). The phrase is not repeated: the code set holds it."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: DecisionKind
+    subject: str | None = None
+    path: tuple[str, ...] = ()
+    options: tuple[Option, ...]
+    chosen: str | None = None  # the option id; None for none, a limit or an error
+    by: ChosenBy
+    reason: str | None = None
+
+    @classmethod
+    def of(cls, decision: Decision, choice: "Choice") -> "Decided":
+        chosen = choice.option if decision.option(choice.option) is not None else None
+        return cls(
+            kind=decision.kind,
+            subject=decision.subject,
+            path=decision.path,
+            options=decision.options,
+            chosen=chosen,
+            by=choice.by,
+            reason=choice.reason,
+        )
+
+
 class Choice(BaseModel):
     """The answer to a decision, with what it cost. `option` is None when the answer is
     `none`, falls outside the options, or no answer was given: the coder then keeps its own."""

@@ -80,9 +80,12 @@ class _Descent:
     flags: list[str] = field(default_factory=list)
     trace: list[TraceStep] = field(default_factory=list)
 
-    def step(self, action: str, detail: str, guideline: str | None = None) -> None:
+    def step(
+        self, action: str, detail: str, guideline: str | None = None, code: str | None = None
+    ) -> None:
+        """`code`: the Tabular node the step reaches, for links (task 9.11)."""
         self.trace.append(
-            TraceStep(layer="tabular", action=action, detail=detail, guideline=guideline)
+            TraceStep(layer="tabular", action=action, detail=detail, guideline=guideline, code=code)
         )
 
 
@@ -123,7 +126,7 @@ class TabularVerifier:
                 return None
             node = chosen
         if node.key != code:
-            descent.step("complete", f"{code} -> {node.key} {node.description}", "I.B.1")
+            descent.step("complete", f"{code} -> {node.key} {node.description}", "I.B.1", node.key)
         return Completion(
             code=node.key,
             description=node.description,
@@ -189,12 +192,14 @@ class TabularVerifier:
                 f"{parent.key}: the phrase gives no further detail: {chosen.key} "
                 f"{chosen.description}",
                 "I.A.9.b, I.B.18",
+                chosen.key,
             )
         elif branch == "no_detail":
             descent.flags.append(REVIEW)
             descent.step(
                 "no_detail",
                 f"{parent.key}: no child is unspecified and none matches; took {chosen.key}",
+                code=chosen.key,
             )
         return chosen
 
@@ -239,6 +244,7 @@ class TabularVerifier:
                 "seventh_character",
                 f"{parent.key}: no episode of care stated: {episode} encounter assumed",
                 "I.C.19.a",
+                parent.key,
             )
         wanted = [meaning for meaning in by_meaning if meaning.startswith(episode)]
         if not wanted:
@@ -247,7 +253,7 @@ class TabularVerifier:
         if fracture:
             wanted = self._fracture(wanted, evidence, descent)
         chosen = by_meaning[wanted[0]]
-        descent.step("seventh_character", f"{chosen.key[-1]}: {wanted[0]}", "I.A.5")
+        descent.step("seventh_character", f"{chosen.key[-1]}: {wanted[0]}", "I.A.5", chosen.key)
         return chosen
 
     def _assumed(self, parent: Code, children: Sequence[Code], evidence: Evidence) -> Code | None:
@@ -305,8 +311,10 @@ def _displaced(children: Sequence[Code], descent: _Descent) -> Code:
             "displaced",
             "a fracture not stated as displaced or nondisplaced is coded as displaced",
             "I.C.19.c.1",
+            ruled.key,
         )
         return ruled
     descent.flags.append(TIE)
-    descent.step("tie", f"{', '.join(c.key for c in children)} tie: took {children[0].key}")
+    taken = children[0].key
+    descent.step("tie", f"{', '.join(c.key for c in children)} tie: took {taken}", code=taken)
     return children[0]

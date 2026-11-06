@@ -11,6 +11,9 @@ probability is the confidence of the code set (`Coder.code`).
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
 
 from text2icd.resolve.confidence import RETRIEVAL_FEATURES, Stage
 from text2icd.resolve.retrieve import Hits
@@ -21,6 +24,19 @@ DEPTH = 20  # distinct billable codes completed from them, at most
 POOL = 5  # retrieved codes that compete with the coder's
 BOOK = "retrieval"  # the `Candidate.book` of a code retrieval found
 RETRIEVED = "retrieved"  # its flag
+
+
+class Pooled(BaseModel):
+    """A code L2 weighed, kept on the code set for the UI and audits (task 9.11)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: str
+    description: str
+    origin: Literal["coder", "alternate", "retrieved"]  # the coder's code, an alternate, or not
+    probability: float  # that it is right, by the retrieval stage
+    node: str | None = None  # the retrieved node it was completed from
+    similarity: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
