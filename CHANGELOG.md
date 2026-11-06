@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `text2icd eval bench` (task 9.8) times a local system on one thread. It reports the import,
+  graph load and setup times; peak memory; the first phrase; p50, p95, p99 and max latency;
+  phrases per second; and the slowest example ids (ids only, never phrases). A `benchmark` test
+  holds the deterministic path to p50 under 20 ms and at least 200 phrases per second.
+- `eval run` and `eval report` show p99 and max latency next to p50 and p95
+  (`eval.metrics.latency_summary`).
+- `graph.model.read_meta` reads a graph file's `meta` table without loading the graph, and
+  reports a file that is not a graph as a `GraphError`.
 - Offline evaluation through Message Batches (task 8.8): `coder -O llm=batch` answers L3's
   decisions in rounds of batches (`llm.batch`: `BatchModel`, `Collector`, `Replay`,
   `answer_in_rounds`) at the batch price, keyed by their decision-cache key, then codes every
@@ -90,6 +98,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Tests no longer read the developer's `.env` file or `TEXT2ICD_*` and `ANTHROPIC_*` variables
+  (an autouse fixture in `tests/conftest.py`). Before, a local `.env` that named a provider
+  failed three tests, and an API key in it could have reached a paid endpoint.
 - The endpoint allow-list for restricted data now holds `bedrock` as well as `anthropic`, both
   re-checked against the PhysioNet guidance on 2026-11-04; `vertex` is not on it, since the
   guidance names Vertex AI for Gemini models only.

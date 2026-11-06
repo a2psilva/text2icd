@@ -156,7 +156,7 @@ their subdivisions) and 83 assignments (38 distinct codes) unmappable.
 | Calibration | Expected calibration error of the reported confidence |
 | LLM call rate | Share of phrases that reached L3, and mean calls per phrase |
 | Cost | US dollars per 1,000 phrases: each response's `usage` (input, output, cache read and cache write tokens) times the price table in `src/text2icd/resources/prices.toml` (`text2icd.llm.cost`) |
-| Latency | p50 and p95 per phrase, with and without the LLM |
+| Latency | p50, p95, p99 and max per phrase, with and without the LLM; the tail shows rare slow paths that p50 and p95 hide |
 
 All metrics except latency are reported with 95% bootstrap confidence intervals (1,000 resamples
 of the examples, fixed seed), overall, for the `valid` and `mapped` examples separately, and per
@@ -173,6 +173,33 @@ chapter. They are computed by `text2icd.eval.metrics.score`:
   a system reports any confidence, an example without one counts as 0. Calibration uses ten
   equal-width bins. `eval run` and `eval report` print a selective-accuracy table for every run
   that reports a confidence.
+
+### Speed
+
+`text2icd eval bench` times a local system on one thread, as `eval run` builds it (`-s`, `-O`,
+`-d`, `--split`; default the coder on the committed `cms-synthetic` sample, all splits). It
+reports:
+
+- start-up: the import, timed in a fresh interpreter; the graph load; and the system setup
+  (walker, verifier and calibration, plus vectors and model with `-O retrieval=on`);
+- peak resident memory after setup and at the end;
+- the first phrase on its own, since it pays for what the graph builds lazily;
+- for every later phrase: p50, p95, p99 and max latency, and phrases per second;
+- the five slowest example ids.
+
+`--rounds` codes every phrase several times for steadier numbers, and `--json` keeps the figures.
+Systems that call an LLM are refused. The targets of task 9.8 (deterministic path p50 under 20
+ms, at least 200 phrases per second) are a `benchmark` test (`tests/eval/test_bench.py`), run
+locally, because shared CI runners vary too much.
+
+Baseline on 2026-11-06, FY2027, Apple M4 Pro, 3 rounds of the 1,067-phrase sample:
+
+| System | Setup | Peak memory | p50 / p95 / p99 / max ms | Phrases/s |
+| --- | --- | --- | --- | --- |
+| coder | 0.83 s graph + 2.84 s | 487 MB | 1.0 / 4.2 / 7.2 / 489 | 361 |
+| coder + L2 | 0.85 s graph + 4.01 s | 858 MB | 1.0 / 6.0 / 14.9 / 491 | 327 |
+
+The tail comes from a few phrases whose Index search filters by book (task 9.9).
 
 ### Confidence calibration
 

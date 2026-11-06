@@ -15,6 +15,8 @@ def isolated_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         if name.startswith("TEXT2ICD_"):
             monkeypatch.delenv(name)
     monkeypatch.chdir(tmp_path)
+    # The suite turns `.env` reading off (tests/conftest.py); these tests check it, in tmp_path.
+    monkeypatch.setitem(Settings.model_config, "env_file", ".env")
 
 
 def test_defaults() -> None:

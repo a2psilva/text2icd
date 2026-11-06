@@ -17,6 +17,7 @@ COLUMNS = (
     ("LLM calls", "LLM calls per phrase", "number"),
     ("$/1k", "cost per 1,000 phrases", "dollars"),
 )
+LATENCY = ("p50", "p95", "p99", "max")  # keys of `Report.latency_ms`, as table columns
 
 
 def fmt(estimate: Estimate | None, kind: str, interval: bool = True) -> str:
@@ -37,7 +38,7 @@ def fmt(estimate: Estimate | None, kind: str, interval: bool = True) -> str:
 
 def comparison(runs: Sequence[tuple[dict[str, Any], Report]], intervals: bool = True) -> list[str]:
     """One row per run."""
-    head = ["System", "Dataset", "n", *(c[0] for c in COLUMNS), "p50 ms", "p95 ms"]
+    head = ["System", "Dataset", "n", *(c[0] for c in COLUMNS), *(f"{k} ms" for k in LATENCY)]
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for header, report in runs:
         dataset = header["dataset"]
@@ -46,8 +47,7 @@ def comparison(runs: Sequence[tuple[dict[str, Any], Report]], intervals: bool = 
             f"{dataset['name']} ({dataset['split']})",
             f"{report.scored:,}",
             *(fmt(report.metrics.get(metric), kind, intervals) for _, metric, kind in COLUMNS),
-            _latency(report, "p50"),
-            _latency(report, "p95"),
+            *(_latency(report, key) for key in LATENCY),
         ]
         lines.append("| " + " | ".join(cells) + " |")
     lines.append("")

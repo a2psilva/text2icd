@@ -1,3 +1,4 @@
+import os
 import shutil
 import sqlite3
 from collections.abc import Callable, Iterator
@@ -5,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from text2icd.config import Settings
 from text2icd.fetch import COMPLETE_MARKER
 from text2icd.graph.build import BuildReport, build_graph
 from text2icd.graph.model import Graph, load
@@ -13,6 +15,19 @@ from text2icd.ontology.files import ReleaseFiles
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIMIC_DIR = REPO_ROOT / "data" / "raw" / "mimic-iv"
 CMS_DIR = REPO_ROOT / "data" / "raw" / "cms"
+# Settings that tests must not inherit from the developer's shell: an API key could make a test
+# call a paid endpoint, and a provider or data dir would change what the code under test does.
+_ISOLATED_PREFIXES = ("TEXT2ICD_", "ANTHROPIC_")
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test sees the default settings: no `.env` file and no TEXT2ICD_* or ANTHROPIC_*
+    variables. A test that needs one sets it."""
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    for name in list(os.environ):
+        if name.startswith(_ISOLATED_PREFIXES):
+            monkeypatch.delenv(name)
 
 
 @pytest.fixture
