@@ -78,9 +78,19 @@ def search_index(
     main_terms: bool = False,
 ) -> list[IndexHit]:
     """The `k` Index terms that best match `query`, optionally within one book or main terms."""
+    statement = index_statement(query, k, book=book, main_terms=main_terms)
+    if statement is None:
+        return []
+    return [IndexHit(term, score) for term, score in conn.execute(*statement)]
+
+
+def index_statement(
+    query: str, k: int = 10, *, book: str | None = None, main_terms: bool = False
+) -> tuple[str, list[object]] | None:
+    """The SQL and parameters of `search_index`; None when the query has no word."""
     expression = match_expression(query)
     if expression is None:
-        return []
+        return None
     weights = ", ".join(str(weight) for weight in INDEX_WEIGHTS)
     filters = ""
     params: list[object] = [expression]
@@ -90,13 +100,15 @@ def search_index(
     if main_terms:
         filters += " AND t.level = 0"
     params.append(k)
-    rows = conn.execute(
+    # CROSS JOIN keeps the FTS table first. With a plain JOIN and a book filter, SQLite picks
+    # the (book, level) index and runs one MATCH per term of the book: 340 ms instead of 2 ms
+    # for "of" in the drug table, with the same rows (task 9.9).
+    sql = (
         f"SELECT f.rowid, bm25(fts_index_term, {weights}) AS score "
-        "FROM fts_index_term f JOIN index_term t ON t.id = f.rowid "
-        f"WHERE fts_index_term MATCH ?{filters} ORDER BY score, f.rowid LIMIT ?",
-        params,
+        "FROM fts_index_term f CROSS JOIN index_term t ON t.id = f.rowid "
+        f"WHERE fts_index_term MATCH ?{filters} ORDER BY score, f.rowid LIMIT ?"
     )
-    return [IndexHit(term, score) for term, score in rows]
+    return sql, params
 
 
 def search_tabular(conn: sqlite3.Connection, query: str, k: int = 10) -> list[TabularHit]:
@@ -106,7 +118,7 @@ def search_tabular(conn: sqlite3.Connection, query: str, k: int = 10) -> list[Ta
         return []
     rows = conn.execute(
         "SELECT t.node, t.kind, t.text, bm25(fts_tabular) AS score "
-        "FROM fts_tabular f JOIN tabular_term t ON t.id = f.rowid "
+        "FROM fts_tabular f CROSS JOIN tabular_term t ON t.id = f.rowid "
         "WHERE fts_tabular MATCH ? ORDER BY score, f.rowid LIMIT ?",
         (expression, k),
     )
