@@ -420,3 +420,28 @@ def test_batch_rounds(graph: Graph, tmp_path: Path) -> None:
     assert (again.codes[0], again.llm_calls, again.cost_usd) == ("E85.4", 0, 0.0)
     assert "chose 2 (cached)" in again.trace[-1].detail
     assert confident.llm_calls == 0
+
+
+def test_pool_and_decisions_are_kept(graph: Graph) -> None:
+    """Task 9.11: the codes L2 weighed and what L3 was asked stay on the code set."""
+    scripted = Scripted(subterm=code("E85.4"))
+    code_set = coder(graph, scripted).code(DIABETES)
+    assert [(p.code, p.origin, p.probability) for p in code_set.pool] == [
+        ("E11.22", "retrieved", 0.9),
+        ("N11.9", "coder", 0.3),
+        ("E85.4", "alternate", 0.1),
+        ("J69.0", "retrieved", 0.1),
+    ]
+    assert code_set.pool[0].node == "E11.22"
+    (asked,) = scripted.decisions
+    (decided,) = code_set.decisions
+    assert (decided.kind, decided.by, decided.chosen) == ("subterm", "llm", "2")
+    assert decided.options == asked.options
+    assert decided.options[1].code == "E85.4"  # the option chosen
+    assert "phrase" not in decided.model_dump()  # the code set holds it once
+
+
+def test_no_pool_without_retrieval(graph: Graph) -> None:
+    code_set = Coder.from_graph(graph).code(DIABETES)
+    assert code_set.pool == ()
+    assert code_set.decisions == ()

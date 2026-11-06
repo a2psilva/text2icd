@@ -106,6 +106,19 @@ _DIABETES = re.compile(r"\bdiabet")
 _DRUG_LINK = r"(?:on|with|using|taking|requiring|treated with|controlled (?:with|on|by)|and)"
 
 
+class PathStep(BaseModel):
+    """One term on a candidate's path through the Index (task 9.11)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    term: int  # the term's id in the release's graph
+    title: str
+    took: tuple[str, ...] = ()  # the phrase words it uses, in the forms the walk compares
+    via: Literal["", "see", "see_also"] = ""  # reached by this cross-reference, if any
+    note: str = ""  # that cross-reference, as written
+    column: int | None = None  # the table column read from here on
+
+
 class Candidate(BaseModel):
     """A code the Index leads to for one diagnosis, possibly partial (written with a trailing
     "-"), with the path that leads there."""
@@ -126,6 +139,8 @@ class Candidate(BaseModel):
     flags: tuple[str, ...] = ()
     trace: tuple[TraceStep, ...] = ()
     role: Literal["diagnosis", "external_cause"] = "diagnosis"
+    steps: tuple[PathStep, ...] = ()  # the path, term by term from the main term
+    coded_step: int | None = None  # the step whose term (or its "unspecified" subterm) gives it
 
     @property
     def written(self) -> str:
@@ -667,19 +682,41 @@ class IndexWalker:
             routed = context.routes[state.route]
             flags.extend(routed.flags)
             trace.append(self._route_step(routed))
+        steps: list[PathStep] = []
         for depth, step in enumerate(state.path):
             term = self.graph.term(step.term)
+            via = "see" if step.via == "see" else "see_also" if step.via == "see_also" else ""
+            steps.append(
+                PathStep(
+                    term=step.term,
+                    title=term.title,
+                    took=step.took,
+                    via=via,
+                    note=step.note,
+                    column=step.column,
+                )
+            )
             if step.via:
                 column = self.graph.column_heading(term.book, step.column) if step.column else None
                 into = f" [{column}]" if column else ""
                 detail = f"{step.note} -> {term.path}{into}"
                 trace.append(
-                    TraceStep(layer="index", action=step.via, detail=detail, guideline="I.A.16")
+                    TraceStep(
+                        layer="index",
+                        action=step.via,
+                        detail=detail,
+                        guideline="I.A.16",
+                        term=step.term,
+                    )
                 )
                 continue
             uses = f" (uses {', '.join(step.took)})" if step.took else ""
             action = "main_term" if depth == 0 else "subterm"
-            trace.append(TraceStep(layer="index", action=action, detail=f"{term.title}{uses}"))
+            trace.append(
+                TraceStep(
+                    layer="index", action=action, detail=f"{term.title}{uses}", term=step.term
+                )
+            )
             connector = self.profiles[step.term].connector if depth else None
             if connector in PRESUMED and connector not in context.said:
                 trace.append(
@@ -712,13 +749,26 @@ class IndexWalker:
                 else f"no subterm of {source.title} gives a code for the rest: {code.written}"
             )
             trace.append(
-                TraceStep(layer="index", action="default_code", detail=detail, guideline="I.A.18")
+                TraceStep(
+                    layer="index",
+                    action="default_code",
+                    detail=detail,
+                    guideline="I.A.18",
+                    term=state.path[at].term,
+                    code=code.target,
+                )
             )
         if code.field == "see_category":
             flags.append("see_category")
         written = code.written + (f" [{manifestation.written}]" if manifestation else "")
         trace.append(
-            TraceStep(layer="index", action="code", detail=f"{written} at {coded_at.path}")
+            TraceStep(
+                layer="index",
+                action="code",
+                detail=f"{written} at {coded_at.path}",
+                term=coded.term,
+                code=code.target,
+            )
         )
         used = state.essential | state.nonessential
         return Candidate(
@@ -735,6 +785,8 @@ class IndexWalker:
             unused=tuple(word for word in phrase.forms if word not in used),
             flags=tuple(flags),
             trace=tuple(trace),
+            steps=tuple(steps),
+            coded_step=at,
         )
 
 

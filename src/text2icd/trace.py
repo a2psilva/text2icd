@@ -14,6 +14,10 @@ class TraceStep(BaseModel):
     action: str  # e.g. "shorthand", "abbreviation", "split", "default_code"
     detail: str  # human-readable, e.g. '"w/" -> "with"'
     guideline: str | None = None  # the guideline section a rule applies, e.g. "II.H"
+    # What the step is about, for links (task 9.11): an Index term id of the release's graph,
+    # a Tabular code.
+    term: int | None = None
+    code: str | None = None
 
 
 def text_step(action: str, detail: str, guideline: str | None = None) -> TraceStep:
