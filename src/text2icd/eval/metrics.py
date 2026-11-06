@@ -27,6 +27,7 @@ CONFIDENCE = 0.95
 COVERAGES = (1.0, 0.9, 0.8, 0.7, 0.6, 0.5)
 CALIBRATION_BINS = 10
 TOP_K = 5
+LATENCY_PERCENTILES = (50, 95, 99)
 # Rows of resampled counts held in memory at once (resamples x examples).
 _CHUNK_CELLS = 10_000_000
 
@@ -55,7 +56,7 @@ class Report:
     errors: int  # predictions that carry an error
     metrics: dict[str, Estimate]
     selective: dict[float, Estimate]  # coverage -> accuracy@1 on the most confident examples
-    latency_ms: dict[str, float]  # p50 and p95
+    latency_ms: dict[str, float]  # p50, p95, p99 and max (`latency_summary`)
     # "valid" and "mapped" examples; "kept" and "escalated" by the coder, when it says
     subsets: dict[str, "Report"] = field(default_factory=dict)
     groups: dict[str, "Report"] = field(default_factory=dict)  # for example per chapter
@@ -267,12 +268,20 @@ def _report(table: _Table, indices: npt.NDArray[np.int_], resamples: int, seed: 
             coverage: _estimate(_selective(coverage), column, point, samples)
             for coverage in selective_names
         },
-        latency_ms=(
-            {"p50": float(np.percentile(latency, 50)), "p95": float(np.percentile(latency, 95))}
-            if latency.size
-            else {}
-        ),
+        latency_ms=latency_summary(latency),
     )
+
+
+def latency_summary(latency_ms: npt.ArrayLike) -> dict[str, float]:
+    """p50, p95, p99 and max of latencies in milliseconds; empty when there are none. The tail
+    (p99, max) is where rare slow paths show, which p50 and p95 hide."""
+    values = np.asarray(latency_ms, dtype=np.float64)
+    if not values.size:
+        return {}
+    points = np.percentile(values, LATENCY_PERCENTILES)
+    summary = {f"p{p}": float(v) for p, v in zip(LATENCY_PERCENTILES, points, strict=True)}
+    summary["max"] = float(np.max(values))
+    return summary
 
 
 def _selective_columns(confidence: Vector, correct: Vector) -> tuple[Matrix, list[float]]:

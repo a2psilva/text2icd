@@ -10,6 +10,7 @@ their global id or by book and path (`Pneumonia > aspiration`).
 import json
 import sqlite3
 from collections.abc import Iterator
+from contextlib import closing
 from functools import cached_property
 from itertools import groupby
 from operator import itemgetter
@@ -406,6 +407,15 @@ def load(
     """Load the graph of `release` (default: TEXT2ICD_RELEASE) from the data directory, or the
     file at `path`."""
     return Graph(graph_file(release, path=path, settings=settings))
+
+
+def read_meta(path: Path) -> dict[str, str]:
+    """The `meta` table of a graph file (release, hashes, versions), without loading the graph."""
+    try:
+        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as conn:
+            return dict(conn.execute("SELECT key, value FROM meta"))
+    except sqlite3.DatabaseError as exc:
+        raise GraphError(f"{path} is not a readable graph file: {exc}") from exc
 
 
 def graph_file(
