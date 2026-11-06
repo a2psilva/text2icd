@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from text2icd.text.tracked import Tracked
 from text2icd.trace import TraceStep, change, text_step
 
 LEXICON = "abbreviations.toml"
@@ -77,6 +78,8 @@ class Expansion(BaseModel):
     alternatives: tuple[str, ...] = ()  # the other meanings of an ambiguous entry
     chosen_by: ChosenBy = "only"
     hint: str | None = None
+    start: int | None = None  # where `written` is in the original phrase (task 9.11)
+    end: int | None = None
 
     @property
     def ambiguous(self) -> bool:
@@ -138,9 +141,17 @@ class Lexicon:
         """The text with every abbreviation replaced by its expansion, and the expansions.
         `shouting` says whether the phrase is written all in capitals (computed from `text`
         when not given)."""
+        expanded, found = self.expand_tracked(Tracked.of(text), shouting=shouting)
+        return expanded.text, found
+
+    def expand_tracked(
+        self, text: Tracked, *, shouting: bool | None = None
+    ) -> tuple[Tracked, list[Expansion]]:
+        """`expand`, keeping track of where each character came from; each expansion records
+        the span of the original phrase it was written at."""
         if shouting is None:
-            shouting = self.shouting(text)
-        context = text.casefold()
+            shouting = self.shouting(text.text)
+        context = text.text.casefold()
         found: list[Expansion] = []
 
         def replace(match: re.Match[str]) -> str:
@@ -155,6 +166,7 @@ class Lexicon:
                 return match[0]
             expansion, chosen_by, hint = entry.choose(context)
             others = tuple(e for e in entry.expansions if e != expansion)
+            start, end = text.origin(*match.span())
             found.append(
                 Expansion(
                     written=match[0],
@@ -163,11 +175,13 @@ class Lexicon:
                     alternatives=others,
                     chosen_by=chosen_by,
                     hint=hint,
+                    start=start,
+                    end=end,
                 )
             )
             return expansion
 
-        return self._pattern.sub(replace, text), found
+        return text.sub(self._pattern, replace), found
 
     def unknown(
         self,
