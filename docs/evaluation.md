@@ -198,8 +198,18 @@ Baseline on 2026-11-06, FY2027, Apple M4 Pro, 3 rounds of the 1,067-phrase sampl
 | --- | --- | --- | --- | --- |
 | coder | 0.83 s graph + 2.84 s | 487 MB | 1.0 / 4.2 / 7.2 / 489 | 361 |
 | coder + L2 | 0.85 s graph + 4.01 s | 858 MB | 1.0 / 6.0 / 14.9 / 491 | 327 |
+| coder, after 9.9 | 0.85 s graph + 2.71 s | 487 MB | 1.0 / 3.9 / 6.1 / 268 | 644 |
+| coder + L2, after 9.9 | 0.82 s graph + 3.72 s | 852 MB | 1.0 / 5.3 / 12.1 / 21 | 549 |
 
-The tail comes from a few phrases whose Index search filters by book (task 9.9).
+**The tail before task 9.9.** It came from a few phrases whose Index search filters by book.
+SQLite then used the (book, level) index and ran one full-text MATCH per term of the book, about
+340 ms for "of" in the Table of Drugs. Its `CROSS JOIN` scans the search table first (2 ms, the
+same rows); the change was checked to leave the full code-set JSON of every `cms-synthetic` and
+`mimic-silver` dev phrase identical.
+
+**What is left of the tail** is a full garbage collection over the graph's 1.28 million objects
+(288 ms). It falls on whichever phrase happens to trigger it, which is the 268 ms above.
+`gc.freeze()` once the coder is built removes it (task 9.12).
 
 ### Confidence calibration
 
