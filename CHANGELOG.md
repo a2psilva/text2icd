@@ -33,7 +33,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - L3's abbreviation rewrite keeps the spans on the user's text (`ParsedPhrase.rebased`); the
     code set's `parsed.original` is now what the user wrote, not the rewritten phrase.
   - Codes and the rest of the JSON are unchanged on the cms-synthetic and mimic-silver dev sets.
-
+- Paths and links for the UI (task 9.11, part 2).
+  - Each Index candidate carries its path as graph terms (`Candidate.steps`: term id, title,
+    the words it uses, see or see also, the cross-reference as written, the table column) and
+    `coded_step`, the step that gives the code.
+  - Each coded diagnosis and each code of the sequence lists the conditions (chunks) it codes
+    (`conditions`): in "DM2 w/ CKD 3a, possible UTI 2/2 E. coli", E11.22 and N18.31 code "DM2"
+    and "CKD 3a".
+  - Trace steps name the Index term or Tabular code they are about (`term`, `code`).
+  - The code set keeps the codes L2 weighed, with their probabilities (`pool`), and what L3 was
+    asked and answered (`decisions`, without the phrase).
+  - `Graph.xrefs_to` gives the cross-references that lead to a term.
+  - Codes and the rest of the JSON are unchanged on the cms-synthetic and mimic-silver dev sets.
 - `text2icd eval bench` (task 9.8) times a local system on one thread. It reports the import,
   graph load and setup times; peak memory; the first phrase; p50, p95, p99 and max latency;
   phrases per second; and the slowest example ids (ids only, never phrases). A `benchmark` test
