@@ -1,11 +1,17 @@
 import sqlite3
-from collections.abc import Callable, Iterator
+import time
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 import pytest
 
 from text2icd.graph.build import BuildReport, build_graph
-from text2icd.graph.search import match_expression, search_index, search_tabular
+from text2icd.graph.search import (
+    index_statement,
+    match_expression,
+    search_index,
+    search_tabular,
+)
 from text2icd.ontology.files import ReleaseFiles
 
 
@@ -48,6 +54,33 @@ def test_search_index(fixture_db: sqlite3.Connection) -> None:
     assert search_index(fixture_db, "?!") == []
     scores = [hit.score for hit in search_index(fixture_db, "pneumonia", 10)]
     assert scores == sorted(scores)
+
+
+def first_step(conn: sqlite3.Connection, sql: str, params: Sequence[object]) -> str:
+    plan = conn.execute(f"EXPLAIN QUERY PLAN {sql}", params).fetchall()
+    return str(plan[0][3])
+
+
+@pytest.mark.parametrize(
+    ("book", "main_terms"), [(None, False), ("drug", False), ("index", True), (None, True)]
+)
+def test_index_search_scans_the_fts_table_first(
+    fixture_db: sqlite3.Connection, book: str | None, main_terms: bool
+) -> None:
+    """Task 9.9: with a book filter, SQLite would otherwise run one MATCH per term of the book
+    (hundreds of milliseconds on a release). Checked here because SQLite versions differ."""
+    statement = index_statement("of pneumonia", 5, book=book, main_terms=main_terms)
+    assert statement is not None
+    assert first_step(fixture_db, *statement).startswith("SCAN f VIRTUAL TABLE")
+
+
+def test_tabular_search_scans_the_fts_table_first(fixture_db: sqlite3.Connection) -> None:
+    sql = (
+        "SELECT t.node FROM fts_tabular f CROSS JOIN tabular_term t ON t.id = f.rowid "
+        "WHERE fts_tabular MATCH ? LIMIT 5"
+    )
+    assert first_step(fixture_db, sql, ['"propanol"']).startswith("SCAN f VIRTUAL TABLE")
+    assert index_statement("?!") is None
 
 
 def test_search_tabular(fixture_db: sqlite3.Connection) -> None:
@@ -113,3 +146,17 @@ def test_release_search(release_graph: Callable[[str], BuildReport]) -> None:
         nodes = [hit.node for hit in search_tabular(conn, "type 2 diabetes chronic kidney", 1)]
         assert nodes == ["E11.22"]
         assert conn.execute("SELECT count(*) FROM tabular_term").fetchone()[0] > 60_000
+
+
+@pytest.mark.slow
+@pytest.mark.benchmark
+def test_release_book_search_is_fast(release_graph: Callable[[str], BuildReport]) -> None:
+    """Task 9.9: the worst query seen in the sample took 340 ms before the planner fix."""
+    report = release_graph("fy2027")
+    with sqlite3.connect(report.path) as conn:
+        search_index(conn, "of", 50, book="drug")  # warm the page cache
+        began = time.perf_counter()
+        for book in ("index", "eindex", "neoplasm", "drug"):
+            search_index(conn, "fracture of left femur", 50, book=book)
+            search_index(conn, "of", 50, book=book)
+        assert time.perf_counter() - began < 0.2
