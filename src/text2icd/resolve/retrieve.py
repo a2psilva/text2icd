@@ -24,6 +24,7 @@ file naming the model, the texts' sources, the graph it belongs to and the code 
 
 import json
 import re
+import threading
 import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
@@ -286,7 +287,23 @@ def load_vectors(
     graph: Graph, path: Path | None = None, embedder: Embedder | None = None
 ) -> EmbeddingRetriever:
     """The retriever over the graph's vectors file, with the model it was built with (or
-    `embedder`, of the same dimension)."""
+    `embedder`, of the same dimension). The matrix is memory-mapped: it costs no load time and
+    no memory until it is searched, and processes share it through the page cache."""
+    path, meta = vectors_meta(graph, path)
+    rebuild = f"run `text2icd graph embed -r {graph.release}`"
+    vectors = np.load(path, mmap_mode="r", allow_pickle=False)
+    if vectors.dtype != np.float16 or vectors.shape != (meta.rows, meta.dim):
+        raise VectorsError(f"{path} does not match its .json file; {rebuild}")
+    embedder = embedder or load_embedder(meta.model)
+    dim = getattr(embedder, "dim", meta.dim)
+    if dim != meta.dim:
+        raise VectorsError(f"{path} has {meta.dim} dimensions, the model {dim}; {rebuild}")
+    return EmbeddingRetriever(embedder, meta.nodes, vectors, meta.sources)
+
+
+def vectors_meta(graph: Graph, path: Path | None = None) -> tuple[Path, VectorsMeta]:
+    """The vectors file of the graph and what its JSON file says, checked against the graph;
+    VectorsError when either file is missing or was built for another graph."""
     path = path or vectors_path(graph.path)
     rebuild = f"run `text2icd graph embed -r {graph.release}`"
     if not path.is_file() or not _meta_path(path).is_file():
@@ -299,11 +316,30 @@ def load_vectors(
         raise VectorsError(f"{path} has format {meta.format}, this text2icd reads {VECTORS_FORMAT}")
     if meta.graph != graph.meta.get("content_sha256"):
         raise VectorsError(f"{path} was built for another graph; {rebuild}")
-    vectors = np.load(path, allow_pickle=False)
-    if vectors.dtype != np.float16 or vectors.shape != (meta.rows, meta.dim):
-        raise VectorsError(f"{path} does not match its .json file; {rebuild}")
-    embedder = embedder or load_embedder(meta.model)
-    dim = getattr(embedder, "dim", meta.dim)
-    if dim != meta.dim:
-        raise VectorsError(f"{path} has {meta.dim} dimensions, the model {dim}; {rebuild}")
-    return EmbeddingRetriever(embedder, meta.nodes, vectors, meta.sources)
+    return path, meta
+
+
+class LazyRetriever:
+    """L2's retriever, loaded on its first search (task 9.2). Most phrases are never escalated,
+    so a resolver starts without reading the vectors or the embedding model. Its `name`, which
+    the calibration's retrieval stage is checked against, comes from the vectors' JSON file."""
+
+    def __init__(self, graph: Graph, path: Path | None = None) -> None:
+        self._graph = graph
+        self._path, meta = vectors_meta(graph, path)
+        self.name = meta.model_id
+        self._loaded: EmbeddingRetriever | None = None
+        self._loading = threading.Lock()
+
+    @property
+    def loaded(self) -> bool:
+        return self._loaded is not None
+
+    def load(self) -> EmbeddingRetriever:
+        with self._loading:
+            if self._loaded is None:
+                self._loaded = load_vectors(self._graph, self._path)
+        return self._loaded
+
+    def search(self, queries: Sequence[str], k: int) -> list[Hits]:
+        return self.load().search(queries, k)

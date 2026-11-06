@@ -201,8 +201,19 @@ besides modifiers and cues name a condition.
 
 ### L0: result cache
 
-Key: normalized phrase, release id, resolver version and settings. Stored in a local SQLite file
-under `.text2icd/` (git-ignored, because cached phrases may come from restricted data).
+`text2icd.resolve.resolver.Resolver` keeps the last 4,096 code sets in memory, keyed by the
+phrase, setting and episode. Its graph, calibration and models are fixed for its lifetime, so
+the key needs no more. A phrase coded again comes back at once, marked `cached`, with no cost.
+
+Nothing is written to disk. L1 takes about 1 ms and L2 about 10 ms, and the decision cache
+already makes a repeated L3 decision free. A disk cache would also store results derived from
+phrases (a MIMIC-IV risk), and it would need invalidating when the calibration, vectors, model
+or prompt change.
+
+The resolver builds the cascade once:
+- one Index walker for both settings, since the setting is per phrase;
+- one Tabular verifier per episode of care, built when first asked for;
+- L2's vectors and model, loaded on the first escalated phrase (the vectors memory-mapped).
 
 ### L1: deterministic coder
 
@@ -464,32 +475,24 @@ are discounted.
 
 ## Output schema
 
-```python
-class AssignedCode(BaseModel):
-    code: str  # "E11.22", always billable in the selected release
-    description: str
-    role: Literal["primary", "manifestation", "use_additional", "code_also", "external_cause"]
-    confidence: float  # calibrated probability
+`text2icd.result.CodingResult` is what the Python API, the CLI (`code --json`, `batch`) and the
+HTTP service return. Its JSON Schema is [schema/coding-result.json](schema/coding-result.json),
+written by `python -m text2icd.result` and checked by a test. It is built from the coder's
+`CodeSet`, which stays the internal form (`CodingResult.of`).
 
-
-class TraceStep(BaseModel):
-    layer: Literal["text", "cache", "index", "tabular", "rules", "retrieval", "llm"]
-    action: str  # e.g. "subterm", "see", "default_code", "seventh_character"
-    detail: str  # human-readable, e.g. "Diabetes, diabetic > type 2 > with"
-    guideline: str | None  # e.g. "I.A.15"
-
-
-class CodingResult(BaseModel):
-    input: str
-    release: str  # e.g. "fy2026"
-    codes: list[AssignedCode]  # ordered: etiology before manifestation
-    alternatives: list[AssignedCode]
-    trace: list[TraceStep]
-    flags: list[str]  # e.g. "default_code_used", "unspecified_chosen", "needs_review"
-    resolver: Literal["cache", "index", "retrieval", "llm"]
-    llm_calls: int
-    cost_usd: float
-```
+| Field | Content |
+| --- | --- |
+| `input`, `normalized`, `setting` | the phrase as written and as the walk reads it; inpatient or outpatient |
+| `release`, `graph`, `version` | the release id, the graph's content hash, the text2icd version: the same three give the same answers |
+| `chunks` | the conditions the phrase states, each with its span in `input`, its words as the walk reads them, status, certainty, whether it is coded, its diagnosis group, and its modifiers and cues with their spans |
+| `expansions` | abbreviations read, with where they were written and, when ambiguous, the other meanings |
+| `codes` | in coding order, all billable: code, description, role (`diagnosis`, `manifestation`, `code_first`, `use_additional`, `code_also`, `external_cause`), `primary` for the first, the code whose note or Index pair brought it in, the chunks it codes, and its diagnosis in `detail.paths` |
+| `alternatives` | other codes the Index walk led to for the primary diagnosis |
+| `confidence` | calibrated, that the primary code is right; one per code set, since the table is fitted on the primary code |
+| `escalated`, `resolver`, `cached` | the layers whose confidence was too low, the layer that gave the primary code, whether the result came from the in-process cache |
+| `flags`, `trace` | e.g. `needs_review`, `default_code_used`; every step in order, each with its layer, action, detail, guideline section, and the Index term or Tabular code it is about |
+| `llm_calls`, `cost_usd` | what L3 cost for this phrase (0 for a cached result) |
+| `detail` (with `explain`) | per diagnosis: its path through the Index as graph terms (`steps`, the step that gives the code), the book, the code as the Index writes it, alternates, flags and its own trace; then the instructional notes and what they led to, the codes Excludes1 took out, the codes L2 weighed with their probabilities, and L3's decisions with their options |
 
 ## Cost model
 

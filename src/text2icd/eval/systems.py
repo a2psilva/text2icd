@@ -23,11 +23,12 @@ from text2icd.llm.cost import CostMeter, PriceError
 from text2icd.llm.navigator import LLMNavigator, Navigator, build_navigator
 from text2icd.llm.prompts import PROMPT_VERSION
 from text2icd.llm.providers import LLMUnavailableError, MessagesModel
-from text2icd.resolve.coder import Coder
+from text2icd.resolve.coder import CodeSet
 from text2icd.resolve.confidence import CalibrationError, read_calibration
-from text2icd.resolve.retrieve import VectorsError, load_vectors
-from text2icd.resolve.tabular import EPISODES, TabularVerifier
+from text2icd.resolve.resolver import Resolver, ResolverError
+from text2icd.resolve.tabular import EPISODES, Episode
 from text2icd.resolve.walk import WIDTH, IndexWalker
+from text2icd.text.model import Setting
 
 Options = Mapping[str, str]
 
@@ -254,30 +255,25 @@ class CoderSystem(System):
             raise SystemSetupError(f"option episode must be one of {', '.join(EPISODES)}")
         if retrieval not in ("on", "off"):
             raise SystemSetupError(f"option retrieval must be on or off, got {retrieval!r}")
-        self.setting, self.episode = setting, episode
-        walker = IndexWalker.from_graph(
-            graph, "outpatient" if setting == "outpatient" else "inpatient", self.width
-        )
-        default = next(e for e in EPISODES if e == episode)
+        self.setting: Setting = "outpatient" if setting == "outpatient" else "inpatient"
+        self.episode: Episode = next(e for e in EPISODES if e == episode)
         self.calibration = read_calibration(settings.calibration)
-        verifier = TabularVerifier(graph, walker.finder.forms, default)
-        retriever = None
-        if retrieval == "on":
-            if self.calibration is None or self.calibration.retrieval is None:
-                raise SystemSetupError(
-                    "retrieval=on needs a calibration table with a retrieval stage "
-                    "(text2icd eval calibrate)"
-                )
-            try:
-                retriever = load_vectors(graph)
-            except (VectorsError, ValueError) as exc:
-                raise SystemSetupError(str(exc)) from exc
         self.batch: BatchModel | None = None
         self.navigator = self._navigator(settings, options)
         try:
-            self.coder = Coder(graph, walker, verifier, self.calibration, retriever, self.navigator)
-        except CalibrationError as exc:
+            # No result cache: every phrase is coded and timed.
+            self.resolver = Resolver(
+                settings=settings,
+                graph=graph,
+                retrieval=retrieval == "on",
+                navigator=self.navigator,
+                calibration=self.calibration,
+                width=self.width,
+                cache_size=0,
+            )
+        except (ResolverError, CalibrationError) as exc:
             raise SystemSetupError(str(exc)) from exc
+        self.coder = self.resolver.coder(self.episode)
         self.uses_llm = self.endpoint is not None
 
     def _navigator(self, settings: Settings, options: Options) -> Navigator | None:
@@ -326,7 +322,7 @@ class CoderSystem(System):
             collector = Collector(cache, navigator.space, *named)
             self.coder.navigator = collector
             answered = answer_in_rounds(
-                self.coder.code, phrases, collector, self.batch, navigator.calls_per_phrase
+                self._code, phrases, collector, self.batch, navigator.calls_per_phrase
             )
             self.coder.navigator = Replay(
                 cache, navigator.space, *named, answered, navigator.calls_per_phrase
@@ -334,8 +330,11 @@ class CoderSystem(System):
         for phrase in phrases:
             yield self.predict(phrase)
 
+    def _code(self, phrase: str) -> CodeSet:
+        return self.coder.code(phrase, self.setting)
+
     def predict(self, phrase: str) -> Prediction:
-        code_set = self.coder.code(phrase)
+        code_set = self._code(phrase)
         first = code_set.diagnoses[0].alternates if code_set.diagnoses else ()
         return Prediction(
             id="",

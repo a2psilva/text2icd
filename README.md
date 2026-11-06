@@ -59,43 +59,43 @@ The deterministic coder alone (L1, $0) already reaches 94.2% accuracy@1 on the p
 More detail is in [docs/architecture.md](docs/architecture.md) and
 [docs/coder-workflow.md](docs/coder-workflow.md).
 
-## Target output
+## Output
 
-The deterministic coder already gives the codes, roles and trace of this example
-(`text2icd code "type 2 DM with diabetic CKD stage 3a" --json`), with one calibrated confidence for
-the primary code; the first code is the primary one. A confidence per code, the answering layer
-and the cost come with Phases 8 and 9.
+`text2icd code "type 2 DM with diabetic CKD stage 3a" --json` returns a `CodingResult`
+([JSON Schema](docs/schema/coding-result.json)). Trimmed:
 
 ```json
 {
   "input": "type 2 DM with diabetic CKD stage 3a",
+  "release": "fy2027",
+  "chunks": [
+    {"id": 0, "text": "type 2 DM", "start": 0, "end": 9},
+    {"id": 1, "text": "diabetic CKD stage 3a", "start": 15, "end": 36}
+  ],
   "codes": [
-    {
-      "code": "E11.22",
-      "description": "Type 2 diabetes mellitus with diabetic chronic kidney disease",
-      "role": "diagnosis",
-      "confidence": 0.97
-    },
-    {
-      "code": "N18.31",
-      "description": "Chronic kidney disease, stage 3a",
-      "role": "use_additional",
-      "source": "E11.22",
-      "confidence": 0.95
-    }
+    {"code": "E11.22", "description": "Type 2 diabetes mellitus with diabetic chronic kidney disease",
+     "role": "diagnosis", "primary": true, "chunks": [0, 1], "path": 0},
+    {"code": "N18.31", "description": "Chronic kidney disease, stage 3a",
+     "role": "use_additional", "primary": false, "source": "E11.22", "chunks": [0, 1]}
   ],
-  "alternatives": [],
-  "trace": [
-    "text: 'DM' -> 'diabetes mellitus'; 'CKD' -> 'chronic kidney disease'",
-    "index: Diabetes, diabetic > type 2 > with > chronic kidney disease -> E11.22",
-    "tabular: E11.22 is billable; 'Use additional code to identify stage of chronic kidney disease (N18.1-N18.6)'",
-    "index: Disease, diseased > kidney > chronic > stage 3a -> N18.31"
-  ],
-  "flags": [],
+  "confidence": 0.709,
   "resolver": "index",
+  "trace": [
+    {"layer": "text", "action": "abbreviation", "detail": "\"DM\" -> \"diabetes mellitus\""},
+    {"layer": "index", "action": "see", "detail": "Diabetes -> Diabetes, diabetic", "guideline": "I.A.16"},
+    {"layer": "index", "action": "code", "detail": "E11.22 at Diabetes, diabetic > type 2 > with > chronic kidney disease"},
+    {"layer": "tabular", "action": "companion", "detail": "E11.22: use additional code ... (N18.1-N18.6)"}
+  ],
   "cost_usd": 0.0
 }
 ```
+
+- **Chunks:** each chunk is a condition the phrase states, at the span where it was written.
+- **Codes:** in coding order, each code lists the chunks it codes, its role, and the code whose
+  note brought it in.
+- **Confidence:** calibrated for the code set, as the chance that its primary code is right.
+- **`--explain`:** adds each diagnosis's path through the Index (graph term ids) and the Tabular
+  List, the instructional notes, Excludes1, the codes L2 weighed, and L3's decisions.
 
 ## Quickstart (development)
 
@@ -116,6 +116,7 @@ uv run text2icd graph embed  # embeds its texts for local retrieval (about 3 min
 uv run text2icd parse "DM2 w/ CKD 3a, possible UTI 2/2 E. coli"   # how a phrase is read
 uv run text2icd walk "aspiration pneumonia due to food"         # the Index walk's candidates
 uv run text2icd code "type 2 DM with diabetic CKD stage 3a"      # the coder, then L2 if unsure
+uv run text2icd code "DM2 w/ CKD 3a" --json --explain             # the result, with its paths
 uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all   # the BM25 baseline
 make check                   # lint, format check, type check, tests
 ```

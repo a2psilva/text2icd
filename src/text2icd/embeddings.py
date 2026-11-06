@@ -5,6 +5,7 @@ Used by the B2 baseline, the MIMIC-IV aligner and local retrieval (L2, `resolve.
 model is configuration, named `<kind>:<id>` (`load_embedder`), and recorded with every result.
 """
 
+import importlib.util
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
@@ -37,6 +38,16 @@ def normalize(vectors: npt.ArrayLike) -> Vectors:
     norms = np.linalg.norm(array, axis=1, keepdims=True).astype(np.float32)
     norms[norms == 0] = 1.0
     return array / norms
+
+
+# The modules each kind of model needs (the `embeddings` extra).
+_NEEDS = {"onnx": ("onnxruntime", "tokenizers", "huggingface_hub"), "model2vec": ("model2vec",)}
+
+
+def missing(spec: str) -> tuple[str, ...]:
+    """The modules `load_embedder(spec)` needs that are not installed, without importing them."""
+    needed = _NEEDS.get(spec.split(":", 1)[0], ())
+    return tuple(module for module in needed if importlib.util.find_spec(module) is None)
 
 
 def load_embedder(spec: str) -> Embedder:
