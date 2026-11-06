@@ -12,6 +12,7 @@ every answer from it.
 
 import hashlib
 import sqlite3
+import threading
 from pathlib import Path
 from types import TracebackType
 
@@ -19,6 +20,7 @@ from text2icd.llm.decisions import Choice, Decision
 from text2icd.llm.prompts import PROMPT_VERSION
 
 FILE = "decisions.sqlite"
+BUSY_TIMEOUT_S = 10.0  # how long a write waits for another process's write
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS decision (
     key TEXT PRIMARY KEY,
@@ -38,17 +40,24 @@ def cache_key(decision: Decision, space: str) -> str:
 
 
 class DecisionCache:
+    """Thread-safe (task 9.10): one connection behind a lock. WAL lets other processes (an
+    `eval run` beside a server) read while one writes, and a busy timeout waits out their
+    writes."""
+
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self._conn = sqlite3.connect(path)
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(path, timeout=BUSY_TIMEOUT_S, check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(_SCHEMA)
         self._conn.commit()
 
     def get(self, decision: Decision, space: str) -> Choice | None:
-        row = self._conn.execute(
-            "SELECT option FROM decision WHERE key = ?", (cache_key(decision, space),)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT option FROM decision WHERE key = ?", (cache_key(decision, space),)
+            ).fetchone()
         if row is None:
             return None
         option = row[0] if decision.option(row[0]) is not None else None
@@ -58,16 +67,19 @@ class DecisionCache:
         self.put_key(cache_key(decision, space), option)
 
     def put_key(self, key: str, option: str | None) -> None:
-        self._conn.execute(
-            "INSERT OR REPLACE INTO decision (key, option) VALUES (?, ?)", (key, option)
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO decision (key, option) VALUES (?, ?)", (key, option)
+            )
+            self._conn.commit()
 
     def __len__(self) -> int:
-        return int(self._conn.execute("SELECT count(*) FROM decision").fetchone()[0])
+        with self._lock:
+            return int(self._conn.execute("SELECT count(*) FROM decision").fetchone()[0])
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     def __enter__(self) -> "DecisionCache":
         return self
