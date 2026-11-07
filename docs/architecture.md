@@ -93,7 +93,8 @@ order file exactly.
 
 ### Storage
 
-One SQLite file per release, for example `data/processed/text2icd-graph-fy2026.sqlite`, written by
+One SQLite file per release in the data directory (`text2icd data where`), for example
+`data/processed/text2icd-graph-fy2026.sqlite` in a checkout, written by
 `text2icd build-graph --release fy2026`:
 
 - tables for tabular nodes, notes, edges, index terms, table cells and cross-references;

@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `text2icd data where`: the data and cache directories and where each setting came from, and
+  whether a release's CMS files, graph, vectors and L2 model are present.
 - `text2icd.resolve.resolver.Resolver` (tasks 9.2 and 9.3). It is the one place that builds
   the cascade from the settings:
   - one Index walker for both settings, since the setting is now per phrase;
@@ -153,6 +155,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Data paths that work outside a checkout (task 10.8). With `TEXT2ICD_DATA_DIR` and
+  `TEXT2ICD_CACHE_DIR` unset, text2icd uses the per-user directories of the platform
+  (`platformdirs`, a new dependency) instead of `./data` and `./.text2icd` relative to wherever
+  it runs. A checkout keeps `./data` through its `.env`, which `make install` now copies from
+  `.env.example` when missing. A missing graph with one in `./data/processed/` says how to use
+  it. CI's integration job sets `TEXT2ICD_DATA_DIR=data`.
+- `build-graph` and `data stats` need only the two CMS files they read (the Tables and Index
+  XML, and the order file), not all six of a release.
 - Extras (task 10.6). `embeddings` now declares what L2 imports (onnxruntime, tokenizers,
   huggingface_hub). `model2vec`, used only by the B2 baseline and the MIMIC-IV aligner, moves to
   a new `eval` extra with scikit-learn (calibration fitting), which replaces the `eval` dependency

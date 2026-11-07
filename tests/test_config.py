@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from text2icd.config import Settings
+from text2icd.config import Settings, default_cache_dir, default_data_dir
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,8 +21,11 @@ def isolated_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
 def test_defaults() -> None:
     settings = Settings()
-    assert settings.data_dir == Path("data")
-    assert settings.cache_dir == Path(".text2icd")
+    # Task 10.8: the per-user directories, so that an installed text2icd works from any directory.
+    assert settings.data_dir == default_data_dir()
+    assert settings.cache_dir == default_cache_dir()
+    assert settings.data_dir.is_absolute()
+    assert settings.data_dir.name == settings.cache_dir.name == "text2icd"
     assert settings.release is None
     assert settings.llm_provider == "none"
     assert settings.llm_api_key is None

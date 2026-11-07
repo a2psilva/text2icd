@@ -238,3 +238,13 @@ def test_gives_up_after_the_retry_budget(tmp_path: Path) -> None:
 
 def test_is_complete_is_false_before_fetching(tmp_path: Path) -> None:
     assert not is_complete(release(release_file("tables-index", ZIP_URL, TABLES)), tmp_path)
+
+
+def test_is_complete_for_some_kinds(tmp_path: Path) -> None:
+    """Task 10.8: `build-graph` needs the Tables and Index and the order file, not the rest."""
+    pdf = b"%PDF-1.7 guidelines"
+    tables = release_file("tables-index", ZIP_URL, TABLES)
+    guidelines = release_file("guidelines", PDF_URL, pdf)
+    fetch_release(release(tables), tmp_path, opener=FakeOpener({ZIP_URL: TABLES}), sleep=no_sleep)
+    assert not is_complete(release(tables, guidelines), tmp_path)
+    assert is_complete(release(tables, guidelines), tmp_path, ["tables-index"])

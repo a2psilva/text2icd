@@ -4,7 +4,10 @@ import pytest
 from typer.testing import CliRunner
 
 from text2icd import cli
+from text2icd.cli import app
+from text2icd.config import Settings
 from text2icd.fetch import FetchError, FileResult
+from text2icd.graph.model import GraphError, graph_file
 from text2icd.releases import Release
 
 runner = CliRunner()
@@ -102,8 +105,37 @@ def test_stats_prints_the_report_and_fails_on_problems(
         def lines(self) -> list[str]:
             return ["fy2027  (parsed in 1.0 s)", "  billable codes  74,879"]
 
-    monkeypatch.setattr(cli, "is_complete", lambda release, raw_dir: True)
+    monkeypatch.setattr(cli, "is_complete", lambda release, raw_dir, kinds=None: True)
     monkeypatch.setattr(cli, "release_report", lambda files, release_id: FakeReport())
     result = runner.invoke(cli.app, ["data", "stats", "-r", "fy2027", "--data-dir", str(tmp_path)])
     assert result.exit_code == exit_code
     assert "billable codes  74,879" in result.output
+
+
+def test_data_where(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Task 10.8: the paths in use and where each came from."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["data", "where", "--data-dir", str(tmp_path / "d")])
+    assert result.exit_code == 0, result.output
+    rows = dict(line.split(None, 1) for line in result.output.splitlines() if line.strip())
+    assert rows["data"] == f"{(tmp_path / 'd').resolve()}  (--data-dir)"
+    assert rows["cache"].endswith("(the per-user default)")
+    assert "missing: `text2icd build-graph -r" in rows["graph"]
+    monkeypatch.setenv("TEXT2ICD_DATA_DIR", str(tmp_path / "e"))
+    result = runner.invoke(app, ["data", "where"])
+    assert "(TEXT2ICD_DATA_DIR)" in result.output
+
+
+def test_missing_graph_points_to_the_checkout_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A checkout's graph in ./data, with the data directory set elsewhere (no .env)."""
+    monkeypatch.chdir(tmp_path)
+    name = "text2icd-graph-fy2027.sqlite"
+    (tmp_path / "data" / "processed").mkdir(parents=True)
+    (tmp_path / "data" / "processed" / name).write_bytes(b"")
+    with pytest.raises(GraphError, match="set TEXT2ICD_DATA_DIR=data"):
+        graph_file("fy2027", settings=Settings(data_dir=tmp_path / "elsewhere"))
+    with pytest.raises(GraphError) as missing:
+        graph_file("fy2027", settings=Settings(data_dir=tmp_path / "data" / "x"))
+    assert "does not exist" in str(missing.value)
