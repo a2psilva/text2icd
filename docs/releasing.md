@@ -1,8 +1,13 @@
 # Releasing
 
-text2icd is released on GitHub, not on PyPI. A release is a version tag: the *Release* workflow
-turns it into a GitHub Release with the wheel and the sdist, and the *Pages demo* workflow deploys
-the web demo. Graphs and vectors are released separately, as data releases.
+text2icd is released on GitHub, not on PyPI. A release is a version tag. Three workflows run on
+it:
+
+- *Release* turns it into a GitHub Release with the wheel and the sdist;
+- *Docker* pushes the image to `ghcr.io/a2psilva/text2icd`;
+- *Pages demo* deploys the web demo.
+
+Graphs and vectors are released separately, as data releases.
 
 ## A code release
 
@@ -36,11 +41,17 @@ the web demo. Graphs and vectors are released separately, as data releases.
      wheel again. It attests the build provenance of both files and creates the GitHub Release,
      with the changelog's section and install lines as notes. A pre-release version (`a`, `b`
      or `rc`) becomes a pre-release.
+   - *Docker* builds the image for linux/amd64 and tests it with no network. It then builds it
+     for linux/arm64 too and pushes both, tagged `0.2.0`, `0.2` and `latest`; a pre-release is
+     tagged with its version only. It attests their provenance. After the first push, open the
+     package's settings (Packages → text2icd on the repository page) and make it public if it
+     is not.
    - *Pages demo* exports the demo and deploys it. Before the first deploy, set Settings →
      Pages → Source to GitHub Actions.
 5. **Check the release page**: the wheel, the sdist and `SHA256SUMS` should be there, and
    `gh attestation verify text2icd-0.2.0-py3-none-any.whl -R a2psilva/text2icd` should pass on
-   the downloaded wheel.
+   the downloaded wheel. Then check the image:
+   `docker run --rm ghcr.io/a2psilva/text2icd:0.2.0 code "aspiration pneumonia due to food"`.
 
 If a workflow fails after the tag is pushed, fix the cause on `main` and release the next patch
 version. Never move a tag once its release is published.

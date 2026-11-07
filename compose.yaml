@@ -1,0 +1,12 @@
+# text2icd's service and web UI at http://127.0.0.1:8000: `docker compose up -d`.
+# The image has the graph, L2's vectors and the model built in, and needs no network.
+# To build it from this checkout instead of pulling it, replace `image:` with `build: .`.
+services:
+  text2icd:
+    image: ghcr.io/a2psilva/text2icd:latest
+    ports:
+      - "127.0.0.1:8000:8000"  # this machine only: the service has no authentication
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped

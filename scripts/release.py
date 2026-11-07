@@ -65,6 +65,12 @@ text2icd setup
 `pip install "text2icd[all] @ {url}"` works too, and so does the tag:
 `git+https://github.com/{REPOSITORY}@v{version}`. `SHA256SUMS` lists each file's checksum, and
 `gh attestation verify {wheel} -R {REPOSITORY}` checks that the release workflow built it.
+
+The image, with the graph, L2's vectors and the model built in (no network needed):
+
+```bash
+docker run --rm -p 127.0.0.1:8000:8000 ghcr.io/{REPOSITORY}:{version}
+```
 """
 
 

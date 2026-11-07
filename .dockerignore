@@ -1,0 +1,9 @@
+# The image is built from these files only. Everything else stays out of the build context, in
+# particular data/ (MIMIC-IV files must never leave the machine) and .env (API keys).
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!src/
+**/__pycache__
