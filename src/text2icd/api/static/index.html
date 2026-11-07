@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="text2icd-source" content="live" />
+    <title>text2icd</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="#/">text2icd</a>
+      <nav>
+        <a href="#/" data-nav="code">Code a phrase</a>
+        <a href="#/explore" data-nav="explore">Explore the graph</a>
+      </nav>
+      <span class="release" id="release"></span>
+    </header>
+    <main id="main"><p class="muted">Loading…</p></main>
+    <aside id="panel" class="panel" hidden aria-label="details"></aside>
+    <noscript><p>The text2icd UI needs JavaScript.</p></noscript>
+  </body>
+</html>
