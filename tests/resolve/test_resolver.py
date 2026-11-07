@@ -19,6 +19,7 @@ from text2icd import cli
 from text2icd.config import Settings
 from text2icd.embeddings import Vectors, normalize
 from text2icd.graph.model import Graph
+from text2icd.resolve import resolver as resolver_module
 from text2icd.resolve import retrieve
 from text2icd.resolve.confidence import Calibration, RetrievalStage, read_calibration
 from text2icd.resolve.resolver import MAX_PHRASE, Resolver, ResolverError
@@ -201,7 +202,7 @@ def test_retrieval_is_off_without_vectors(graph: Graph) -> None:
 
 def test_retrieval_loads_on_first_use(graph: Graph, monkeypatch: pytest.MonkeyPatch) -> None:
     build_vectors(graph, Words(), "test:words")
-    monkeypatch.setattr(retrieve, "load_embedder", lambda spec: Words())
+    monkeypatch.setattr(retrieve, "load_embedder", lambda spec, revision=None: Words())
     resolver = Resolver(graph=graph, calibration=staged())
     assert isinstance(resolver.retriever, LazyRetriever)
     assert not resolver.retriever.loaded  # nothing read yet
@@ -214,6 +215,21 @@ def test_retrieval_loads_on_first_use(graph: Graph, monkeypatch: pytest.MonkeyPa
     # Another model's stage does not fit these vectors.
     with pytest.raises(ValueError, match="fitted with"):
         Resolver(graph=graph, calibration=staged("other/model"))
+
+
+def test_retrieval_is_off_until_the_model_is_downloaded(
+    graph: Graph, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Task 10.6: downloading the model would stall the first escalated phrase, and fail
+    offline; asked for explicitly, L2 downloads it on first use."""
+    build_vectors(graph, Words(), "test:words")
+    monkeypatch.setattr(resolver_module, "downloaded", lambda spec, revision=None: False)
+    resolver = Resolver(graph=graph, calibration=staged())
+    assert resolver.retriever is None
+    (warning,) = resolver.warnings
+    assert "not downloaded" in warning
+    explicit = Resolver(graph=graph, calibration=staged(), retrieval=True)
+    assert isinstance(explicit.retriever, LazyRetriever)
 
 
 def test_info_and_lifecycle(graph_file: Path, graph: Graph) -> None:

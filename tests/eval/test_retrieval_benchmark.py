@@ -98,7 +98,7 @@ def test_measure(graph: Graph, monkeypatch: pytest.MonkeyPatch) -> None:
     lexical = retrieval.measure("bm25", graph, ("tabular", "index"), found, coder.verifier)
     assert lexical.totals == {"all": 4, "escalated": 1, "coder wrong": 1}
     assert (lexical.dim, lexical.vectors_bytes, lexical.model_bytes) == (None, None, None)
-    monkeypatch.setattr(retrieval, "load_embedder", lambda spec: Words())
+    monkeypatch.setattr(retrieval, "load_embedder", lambda spec, revision=None: Words())
     embedded = retrieval.measure("words", graph, ("tabular", "index"), found, coder.verifier)
     assert embedded.dim == 64
     assert embedded.vectors_bytes == embedded.texts * 64 * 2
@@ -106,7 +106,7 @@ def test_measure(graph: Graph, monkeypatch: pytest.MonkeyPatch) -> None:
     assert embedded.found["all"][1] <= embedded.found["all"][5] <= embedded.found["all"][20]
     assert embedded.recall("escalated", 1) == 1.0  # E11.22 first for the diabetes phrase
     assert embedded.latency_ms[0] > 0
-    monkeypatch.setattr(retrieve, "load_embedder", lambda spec: Words())
+    monkeypatch.setattr(retrieve, "load_embedder", lambda spec, revision=None: Words())
     retrieve.build_vectors(graph, Words(), "test:words", sources=("tabular",))
     stored = retrieval.measure("vectors", graph, ("index",), found, coder.verifier)
     assert stored.sources == ("tabular",)  # the file's own texts, whatever --texts says

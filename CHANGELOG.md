@@ -153,6 +153,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Extras (task 10.6). `embeddings` now declares what L2 imports (onnxruntime, tokenizers,
+  huggingface_hub). `model2vec`, used only by the B2 baseline and the MIMIC-IV aligner, moves to
+  a new `eval` extra with scikit-learn (calibration fitting), which replaces the `eval` dependency
+  group. `all` is `embeddings` and `llm`. A core install is 17 packages, `all` 40.
+- Install hints name a checkout (`uv sync --extra ...`) or GitHub
+  (`pip install "text2icd[...] @ git+https://github.com/a2psilva/text2icd"`), never a bare
+  `pip install text2icd`, since text2icd is not on PyPI (`text2icd.extras`).
+- L2's model is read at a pinned Hub revision (`embeddings.PINNED`; bge-small at `ea104dac`), or
+  at the revision its vectors file records (`VectorsMeta.revision`, new). A model already
+  downloaded loads with no network call: 0.17 s with the Hub unreachable, where each load used to
+  ask the Hub first. When the model is not downloaded, L2 stays off with a warning unless asked
+  for (`--retrieval`), rather than stall or fail the first escalated phrase.
 - Faster coding, with identical output (task 9.12). On the committed sample the coder starts in
   1.89 s instead of 2.78 s and codes 814 phrases/s instead of 612, and its slowest phrase takes
   6.9 ms instead of 272 ms. On mimic-silver dev it codes 1,333 phrases/s instead of 1,007.

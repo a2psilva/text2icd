@@ -121,6 +121,12 @@ uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all   # the BM2
 make check                   # lint, format check, type check, tests
 ```
 
+text2icd is not on PyPI; it installs from a clone or from GitHub
+(`pip install "text2icd[all] @ git+https://github.com/a2psilva/text2icd"`). Its extras:
+`embeddings` (L2, local retrieval), `llm`, `bedrock` and `vertex` (L3, the LLM navigator),
+`eval` (the evaluation's static-embedding baseline and calibration fitting), and `all`
+(`embeddings` and `llm`).
+
 ## Data
 
 | Source | License | Where it goes | Committed? |

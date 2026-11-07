@@ -402,8 +402,14 @@ The texts are embedded once per graph, by `text2icd graph embed` or `text2icd bu
 the graph file:
 
 - `text2icd-graph-<release>.vectors.npy`, the normalised vectors as a float16 matrix;
-- `text2icd-graph-<release>.vectors.json`, the model, the text sources, the graph's content hash
-  and the code of each row.
+- `text2icd-graph-<release>.vectors.json`, the model and its Hub revision (commit), the text
+  sources, the graph's content hash and the code of each row.
+
+The model is read at the revision its vectors were built with (for files from before 0.2, the
+revision text2icd pins, `embeddings.PINNED`). Every install then embeds a phrase with the same
+weights, and a model already downloaded loads with no network call. While the model is not
+downloaded, L2 stays off unless asked for (`--retrieval`), rather than stall the first escalated
+phrase on the download.
 
 For FY2027 that is 123,486 texts in 384 dimensions: 94.8 MB of vectors and 1.2 MB of JSON, within
 the 100 MB budget. Embedding them takes about 2.5 minutes on a laptop CPU. The loader refuses
