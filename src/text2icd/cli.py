@@ -192,6 +192,7 @@ ReleaseOption = Annotated[
 ]
 # Problems printed per file; the rest are counted.
 PROBLEM_LIMIT = 5
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 GraphFileOption = Annotated[
     Path | None,
@@ -655,15 +656,48 @@ def serve_command(
             "--log", help="JSON logs on stderr: each phrase as a hash and its length only."
         ),
     ] = False,
+    review_mode: Annotated[
+        str | None,
+        typer.Option(
+            "--review",
+            help="A hand review in the browser, on this machine only: audit (the silver "
+            "labels) or gold (the gold annotation).",
+        ),
+    ] = None,
+    review_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--file",
+            "-f",
+            help="The review's file (default: the audit's CSV, or the gold candidates.jsonl).",
+        ),
+    ] = None,
     release: ReleaseOption = None,
     graph_path: GraphFileOption = None,
     data_dir: DataDirOption = None,
 ) -> None:
-    """Serve the coder over HTTP (API docs at /docs), on this machine only by default."""
+    """Serve the coder over HTTP (API docs at /docs), on this machine only by default.
+
+    With --review, the UI is the silver-label audit or the gold annotation instead, saved to
+    the same files as `text2icd eval mimic audit review` and `gold annotate`."""
+    if review_mode is not None and review_mode not in ("audit", "gold"):
+        typer.echo("error: --review is audit or gold", err=True)
+        raise typer.Exit(code=2)
+    if review_mode is not None and (host not in LOOPBACK or access_log or use_llm or use_retrieval):
+        typer.echo(
+            "error: --review serves MIMIC-IV phrases: it listens on 127.0.0.1 only, without the "
+            "access log, and codes nothing (no --retrieval or --llm)",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if review_file is not None and review_mode is None:
+        typer.echo("error: --file goes with --review", err=True)
+        raise typer.Exit(code=2)
     try:
         import uvicorn
 
         from text2icd.api.app import create_app
+        from text2icd.api.review import AuditReview, GoldReview, Review, ReviewError
     except ImportError as exc:
         typer.echo(
             f"error: text2icd serve needs FastAPI and uvicorn: {install_hint('api')}", err=True
@@ -673,11 +707,26 @@ def serve_command(
         configure_logs()
     settings = _settings(data_dir)
     with _open_graph(release, graph_path, data_dir) as graph:
+        review: Review | None = None
         try:
+            if review_mode == "audit":
+                review = AuditReview(review_file or _audit_file(settings, None))
+            elif review_mode == "gold":
+                candidates = _annotation_dir(settings) / "candidates.jsonl"
+                review = GoldReview(review_file or candidates, graph)
             resolver = Resolver(
-                settings=settings, graph=graph, retrieval=use_retrieval, llm=use_llm
+                settings=settings,
+                graph=graph,
+                retrieval=False if review else use_retrieval,
+                llm=use_llm,
             )
-        except (ResolverError, CalibrationError, LLMUnavailableError, PriceError) as exc:
+        except (
+            ResolverError,
+            CalibrationError,
+            LLMUnavailableError,
+            PriceError,
+            ReviewError,
+        ) as exc:
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
         with resolver:
@@ -688,7 +737,7 @@ def serve_command(
             except EmbeddingsUnavailableError as exc:
                 typer.echo(f"error: {exc}", err=True)
                 raise typer.Exit(code=1) from exc
-            if host not in ("127.0.0.1", "localhost", "::1"):
+            if host not in LOOPBACK:
                 typer.echo(
                     f"warning: listening on {host}: anyone who can reach it can send phrases; "
                     "there is no authentication",
@@ -696,8 +745,15 @@ def serve_command(
                 )
             shown = f"[{host}]" if ":" in host else host
             typer.echo(f"text2icd {__version__} ({resolver!r}) at http://{shown}:{port}", err=True)
+            if review is not None:
+                done = review.progress()
+                typer.echo(
+                    f"review: {review.mode}, {done.answered} of {done.total} answered, saved to "
+                    f"{review.path}. MIMIC-IV text: keep it on this machine (no screenshots).",
+                    err=True,
+                )
             uvicorn.run(
-                create_app(resolver),
+                create_app(resolver, review),
                 host=host,
                 port=port,
                 access_log=access_log,

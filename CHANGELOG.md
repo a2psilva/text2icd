@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The local review mode (task 10.12), `text2icd serve --review audit|gold [--file F]`: the
+  silver-label audit or the gold annotation in the browser, one item at a time, with a lookup
+  pane for the Index and the Tabular List.
+  - Answers are saved after each item to the same files as `eval mimic audit review` and
+    `eval mimic gold annotate`, through their own functions, so a review moves between the
+    terminal and the browser and resumes in either.
+  - The gold field reads the terminal's grammar (candidate numbers or codes, commas between
+    diagnoses) and shows each code's description, or why it cannot be saved, as it is typed.
+  - The phrases are MIMIC-IV text: the mode listens on 127.0.0.1 only and refuses
+    `--access-log`, `--retrieval` and `--llm`; responses are `Cache-Control: no-store`; phrases
+    and lookups never go in the address. The gold items carry no silver code, band, chapter or
+    admission id, and the audit hides the alignment score.
 - The web UI (tasks 10.10 and 10.11), at `/` of `text2icd serve`: plain ES modules, no build step.
   - The path view codes a phrase and draws each chunk's path to its code:
     - the input with its chunks highlighted, and the abbreviations, modifiers and cues
