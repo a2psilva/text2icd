@@ -528,6 +528,23 @@ request.
 | `GET /v1/{release}/search?q=&book=&k=` | Index terms (of one book, or all) and Tabular texts |
 | `GET /healthz`, `GET /version` | the release, graph hash and FTS5; what the resolver runs |
 
+The UI is served at `/` from `text2icd/api/static/`: plain ES modules, no build step and no
+library, reading the routes above.
+- The path view (`#/?q=`) draws a `CodingResult` with `explain`:
+  - the input with each chunk highlighted at its span, its abbreviations, modifiers and cues
+    underlined;
+  - the codes in order;
+  - one lane per diagnosis: chunks → main term → subterms (see and see-also references dashed)
+    → the Index code → the Tabular steps (7th character, completion) → the code;
+  - the companions each note brought in, the codes Excludes1 removed, the alternates, L2's
+    weighing, L3's decisions and the whole trace.
+
+  Hovering a chunk lights its lane. Clicking a step shows that term or code in a side panel.
+- The explorer (`#/search?q=`, `#/term/<id>`, `#/code/<code>`) shows the same pages full width.
+
+Text goes into the page as text nodes only, and a Content-Security-Policy allows the page's own
+files and nothing else. All URLs are relative, so that the static demo can live under a path.
+
 Endpoints are synchronous (FastAPI's thread pool; the resolver is thread-safe). Phrases are never
 logged; the access log is off unless `--access-log`, since search URLs hold the query. A request
 body is limited to 2 MB and must give its length. Responses over 1 KB are gzipped. No CORS
