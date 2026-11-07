@@ -1,12 +1,11 @@
 """The Tabular notes inside a code set: companion codes, Excludes1 and sequencing (6.6 to 6.8)."""
 
 import sqlite3
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from text2icd.graph.build import BuildReport
 from text2icd.graph.model import Graph, load
 from text2icd.ontology.codes import CodeReference
 from text2icd.resolve.coder import EXCLUDES1, UNRESOLVED, Coder, describe_code_set
@@ -267,15 +266,9 @@ def test_coder_resolves_excludes1(noted: Graph) -> None:
 # -- FY2027 --------------------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module")
-def release(release_graph: Callable[[str], BuildReport]) -> Iterator[Graph]:
-    with load(path=release_graph("fy2027").path) as graph:
-        yield graph
-
-
-@pytest.fixture(scope="module")
-def coder(release: Graph) -> Coder:
-    return Coder.from_graph(release)
+@pytest.fixture
+def coder(release_coder: Coder) -> Coder:
+    return release_coder
 
 
 @pytest.mark.slow

@@ -333,7 +333,7 @@ class IndexWalker:
             for c in phrase.corrections
         ]
         routes = tuple(route(_corrected(text, phrase)))
-        entries = self.finder.candidates(phrase)[: self.width]
+        entries = self.finder.candidates(phrase, limit=self.width)
         if entries:
             considered = ", ".join(f"{e.term.title} ({e.score:g})" for e in entries)
             trace.append(TraceStep(layer="index", action="main_terms", detail=considered))
@@ -405,7 +405,7 @@ class IndexWalker:
                     cue | entry.match.used,
                     MISSING * entry.match.missing + OTHER_PART * entry.match.empty_parts,
                 )
-                for entry in self.finder.candidates(substance, found.book)[: self.width]
+                for entry in self.finder.candidates(substance, found.book, self.width)
             ]
         return [
             _State(
@@ -426,7 +426,7 @@ class IndexWalker:
         """External cause codes for the mechanism the phrase states, from the External Cause
         Index; only candidates that use the mechanism's words."""
         cue = frozenset(self.finder.forms.content(found.cue))
-        entries = self.finder.candidates(phrase, "eindex")[: self.width]
+        entries = self.finder.candidates(phrase, "eindex", self.width)
         states = self._search(self._starts(entries, number), context)
         return [
             candidate.model_copy(update={"role": "external_cause"})

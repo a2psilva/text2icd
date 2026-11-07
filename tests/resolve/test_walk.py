@@ -1,11 +1,9 @@
 """The subterm walk of the Alphabetic Index: candidates, default codes and trace."""
 
-from collections.abc import Callable, Iterator
-
 import pytest
 
-from text2icd.graph.build import BuildReport
-from text2icd.graph.model import Graph, load
+from text2icd.graph.model import Graph
+from text2icd.resolve.coder import Coder
 from text2icd.resolve.walk import (
     DEFAULT_CODE,
     Candidate,
@@ -188,10 +186,9 @@ def test_describe(graph: Graph) -> None:
     assert describe_walk(WalkResult(parsed=result.parsed))[-1] == "no diagnosis to walk"
 
 
-@pytest.fixture(scope="module")
-def release_walker(release_graph: Callable[[str], BuildReport]) -> Iterator[IndexWalker]:
-    with load(path=release_graph("fy2027").path) as graph:
-        yield IndexWalker(graph)
+@pytest.fixture
+def release_walker(release_coder: Coder) -> IndexWalker:
+    return release_coder.walker
 
 
 @pytest.mark.slow

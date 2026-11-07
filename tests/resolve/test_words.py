@@ -1,5 +1,7 @@
 """Word forms and typo correction of the Index walk."""
 
+import re
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 
@@ -131,6 +133,29 @@ def test_speller_prefers_the_more_frequent_word() -> None:
     speller = Speller.from_texts(["Cells, cellss", "cellss"])
     assert speller.correct("cellsx") == "cellss"
     assert speller.known("cells")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Aspiration PNEUMONIA, due to food", "Schönlein's purpura", "Ⅳ stage", "ﬁbrosis", "", "C3-4"],
+)
+def test_words_fast_path(text: str) -> None:
+    """Task 9.12: ASCII text skips the decomposition, with the same words."""
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    plain = "".join(char for char in decomposed if not unicodedata.combining(char))
+    assert words(text) == re.findall(r"[a-z0-9]+", plain)
+
+
+def test_speller_reads_only_words_of_a_near_length() -> None:
+    """Task 9.12: a word more letters longer or shorter than the edits allowed is never the
+    nearest, so the speller leaves it out; the answer and its ties are unchanged."""
+    counts = {"pneumonia": 3, "pneumonias": 1, "pneumoniae": 1, "pneumon": 4, "anemia": 2}
+    speller = Speller(counts)
+    full = Speller(counts)
+    full._within = lambda length, limit: full._choices  # type: ignore[method-assign]
+    for word in ("pneumonai", "pneumoniaes", "pnemonia", "pneumoni", "anemai", "xyzzyx"):
+        assert speller.correct(word) == full.correct(word), word
+    assert speller.correct("pneumoniaes") == "pneumoniae"  # 1 edit; before pneumonias by name
 
 
 @pytest.mark.slow

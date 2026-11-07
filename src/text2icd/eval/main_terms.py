@@ -87,7 +87,7 @@ class MainTerms:
         if mode == "coder":
             parser, finder = self.coder
             words = finder.phrase_words(parser.parse(phrase).normalized)
-            return [entry.term.id for entry in finder.candidates(words)[:k]]
+            return [entry.term.id for entry in finder.candidates(words, limit=k)]
         if mode == "main":
             return [hit.term for hit in self.graph.search_index(phrase, k, main_terms=True)]
         roots: list[int] = []

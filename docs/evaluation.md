@@ -181,7 +181,8 @@ chapter. They are computed by `text2icd.eval.metrics.score`:
 reports:
 
 - start-up: the import, timed in a fresh interpreter; the graph load; and the system setup
-  (walker, verifier and calibration, plus vectors and model with `-O retrieval=on`);
+  (walker, verifier and calibration, plus vectors and model with `-O retrieval=on`, which the
+  coder otherwise loads on its first escalated phrase);
 - peak resident memory after setup and at the end;
 - the first phrase on its own, since it pays for what the graph builds lazily;
 - for every later phrase: p50, p95, p99 and max latency, and phrases per second;
@@ -200,6 +201,11 @@ Baseline on 2026-11-06, FY2027, Apple M4 Pro, 3 rounds of the 1,067-phrase sampl
 | coder + L2 | 0.85 s graph + 4.01 s | 858 MB | 1.0 / 6.0 / 14.9 / 491 | 327 |
 | coder, after 9.9 | 0.85 s graph + 2.71 s | 487 MB | 1.0 / 3.9 / 6.1 / 268 | 644 |
 | coder + L2, after 9.9 | 0.82 s graph + 3.72 s | 852 MB | 1.0 / 5.3 / 12.1 / 21 | 549 |
+| coder, after 9.12 | 0.81 s graph + 1.89 s | 472 MB | 1.0 / 3.1 / 4.6 / 6.9 | 814 |
+| coder + L2, after 9.12 | 0.81 s graph + 2.49 s | 858 MB | 1.0 / 3.8 / 12.0 / 24 | 635 |
+
+On `mimic-silver` dev (88,590 phrases, one round), task 9.12 took the coder from 1,007 to 1,333
+phrases per second, p95 from 3.6 to 1.8 ms, p99 from 4.5 to 2.8 ms and max from 718 to 113 ms.
 
 **The tail before task 9.9.** It came from a few phrases whose Index search filters by book.
 SQLite then used the (book, level) index and ran one full-text MATCH per term of the book, about
@@ -207,9 +213,24 @@ SQLite then used the (book, level) index and ran one full-text MATCH per term of
 same rows); the change was checked to leave the full code-set JSON of every `cms-synthetic` and
 `mimic-silver` dev phrase identical.
 
-**What is left of the tail** is a full garbage collection over the graph's 1.28 million objects
-(288 ms). It falls on whichever phrase happens to trigger it, which is the 268 ms above.
-`gc.freeze()` once the coder is built removes it (task 9.12).
+**The tail after 9.9** was a full garbage collection over the coder's 1.2 million objects (about
+0.2 s), falling on whichever phrase triggered it: the 268 ms above. Since task 9.12 the resolver
+calls `gc.freeze()` once built, so collections skip those objects.
+
+**Task 9.12** changed no output: the full code-set JSON of every `cms-synthetic` and
+`mimic-silver` dev phrase is identical, with and without L2. Besides `gc.freeze()`:
+- Main terms are scored only while they can still rank. A main term's score is at most the
+  number of phrase words in or under it, less `MISSING` for each slot its title must leave
+  empty: a title part of k slots holding h of the phrase's words leaves at least k − h. Phrases
+  with a common word ("disease" is in about 600 main terms) used to score all of them; 86% fewer
+  are scored now, with the same ranking.
+- The speller compares a word only with Index words whose length is within the edits allowed
+  (3 times faster per word).
+- Start-up: `words()` skips the Unicode decomposition for ASCII text, and each Index profile is
+  built once, with each distinct title part read once.
+- A memo of walks by text was measured and left out: keeping 2,048 to 4,096 walks avoided 25 to
+  32% of the walks on 20,000 `mimic-silver` dev phrases, but saved under 2% of the time (the
+  repeated texts are the short, quick ones) and held 34 to 113 MB.
 
 ### Confidence calibration
 

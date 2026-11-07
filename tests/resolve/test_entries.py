@@ -51,6 +51,17 @@ def test_other_books(graph: Graph) -> None:
     assert titles(finder, "1-propanol", "drug")[:1] == ["1-propanol"]
 
 
+def test_a_limit_keeps_the_head_of_the_ranking(graph: Graph) -> None:
+    """Task 9.12: with a limit, terms that cannot rank are not scored; the result is the same."""
+    finder = MainTermFinder(graph)
+    for text in ("aspiration pneumonia due to food", "pyelitis with contracted kidney", "lung"):
+        phrase = finder.phrase_words(text)
+        ranked = finder.candidates(phrase)
+        for limit in (1, 2, 5):
+            assert finder.candidates(phrase, limit=limit) == ranked[:limit]
+        assert finder.candidates(phrase, limit=0) == []
+
+
 def test_speller_keeps_known_words(graph: Graph) -> None:
     finder = MainTermFinder(graph, speller=index_speller(graph, known={"aspirtion"}))
     assert finder.phrase_words("aspirtion").corrections == ()
@@ -79,3 +90,21 @@ def release_finder(release_graph: Callable[[str], BuildReport]) -> Iterator[Main
 )
 def test_release_main_terms(release_finder: MainTermFinder, phrase: str, main_term: str) -> None:
     assert titles(release_finder, phrase)[0] == main_term
+
+
+@pytest.mark.slow
+def test_release_limit_keeps_the_head_of_the_ranking(release_finder: MainTermFinder) -> None:
+    """Common words ("disease", "fracture") are in hundreds of main terms: the pruned ranking
+    is the full one's head, in each book."""
+    for text in (
+        "chronic kidney disease stage 3a",
+        "closed fracture of left femur",
+        "acute on chronic systolic heart failure",
+        "poisoning by aspirin",
+        "fall from ladder",
+        "disease",
+    ):
+        phrase = release_finder.phrase_words(text)
+        for book in ("index", "eindex", "drug", "neoplasm"):
+            ranked = release_finder.candidates(phrase, book)
+            assert release_finder.candidates(phrase, book, limit=5) == ranked[:5], (text, book)
