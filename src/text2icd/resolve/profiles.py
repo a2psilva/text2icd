@@ -21,7 +21,7 @@ the terms under it, which bounds what a walk through it can still use; `size` co
 
 import re
 from collections.abc import Iterator, Set
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field
 
 from text2icd.graph.model import Graph, Term
 from text2icd.resolve.words import STOPWORDS, WordForms
@@ -51,6 +51,8 @@ CONNECTORS = (
     "by",
 )
 _PART = re.compile(r",\s+")
+# A title that opens with a connector: tried in the order above, so the longest wins.
+_CONNECTOR = re.compile("(" + "|".join(map(re.escape, CONNECTORS)) + r")(?: |\Z)")
 
 
 Slot = frozenset[str]
@@ -64,10 +66,16 @@ class Profile:
     connector: str | None  # the connector the title opens with
     below: frozenset[str]  # every word of the term and of the terms under it
     size: int = 1  # the term and the terms under it
+    # The words of its essential title (computed from `parts` when not given).
+    words: frozenset[str] = field(default=frozenset(), compare=False, repr=False)
 
-    @property
-    def words(self) -> frozenset[str]:
-        return frozenset(word for part in self.parts for slot in part for word in slot)
+    def __post_init__(self) -> None:
+        if not self.words and self.parts:
+            object.__setattr__(self, "words", _words(self.parts))
+
+
+def _words(parts: tuple[tuple[Slot, ...], ...]) -> frozenset[str]:
+    return frozenset(word for part in parts for slot in part for word in slot)
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,23 +147,41 @@ def slots(text: str, forms: WordForms) -> tuple[Slot, ...]:
 
 def split_connector(title: str) -> tuple[str | None, str]:
     """`due to food` -> ("due to", "food"); `with` -> ("with", ""); `aspiration` -> (None, ...)."""
-    lowered = title.casefold()
-    for connector in CONNECTORS:
-        if lowered == connector or lowered.startswith(connector + " "):
-            return connector, title[len(connector) :].strip()
-    return None, title
+    found = _CONNECTOR.match(title.casefold())
+    if found is None:
+        return None, title
+    connector = found.group(1)
+    return connector, title[len(connector) :].strip()
 
 
-def profile(term: Term, forms: WordForms) -> Profile:
-    connector, rest = split_connector(term.title) if term.level else (None, term.title)
-    parts = tuple(found for part in _PART.split(rest) if (found := slots(part, forms)))
-    nonessential = frozenset(
-        forms.form(word)
-        for modifier in term.nonessential
-        for word in words(modifier)
-        if word not in STOPWORDS
-    )
-    return Profile(term.id, parts, nonessential, connector, frozenset())
+class _Reader:
+    """Reads term titles into a connector, slots and words. Each distinct part and modifier is
+    read once (the Index repeats most of them: "with", "acute"), and its result is shared."""
+
+    def __init__(self, forms: WordForms) -> None:
+        self.forms = forms
+        self._slots: dict[str, tuple[Slot, ...]] = {}
+        self._modifiers: dict[str, frozenset[str]] = {}
+
+    def own(self, term: Term) -> tuple[str | None, tuple[tuple[Slot, ...], ...], frozenset[str]]:
+        """The term's connector, essential parts and nonessential words."""
+        connector, rest = split_connector(term.title) if term.level else (None, term.title)
+        parts = tuple(found for part in _PART.split(rest) if (found := self._part(part)))
+        nonessential = frozenset().union(*map(self._modifier, term.nonessential))
+        return connector, parts, nonessential
+
+    def _part(self, text: str) -> tuple[Slot, ...]:
+        found = self._slots.get(text)
+        if found is None:
+            found = self._slots[text] = slots(text, self.forms)
+        return found
+
+    def _modifier(self, text: str) -> frozenset[str]:
+        found = self._modifiers.get(text)
+        if found is None:
+            found = frozenset(self.forms.form(w) for w in words(text) if w not in STOPWORDS)
+            self._modifiers[text] = found
+        return found
 
 
 class Profiles:
@@ -164,20 +190,30 @@ class Profiles:
     def __init__(self, graph: Graph, forms: WordForms) -> None:
         self.graph = graph
         self.forms = forms
-        own = {term.id: profile(term, forms) for term in graph.terms()}
+        reader = _Reader(forms)
+        own = {term.id: reader.own(term) for term in graph.terms()}
+        title_words = {term_id: _words(parts) for term_id, (_, parts, _) in own.items()}
         below: dict[int, set[str]] = {}
         sizes: dict[int, int] = {}
         for term_id in sorted(own, reverse=True):  # subterms have larger ids than their parents
             found = below.setdefault(term_id, set())
-            found |= own[term_id].words | own[term_id].nonessential
+            found |= title_words[term_id] | own[term_id][2]
             sizes[term_id] = sizes.get(term_id, 0) + 1
             parent = graph.term(term_id).parent
             if parent is not None:
                 below.setdefault(parent, set()).update(found)
                 sizes[parent] = sizes.get(parent, 0) + sizes[term_id]
         self._profiles = {
-            term_id: replace(found, below=frozenset(below[term_id]), size=sizes[term_id])
-            for term_id, found in own.items()
+            term_id: Profile(
+                term_id,
+                parts,
+                nonessential,
+                connector,
+                frozenset(below[term_id]),
+                sizes[term_id],
+                title_words[term_id],
+            )
+            for term_id, (connector, parts, nonessential) in own.items()
         }
         self.vocabulary = frozenset().union(*below.values())  # every form a term uses
         self._main: dict[str, dict[str, list[int]]] = {}

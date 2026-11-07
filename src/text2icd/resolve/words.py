@@ -131,6 +131,7 @@ class Speller:
         self._index = frozenset(counts)
         self._known = known
         self._cache: dict[str, str | None] = {}  # bounded by SPELLING_CACHE
+        self._near: dict[tuple[int, int], list[str]] = {}  # (length, limit): a few dozen lists
 
     @classmethod
     def from_texts(cls, texts: Iterable[str], known: Container[str] = ()) -> "Speller":
@@ -151,9 +152,19 @@ class Speller:
         if cached is not _MISSING:
             return cached
         limit = 2 if len(word) >= LONG_WORD else 1
-        best = process.extractOne(word, self._choices, scorer=OSA.distance, score_cutoff=limit)
+        choices = self._within(len(word), limit)
+        best = process.extractOne(word, choices, scorer=OSA.distance, score_cutoff=limit)
         found = None if best is None else best[0]
         if len(self._cache) >= SPELLING_CACHE:  # unknown words come from user input
             self._cache.clear()
         self._cache[word] = found
+        return found
+
+    def _within(self, length: int, limit: int) -> list[str]:
+        """The Index words whose length is within `limit` of `length`, in the speller's order:
+        no other word is that few edits away, so the nearest word and its ties are unchanged."""
+        found = self._near.get((length, limit))
+        if found is None:
+            found = [w for w in self._choices if abs(len(w) - length) <= limit]
+            self._near[(length, limit)] = found
         return found

@@ -11,6 +11,7 @@ from text2icd.fetch import COMPLETE_MARKER
 from text2icd.graph.build import BuildReport, build_graph
 from text2icd.graph.model import Graph, load
 from text2icd.ontology.files import ReleaseFiles
+from text2icd.resolve.coder import Coder
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIMIC_DIR = REPO_ROOT / "data" / "raw" / "mimic-iv"
@@ -60,6 +61,20 @@ def release_graph(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str], B
         return built[release_id]
 
     return build
+
+
+@pytest.fixture(scope="session")
+def release(release_graph: Callable[[str], BuildReport]) -> Iterator[Graph]:
+    """The FY2027 graph, built and loaded once per session; skips when its files are absent."""
+    with load(path=release_graph("fy2027").path) as graph:
+        yield graph
+
+
+@pytest.fixture(scope="session")
+def release_coder(release: Graph) -> Coder:
+    """The FY2027 deterministic coder, built once per session: building it takes about 2 s. Its
+    caches only remember, so tests can share it; the setting is given per phrase."""
+    return Coder.from_graph(release)
 
 
 @pytest.fixture

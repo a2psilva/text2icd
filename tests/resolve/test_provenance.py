@@ -1,12 +1,9 @@
 """Task 9.11: each code links to the conditions (chunks) it codes, and its Index path is a list
 of graph terms, so a UI can draw the path from the words to the code."""
 
-from collections.abc import Callable
-
 import pytest
 
-from text2icd.graph.build import BuildReport
-from text2icd.graph.model import Graph, load
+from text2icd.graph.model import Graph
 from text2icd.resolve.coder import Coder
 
 
@@ -46,11 +43,6 @@ def test_xrefs_to_is_the_reverse_of_xrefs(graph: Graph) -> None:
     assert pairs
     reverse = {(x.term, target) for target in {t for _, t in pairs} for x in graph.xrefs_to(target)}
     assert reverse == pairs
-
-
-@pytest.fixture(scope="module")
-def release_coder(release_graph: Callable[[str], BuildReport]) -> Coder:
-    return Coder.from_graph(load(path=release_graph("fy2027").path))
 
 
 @pytest.mark.slow

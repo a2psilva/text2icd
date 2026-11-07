@@ -86,6 +86,7 @@ def bench(
         graph_s = time.perf_counter() - began
         began = time.perf_counter()
         built = build_system(system, graph, settings, options)
+        built.warm()  # L2 loads on its first phrase otherwise
         setup_s = time.perf_counter() - began
         rss_setup = peak_rss_mb()
         try:

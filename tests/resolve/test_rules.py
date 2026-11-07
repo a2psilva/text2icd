@@ -1,11 +1,8 @@
 """The guideline rule pack (task 6.9): each rule on its own, then on the FY2027 release."""
 
-from collections.abc import Callable, Iterator
-
 import pytest
 
-from text2icd.graph.build import BuildReport
-from text2icd.graph.model import Graph, load
+from text2icd.graph.model import Graph
 from text2icd.ontology.codes import CodeReference
 from text2icd.resolve import rules
 from text2icd.resolve.coder import EXCLUDES1, UNRESOLVED, Coder
@@ -111,15 +108,9 @@ def test_presumed_exclusion_is_no_conflict() -> None:
 # The rules on the FY2027 release.
 
 
-@pytest.fixture(scope="module")
-def release(release_graph: Callable[[str], BuildReport]) -> Iterator[Graph]:
-    with load(path=release_graph("fy2027").path) as graph:
-        yield graph
-
-
-@pytest.fixture(scope="module")
-def coder(release: Graph) -> Coder:
-    return Coder.from_graph(release)
+@pytest.fixture
+def coder(release_coder: Coder) -> Coder:
+    return release_coder
 
 
 @pytest.mark.slow
