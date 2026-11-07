@@ -39,6 +39,9 @@ These follow from the data use agreement. When in doubt, do not share, and ask P
 - `nbstripout` removes notebook outputs before commit.
 - Tests that need MIMIC-IV are marked `mimic` and skipped when the files are absent, so they never
   run in CI.
+- The browser review mode (`text2icd serve --review`) listens on 127.0.0.1 only and refuses the
+  access log, L2 and L3; its responses are not cached, and phrases never go in the address, so
+  the browser's history (which a browser may sync) holds item numbers only.
 
 ### If restricted data was committed by mistake
 

@@ -1,9 +1,11 @@
 // The text2icd UI: code a phrase and see each chunk's path to its code (#/), or explore the graph
-// (#/explore, #/search?q=, #/term/<id>, #/code/<code>). Plain ES modules, no build step.
+// (#/explore, #/search?q=, #/term/<id>, #/code/<code>). Plain ES modules, no build step. Served
+// with `--review`, it is the hand review instead (#/review/<n>).
 
 import { clear, h } from "./dom.js";
 import { codeView, searchView, termView } from "./explore.js";
 import { renderResult } from "./path.js";
+import { reviewer } from "./review.js";
 import { makeSource } from "./source.js";
 
 const EXAMPLES = [
@@ -27,7 +29,8 @@ const BOOKS = [
 const source = makeSource();
 const main = document.getElementById("main");
 const panel = document.getElementById("panel");
-const state = { release: null, result: null, examples: EXAMPLES };
+const state = { release: null, result: null, examples: EXAMPLES, review: null };
+const REVIEWS = { audit: "Silver-label audit", gold: "Gold annotation" };
 
 async function start() {
   try {
@@ -35,6 +38,7 @@ async function start() {
     state.release = health.release;
     document.getElementById("release").textContent = `${health.release}${source.kind === "static" ? " · demo" : ""}`;
     if (source.examples) state.examples = await source.examples();
+    if (health.review) reviewMode(health.review);
   } catch (error) {
     clear(main, h("p", { class: "error" }, error.message));
     return;
@@ -49,17 +53,28 @@ async function start() {
 function route() {
   const [path, query] = location.hash.replace(/^#/, "").split("?");
   const params = new URLSearchParams(query ?? "");
-  for (const link of document.querySelectorAll("[data-nav]")) {
-    const on = link.dataset.nav === (path.startsWith("/explore") || path.startsWith("/search") || path.startsWith("/term") || path.startsWith("/code") ? "explore" : "code");
-    link.classList.toggle("on", on);
-  }
   const term = path.match(/^\/term\/(\d+)$/);
   const code = path.match(/^\/code\/(.+)$/);
+  const section = state.review && !term && !code ? "review" : /^\/(explore|search|term|code)/.test(path) ? "explore" : "code";
+  for (const link of document.querySelectorAll("[data-nav]")) link.classList.toggle("on", link.dataset.nav === section);
   if (term) return explorePage({ term: Number(term[1]) });
   if (code) return explorePage({ code: decodeURIComponent(code[1]) });
+  if (state.review) {
+    // Only items, terms and codes: no phrase and no search goes in the address.
+    const item = path.match(/^\/review\/(\d+)$/);
+    return state.review.show(main, item && Number(item[1]) > 0 ? Number(item[1]) - 1 : null);
+  }
   if (path.startsWith("/search")) return explorePage({ search: params.get("q") ?? "", book: params.get("book") ?? "" });
   if (path.startsWith("/explore")) return explorePage({});
   return codePage(params);
+}
+
+function reviewMode(mode) {
+  state.review = reviewer(source, state.release, mode);
+  document.title = `text2icd · ${REVIEWS[mode]}`;
+  clear(document.querySelector(".top nav"), h("a", { href: "#/review", "data-nav": "review" }, REVIEWS[mode]));
+  document.querySelector(".brand").setAttribute("href", "#/review");
+  document.getElementById("release").textContent = `${state.release} · review`;
 }
 
 // -- Coding a phrase ------------------------------------------------------------------------------
@@ -227,7 +242,8 @@ async function explorePage(target) {
     location.hash = next.term !== undefined ? `#/term/${next.term}` : `#/code/${encodeURIComponent(next.code)}`;
   };
   const out = h("div", { class: "explore-body" });
-  clear(main, form, out);
+  // In the review mode the search is the review page's lookup pane, which keeps it out of the address.
+  clear(main, state.review ? h("p", {}, h("a", { href: "#/review" }, "‹ back to the review")) : form, out);
   try {
     if (target.term !== undefined || target.code !== undefined) {
       clear(out, await nodeView(target, go));

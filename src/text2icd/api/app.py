@@ -6,6 +6,7 @@
 - `GET /v1/{release}/codes/{code}`, `/v1/{release}/terms/{id}`, `/v1/{release}/search?q=`:
   the graph, for the explorer (`api.views`).
 - `GET /healthz` (with the FTS5 check) and `GET /version` (what the resolver runs).
+- `/v1/review`: in the local review mode only (`api.review`, task 10.12).
 - `/`: the UI (`api/static/`), plain ES modules that read the routes above.
 
 The endpoints are synchronous: FastAPI runs them in its thread pool, and the resolver is safe to
@@ -26,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from text2icd import __version__
+from text2icd.api.review import Mode, Review
 from text2icd.api.views import (
     Book,
     CodeView,
@@ -81,10 +83,12 @@ class Health(BaseModel):
     release: str
     graph: str
     fts5: bool
+    review: Mode | None = None  # the hand review served, if any
 
 
-def create_app(resolver: Resolver) -> FastAPI:
-    """The service over `resolver`, which the caller builds, warms and closes."""
+def create_app(resolver: Resolver, review: Review | None = None) -> FastAPI:
+    """The service over `resolver`, which the caller builds, warms and closes; with `review`,
+    the local review mode as well."""
     graph = resolver.graph
     app = FastAPI(
         title="text2icd",
@@ -97,7 +101,7 @@ def create_app(resolver: Resolver) -> FastAPI:
     async def limit_body(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        if request.method == "POST":
+        if request.method in ("POST", "PUT"):
             length = request.headers.get("content-length")
             if length is None:
                 return JSONResponse({"detail": "a Content-Length is required"}, status_code=411)
@@ -107,6 +111,8 @@ def create_app(resolver: Resolver) -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         if not request.url.path.startswith(("/docs", "/redoc")):
             response.headers["Content-Security-Policy"] = CSP
+        if review is not None and request.url.path.startswith("/v1/"):
+            response.headers["Cache-Control"] = "no-store"  # MIMIC-IV text: not on disk
         return response
 
     def served(release: str) -> None:
@@ -170,6 +176,7 @@ def create_app(resolver: Resolver) -> FastAPI:
             release=graph.release,
             graph=graph.meta.get("content_sha256", ""),
             fts5=fts5(),
+            review=None if review is None else review.mode,
         )
 
     @app.get("/version", tags=["service"])
@@ -177,6 +184,8 @@ def create_app(resolver: Resolver) -> FastAPI:
         """What the resolver runs: release, graph hash, calibration, L2 model, L3 model."""
         return resolver.info()
 
+    if review is not None:
+        app.include_router(review.router())
     # Last, so that the routes above come first: the UI at /.
     app.mount("/", StaticFiles(directory=STATIC, html=True), name="ui")
     return app
