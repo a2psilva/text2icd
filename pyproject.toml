@@ -67,13 +67,19 @@ eval = [
     "model2vec>=0.10",
     "scikit-learn>=1.5",
 ]
-# What the coder can use: L2, and L3 on the Anthropic API.
+# The HTTP service and its web UI (`text2icd serve`).
+api = [
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+]
+# What the coder can use: L2, L3 on the Anthropic API, and the service.
 all = [
-    "text2icd[embeddings,llm]",
+    "text2icd[api,embeddings,llm]",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.27",  # FastAPI's TestClient
     "mypy>=1.13",
     "pre-commit>=4.0",
     "pytest>=8.3",

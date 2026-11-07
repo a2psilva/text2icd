@@ -20,7 +20,8 @@ def test_extras() -> None:
     # L2 imports all three; model2vec is the evaluation's baseline only.
     assert names["embeddings"] == {"onnxruntime", "tokenizers", "huggingface-hub"}
     assert "model2vec" in names["eval"]
-    assert extras["all"] == ["text2icd[embeddings,llm]"]
+    assert names["api"] == {"fastapi", "uvicorn"}
+    assert extras["all"] == ["text2icd[api,embeddings,llm]"]
 
 
 def _name(requirement: str) -> str:
