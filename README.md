@@ -131,6 +131,11 @@ and `POST /v1/batch` code phrases, and `GET /v1/<release>/codes/<code>`, `/terms
 `/search?q=` read the graph. `text2icd serve --review audit|gold` is the local review mode for
 the MIMIC-IV hand reviews ([annotation guide](docs/annotation-guide.md)).
 
+`text2icd demo export DIR` writes the UI as static files, with the deterministic coder's answers to
+47 example phrases ([demo.toml](src/text2icd/resources/demo.toml)) and the graph pages they touch:
+the GitHub Pages demo, which [pages.yml](.github/workflows/pages.yml) builds on version tags. Try
+it locally with `python -m http.server -d DIR`.
+
 `text2icd batch FILE` codes a file of phrases (JSON lines with `phrase` and `id`, CSV with a
 `phrase` column, or one phrase per line; `-` reads stdin) and writes one JSON line per row, in
 order: `{"line": 2, "id": "a1", "result": {...}}`, or `"error"` for a row it cannot code.

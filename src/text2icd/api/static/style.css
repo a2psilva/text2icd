@@ -129,7 +129,8 @@ button.link:hover { text-decoration: underline; }
 }
 .examples { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); }
 .chip { border-radius: 999px; padding: 2px 10px; font-size: 13px; color: var(--ink); }
-.intro { max-width: 70ch; margin-top: 24px; }
+.intro { margin-top: 24px; }
+.intro > div:first-child { max-width: 70ch; }
 .toolbar { display: flex; gap: 12px; align-items: center; margin: 20px 0 0; font-size: 13px; }
 
 /* -- Summary ----------------------------------------------------------------------------------- */
@@ -289,6 +290,11 @@ details pre { font-size: 12px; overflow: auto; }
 .explore-search input { flex: 1; font-size: 16px; padding: 7px 10px; }
 .explore-body { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 18px 16px; }
 .search-results li { margin: 3px 0; }
+.unheld { color: var(--muted); }
+.example-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 28px; margin-top: 20px; }
+.example-groups ul { list-style: none; margin: 0; padding: 0; }
+.example-groups li { margin: 3px 0; }
+.example-groups button.link { font-size: 14px; }
 
 /* -- The review mode (task 10.12) ------------------------------------------------------------- */
 

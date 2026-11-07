@@ -87,6 +87,8 @@ jobs:
             uv run text2icd build-graph -r "$release"
             uv run text2icd graph check -r "$release"
           done
+      - name: Export the web demo (fails if an example codes differently from demo.toml)
+        run: uv run text2icd demo export data/processed/demo
       - name: Evaluate the coder and the baselines on the committed cms-synthetic sample
         run: |
           uv run text2icd eval validate benchmarks/cms-synthetic/fy2027-sample.jsonl

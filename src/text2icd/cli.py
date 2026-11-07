@@ -14,6 +14,7 @@ import typer
 from pydantic import JsonValue
 
 from text2icd import __version__, batch
+from text2icd import demo as web_demo
 from text2icd.config import Settings, default_cache_dir, default_data_dir
 from text2icd.embeddings import (
     EmbeddingsUnavailableError,
@@ -177,6 +178,11 @@ abbrev_app = typer.Typer(
     no_args_is_help=True,
 )
 mimic_app.add_typer(abbrev_app, name="abbrev")
+demo_app = typer.Typer(
+    help="The web demo: the UI and the answers to its phrases as static files.",
+    no_args_is_help=True,
+)
+app.add_typer(demo_app, name="demo")
 
 DataDirOption = Annotated[
     Path | None,
@@ -759,6 +765,45 @@ def serve_command(
                 access_log=access_log,
                 log_level="warning",
             )
+
+
+@demo_app.command("export")
+def demo_export(
+    out: Annotated[Path, typer.Argument(help="Directory to write (empty, or an earlier export).")],
+    phrases: Annotated[
+        Path | None,
+        typer.Option(help="The phrases, as resources/demo.toml (default: that file)."),
+    ] = None,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Write the GitHub Pages demo: the UI, the deterministic coder's answers to the demo's
+    phrases, and the graph pages they touch. Fails when an example codes differently from its
+    listed codes on the demo's release."""
+    settings = _settings(data_dir)
+    try:
+        listed = web_demo.load_demo(phrases)
+    except web_demo.DemoError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            with Resolver(settings=settings, graph=graph, retrieval=False) as resolver:
+                done = web_demo.export(resolver, listed, out)
+        except (ResolverError, CalibrationError, web_demo.DemoError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+    checked = (
+        f"each example's codes checked on {listed.release}"
+        if done.checked
+        else f"codes not checked: the examples list {listed.release}'s, this is {graph.release}"
+    )
+    typer.echo(
+        f"{out}: {done.results} answers, {done.codes:,} code and {done.terms:,} term pages "
+        f"({done.size / 1e6:.1f} MB); {checked}.\n"
+        f"Try it: python -m http.server -d {out} (ES modules do not load from file://)."
+    )
 
 
 @app.command("walk")

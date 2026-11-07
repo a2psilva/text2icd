@@ -1,0 +1,106 @@
+# The GitHub Pages demo's phrases (task 10.13), written for the demo: no patient data.
+#
+# Each example lists the codes text2icd's deterministic coder (L1) gives it on `release`, in
+# order; `outpatient` adds the outpatient setting and its codes. `text2icd demo export` fails
+# when an example codes differently on this release, so a change that breaks one is caught
+# (the integration job exports the demo). They are chosen to show the coder's features, not to
+# measure it: docs/results.md does that.
+
+release = "fy2027"
+
+[[group]]
+name = "Combination codes"
+examples = [
+  { phrase = "type 2 DM with diabetic CKD stage 3a", codes = ["E11.22", "N18.31"] },
+  { phrase = "type 1 diabetes with hyperglycemia", codes = ["E10.65"] },
+  { phrase = "type 2 diabetes with diabetic polyneuropathy", codes = ["E11.42"] },
+  { phrase = "hypertension with CKD stage 3a", codes = ["I12.9", "N18.31"] },
+  { phrase = "hypertensive heart and chronic kidney disease with heart failure and stage 4 CKD", codes = ["I13.0", "I50.9", "N18.4"] },
+  { phrase = "COPD with acute exacerbation", codes = ["J44.1"] },
+  { phrase = "alcoholic cirrhosis of liver with ascites", codes = ["K70.31"] },
+  { phrase = "influenza with pneumonia", codes = ["J11.00"] },
+  { phrase = "Crohn's disease of small intestine with intestinal obstruction", codes = ["K50.012"] },
+]
+
+[[group]]
+name = "Etiology and manifestation"
+examples = [
+  { phrase = "amyloid heart disease", codes = ["E85.4", "I43"] },
+  { phrase = "dementia in Parkinson's disease", codes = ["G20.A1", "F02.80"] },
+  { phrase = "Alzheimer's disease with late onset", codes = ["G30.1", "F02.80"] },
+  { phrase = "diabetic nephropathy", codes = ["E11.21"] },
+]
+
+[[group]]
+name = "Injuries: the 7th character"
+examples = [
+  { phrase = "open fracture of shaft of right femur, subsequent encounter with delayed healing", codes = ["S72.301H"] },
+  { phrase = "displaced fracture of left radial styloid process, initial encounter", codes = ["S52.512A"] },
+  { phrase = "sprain of right ankle, initial encounter", codes = ["S93.401A"] },
+  { phrase = "concussion without loss of consciousness, sequela", codes = ["S06.0X0S"] },
+  { phrase = "laceration without foreign body of left hand, initial encounter", codes = ["S61.412A"] },
+]
+
+[[group]]
+name = "The Table of Neoplasms"
+examples = [
+  { phrase = "malignant neoplasm of right upper lobe of lung", codes = ["C34.11"] },
+  { phrase = "secondary malignant neoplasm of liver", codes = ["C78.7"] },
+  { phrase = "benign neoplasm of ascending colon", codes = ["D12.2"] },
+  { phrase = "carcinoma in situ of cervix", codes = ["D06.9"] },
+]
+
+[[group]]
+name = "The Table of Drugs and Chemicals"
+examples = [
+  { phrase = "adverse effect of digoxin, initial encounter", codes = ["T46.0X5A"] },
+  { phrase = "accidental poisoning by acetaminophen, initial encounter", codes = ["T39.1X1A"] },
+  { phrase = "toxic effect of carbon monoxide from motor vehicle exhaust, accidental, initial encounter", codes = ["T58.01XA"] },
+]
+
+[[group]]
+name = "See references"
+examples = [
+  { phrase = "Bright's disease", codes = ["N05.9"] },
+  { phrase = "cellulitis of left lower leg", codes = ["L03.116"] },
+  { phrase = "pressure ulcer of sacral region, stage 3", codes = ["L89.153"] },
+  { phrase = "senile dementia", codes = ["F03.90"] },
+]
+
+[[group]]
+name = "Excludes1 and conditions one code covers"
+examples = [
+  { phrase = "constipation and fecal impaction", codes = ["K56.41"] },
+  { phrase = "essential hypertension and hypertensive heart disease", codes = ["I11.9"] },
+  { phrase = "type 2 diabetes and hyperglycemia", codes = ["E11.65"] },
+  { phrase = "nausea and vomiting", codes = ["R11.2"] },
+]
+
+[[group]]
+name = "Lists and abbreviations"
+examples = [
+  { phrase = "DM2 w/ CKD 3a, hx of MI, aspiration pneumonia 2/2 food", codes = ["E11.22", "I25.2", "J69.0", "N18.31"] },
+  { phrase = "HTN, HLD, GERD", codes = ["I10", "E78.5", "K21.9"] },
+  { phrase = "CHF exacerbation; AFib", codes = ["I50.9", "I48.91"] },
+  { phrase = "CAD s/p CABG", codes = ["I25.10", "Z95.1"] },
+]
+
+[[group]]
+name = "Uncertain diagnoses: inpatient and outpatient"
+examples = [
+  { phrase = "possible pneumonia", codes = ["J18.9"], outpatient = [] },
+  { phrase = "suspected pulmonary embolism", codes = ["I26.99"], outpatient = [] },
+  { phrase = "rule out myocardial infarction", codes = ["I21.9"], outpatient = [] },
+]
+
+[[group]]
+name = "History and more"
+examples = [
+  { phrase = "history of breast cancer", codes = ["Z85.3"] },
+  { phrase = "personal history of DVT", codes = ["Z86.718"] },
+  { phrase = "aspiration pneumonia due to food", codes = ["J69.0"] },
+  { phrase = "sepsis due to E. coli", codes = ["A41.51"] },
+  { phrase = "iron deficiency anemia secondary to chronic blood loss", codes = ["D50.0"] },
+  { phrase = "acute appendicitis with generalized peritonitis", codes = ["K35.209"] },
+  { phrase = "alcohol dependence with withdrawal delirium", codes = ["F10.231"] },
+]
