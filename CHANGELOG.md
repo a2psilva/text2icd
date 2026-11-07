@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Data releases (task 10.5): a release's graph and vectors, downloaded instead of built.
+  - `.github/workflows/data-release.yml` (run by hand): fetch the CMS files, build and check the
+    graph, embed it, check the coder and coder + L2 against the sample's bounds (FY2027), and
+    package. With `publish`, it creates the GitHub Release `data-<release>-s<schema>` and opens
+    a PR adding the files to `resources/graphs.toml`.
+  - `text2icd data package` compresses a graph (xz, 75 to 10 MB) and its vectors (gzip, 95 to
+    87 MB) reproducibly and writes the `graphs.toml` entry (`--registry` merges it).
+  - `text2icd data fetch-graph` downloads them from this repository's releases only. It checks
+    each file's SHA-256 and size, unpacks it beside its target, checks the graph's content hash
+    and schema (and the vectors' graph and shape), then renames it into place; verified files are
+    not downloaded again. No release is published yet: `graphs.toml` is empty.
 - `text2icd data where`: the data and cache directories and where each setting came from, and
   whether a release's CMS files, graph, vectors and L2 model are present.
 - `text2icd.resolve.resolver.Resolver` (tasks 9.2 and 9.3). It is the one place that builds
