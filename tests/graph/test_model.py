@@ -124,7 +124,7 @@ def test_load_from_the_data_directory(fixture_build: BuildReport, tmp_path: Path
 
 
 def test_load_reports_a_missing_graph(tmp_path: Path) -> None:
-    with pytest.raises(GraphError, match=r"run `text2icd build-graph -r fy2026`"):
+    with pytest.raises(GraphError, match=r"run `text2icd setup -r fy2026`"):
         load("fy2026", settings=Settings(data_dir=tmp_path))
 
 

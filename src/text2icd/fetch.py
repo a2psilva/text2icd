@@ -49,11 +49,16 @@ def fetch_release(
     sleep: Callable[[float], None] = time.sleep,
     retries: int = 3,
     timeout: float = 120.0,
+    kinds: Iterable[str] | None = None,
 ) -> list[FileResult]:
-    """Make every file of `release` present and verified under `raw_dir`. Safe to re-run."""
+    """Make every file of `release` (or those of `kinds`) present and verified under `raw_dir`.
+    Safe to re-run."""
     open_url = opener or _urlopen
+    wanted = None if kinds is None else frozenset(kinds)
     results = []
     for release_file in release.files:
+        if wanted is not None and release_file.kind not in wanted:
+            continue
         archive = raw_dir / "archives" / release_file.archive_name
         downloaded = ensure_archive(
             release_file, archive, opener=open_url, sleep=sleep, retries=retries, timeout=timeout

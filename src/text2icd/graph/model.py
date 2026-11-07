@@ -477,7 +477,7 @@ def graph_file(
         path = settings.graph_path(release)
     if not path.is_file():
         hint = f" -r {release}" if release else ""
-        message = f"{path} does not exist; run `text2icd build-graph{hint}`"
+        message = f"{path} does not exist; run `text2icd setup{hint}`"
         here = Path("data") / "processed" / path.name  # a checkout's graph, without its .env
         if here.is_file() and here.resolve() != path.resolve():
             message += f", or use {here}: set TEXT2ICD_DATA_DIR=data or pass --data-dir data"
