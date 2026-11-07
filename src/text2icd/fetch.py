@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import IO
@@ -26,6 +26,8 @@ CHUNK = 1 << 20
 MAX_MEMBERS = 1_000
 MAX_UNCOMPRESSED_BYTES = 1 << 30
 COMPLETE_MARKER = ".complete"
+# The files `build-graph` and `data stats` read: the Tabular List and Index XML, and the order file.
+GRAPH_FILES = ("tables-index", "order")
 
 
 class FetchError(Exception):
@@ -61,9 +63,13 @@ def fetch_release(
     return results
 
 
-def is_complete(release: Release, raw_dir: Path) -> bool:
-    """True when every file of `release` has been verified and unpacked under `raw_dir`."""
+def is_complete(release: Release, raw_dir: Path, kinds: Iterable[str] | None = None) -> bool:
+    """True when every file of `release` (or those of `kinds`) has been verified and unpacked
+    under `raw_dir`."""
+    wanted = None if kinds is None else frozenset(kinds)
     for release_file in release.files:
+        if wanted is not None and release_file.kind not in wanted:
+            continue
         marker = raw_dir / release_file.kind / COMPLETE_MARKER
         if not marker.is_file() or marker.read_text().strip() != release_file.sha256:
             return False

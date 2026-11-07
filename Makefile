@@ -4,7 +4,8 @@
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
-install: ## Create the virtual environment with all dev tools
+install: ## Create the virtual environment with all dev tools, and .env from .env.example
+	@test -f .env || cp .env.example .env
 	uv sync --all-extras
 
 hooks: ## Install the pre-commit hooks

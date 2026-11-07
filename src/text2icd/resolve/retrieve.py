@@ -309,17 +309,22 @@ def vectors_meta(graph: Graph, path: Path | None = None) -> tuple[Path, VectorsM
     VectorsError when either file is missing or was built for another graph."""
     path = path or vectors_path(graph.path)
     rebuild = f"run `text2icd graph embed -r {graph.release}`"
-    if not path.is_file() or not _meta_path(path).is_file():
-        raise VectorsError(f"{path} or its .json file does not exist; {rebuild}")
-    try:
-        meta = VectorsMeta.model_validate_json(_meta_path(path).read_text("utf-8"))
-    except ValidationError as exc:
-        raise VectorsError(f"{_meta_path(path)}: {exc}; {rebuild}") from exc
+    meta = read_vectors_meta(path, rebuild)
     if meta.format != VECTORS_FORMAT:
         raise VectorsError(f"{path} has format {meta.format}, this text2icd reads {VECTORS_FORMAT}")
     if meta.graph != graph.meta.get("content_sha256"):
         raise VectorsError(f"{path} was built for another graph; {rebuild}")
     return path, meta
+
+
+def read_vectors_meta(path: Path, rebuild: str = "run `text2icd graph embed`") -> VectorsMeta:
+    """What the JSON file of the vectors file at `path` says, unchecked against a graph."""
+    if not path.is_file() or not _meta_path(path).is_file():
+        raise VectorsError(f"{path} or its .json file does not exist; {rebuild}")
+    try:
+        return VectorsMeta.model_validate_json(_meta_path(path).read_text("utf-8"))
+    except ValidationError as exc:
+        raise VectorsError(f"{_meta_path(path)}: {exc}; {rebuild}") from exc
 
 
 class LazyRetriever:

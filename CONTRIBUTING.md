@@ -19,7 +19,7 @@ The pre-commit hook `forbid-restricted-data` and the CI job `data-guard` block f
 Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync --all-extras        # Python 3.12 virtual environment, dev tools and local embeddings
+make install                # Python 3.12 virtual environment, dev tools, every extra; .env
 uv run pre-commit install   # run the hooks on every commit
 make check                  # what CI runs
 ```
