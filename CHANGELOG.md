@@ -22,6 +22,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   is written to disk, in place of the planned SQLite L0. It refuses phrases over 1,000
   characters and is safe to share between threads. The CLI's `code` and the `coder` eval system
   are built through it.
+- `Resolver.code_many` (task 9.5): any number of phrases, results in input order, streamed 256
+  at a time. A phrase repeated within a batch is coded once, and its repeats are marked
+  `cached`. Each phrase is still coded alone: searching a batch's L2 queries together was about
+  24% faster on mimic-silver dev, but moved L2's confidence in the fourth decimal for 0.2% of
+  phrases, depending on the other phrases in the batch.
+- Private structured logs (task 9.7, `text2icd.logs`). Each coded phrase logs its length, a hash
+  salted per process, the number of codes, the layer, escalation, cost and time; each batch
+  logs its size. The phrase and its codes are logged only with `TEXT2ICD_LOG_INPUTS=true`.
+  Nothing is printed until a level is set; `logs.configure()` writes JSON lines to stderr.
+- Reproducibility tests (task 9.6): fresh interpreters with different hash seeds give the same
+  result JSON, byte for byte, on the fixture graph and on the committed sample. With L2 as well,
+  the cms-synthetic and mimic-silver dev sets gave identical code sets under two seeds.
 - `text2icd.result.CodingResult` (task 9.1), the public result:
   - chunks with their spans in the input;
   - codes in coding order, with role, `primary`, source and the chunks each one codes;
