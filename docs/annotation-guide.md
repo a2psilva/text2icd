@@ -67,11 +67,30 @@ after each phrase, so you can stop at any time and resume later.
     the classification combines them ("HTN and CKD" is `I12.9 N18.9`, one diagnosis). The count
     measures how well text2icd splits phrases into diagnoses; it does not change the codes.
 
+## In the browser
+
+`text2icd serve --review gold` opens the same session in the browser at http://127.0.0.1:8000:
+the phrase, the billed codes (click a number to add the code), a field for the codes in the same
+form as the terminal, and buttons to skip or mark unsure. As you type, each code is shown with its
+description, or with the reason it cannot be saved. The right-hand pane searches the Alphabetic
+Index and opens codes; a billable code there can be added to the answer. Enter saves and moves to
+the next phrase; ← and → move between phrases when you are not typing, and `/` jumps to the
+lookup.
+
+It writes the same `answers.jsonl` as `gold annotate`, after each phrase, so you can switch
+between the two and resume either. The page never shows the silver code or text2icd's own
+result for the phrase. It listens on 127.0.0.1 only, logs no requests, keeps phrases out of the
+address bar and the browser's cache, and loads nothing from the internet. Screenshots of it hold
+MIMIC-IV text: don't take any.
+
+`text2icd serve --review audit` does the same for the silver-label audit (`y`, `n` and `?` keys).
+
 ## Steps
 
 ```bash
 uv run text2icd eval mimic gold sample          # draw the candidates from mimic-silver (once)
 uv run text2icd eval mimic gold annotate        # code them; run again to resume
+uv run text2icd serve --review gold             # or code them in the browser (same answers)
 uv run text2icd eval mimic gold build           # write mimic-gold.jsonl from the answers
 uv run text2icd eval mimic freeze -d mimic-gold # freeze its test split once it is complete
 ```

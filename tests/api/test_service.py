@@ -110,6 +110,7 @@ def test_service_routes(client: TestClient, graph: Graph) -> None:
         "release": graph.release,
         "graph": graph.meta["content_sha256"],
         "fts5": True,
+        "review": None,
     }
     assert client.get("/version").json()["release"] == graph.release
     page = client.get(f"/v1/{graph.release}/codes/J69.0", headers={"accept-encoding": "gzip"})

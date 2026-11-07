@@ -527,6 +527,7 @@ request.
 | `GET /v1/{release}/terms/{id}` | the Index term, its ancestors and subterms, its codes, its cross-references and those that lead to it |
 | `GET /v1/{release}/search?q=&book=&k=` | Index terms (of one book, or all) and Tabular texts |
 | `GET /healthz`, `GET /version` | the release, graph hash and FTS5; what the resolver runs |
+| `GET /v1/review`, `GET` and `PUT /v1/review/{n}`, `POST /v1/review/{n}/check` | the review mode only (below) |
 
 The UI is served at `/` from `text2icd/api/static/`: plain ES modules, no build step and no
 library, reading the routes above.
@@ -541,6 +542,16 @@ library, reading the routes above.
 
   Hovering a chunk lights its lane. Clicking a step shows that term or code in a side panel.
 - The explorer (`#/search?q=`, `#/term/<id>`, `#/code/<code>`) shows the same pages full width.
+
+- The review mode (`text2icd serve --review audit|gold`, `text2icd.api.review`) replaces both
+  with the hand reviews of the MIMIC-IV sets (`#/review/<n>`): the silver-label audit or the
+  gold annotation, one item at a time, beside a lookup pane that searches the Index and opens
+  codes in place. Answers go through the terminal sessions' own functions
+  (`eval.mimic.audit.save_review`, `eval.mimic.annotate.parse_answer`) to the same files, read
+  and written on each request. Since the phrases are MIMIC-IV text, the mode listens on
+  127.0.0.1 only, without the access log or L2 and L3, sends `Cache-Control: no-store`, and keeps
+  phrases and lookups out of the address. The gold items carry no silver code, band, chapter or
+  admission id, and the page does not code the phrase: the person codes blind.
 
 Text goes into the page as text nodes only, and a Content-Security-Policy allows the page's own
 files and nothing else. All URLs are relative, so that the static demo can live under a path.
