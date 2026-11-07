@@ -118,6 +118,10 @@ for result in text2icd.code_many(["acute appendicitis", "hip fracture, initial e
     print(result.primary.code, result.confidence)
 ```
 
+`text2icd serve` starts the HTTP service on http://127.0.0.1:8000 (the `api` extra; API docs at
+`/docs`): `POST /v1/code` and `POST /v1/batch` code phrases, and `GET /v1/<release>/codes/<code>`,
+`/terms/<id>` and `/search?q=` read the graph.
+
 `text2icd batch FILE` codes a file of phrases (JSON lines with `phrase` and `id`, CSV with a
 `phrase` column, or one phrase per line; `-` reads stdin) and writes one JSON line per row, in
 order: `{"line": 2, "id": "a1", "result": {...}}`, or `"error"` for a row it cannot code.

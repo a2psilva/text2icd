@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The HTTP service (task 10.3), `text2icd serve` (the new `api` extra: FastAPI, uvicorn; `all`
+  includes it). `POST /v1/code`, `POST /v1/batch` (up to 1,000 phrases),
+  `GET /v1/{release}/codes/{code}`, `/terms/{id}` and `/search` (`text2icd.api.views`: named
+  fields for the explorer), `/healthz` (with FTS5) and `/version`. On 127.0.0.1 by default, with
+  a warning on any other address (no authentication); the access log is off unless
+  `--access-log`; bodies over 2 MB are refused; responses are gzipped. On FY2027 a phrase takes
+  13 ms, and 31 ms with `explain`.
 - The Python API (task 10.1): `text2icd.code(phrase, release=, setting=, episode=, explain=)`
   and `text2icd.code_many(...)`, through one shared `Resolver` per release built on first use,
   and `text2icd.Resolver` and `text2icd.CodingResult`, imported on first use, so that

@@ -92,6 +92,7 @@ from text2icd.eval.systems import (
     build_system,
 )
 from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reconcile_example
+from text2icd.extras import install_hint
 from text2icd.fetch import GRAPH_FILES, FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
 from text2icd.graph.integrity import check_graph, failed
@@ -628,6 +629,80 @@ def _text_out(path: Path | None) -> Iterator[TextIO]:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as out:
         yield out
+
+
+@app.command("serve")
+def serve_command(
+    host: Annotated[
+        str,
+        typer.Option(help="Address to listen on; anything but loopback is reachable by others."),
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option(min=1, max=65535, help="Port to listen on.")] = 8000,
+    use_retrieval: Annotated[
+        bool | None,
+        typer.Option("--retrieval/--no-retrieval", help="L2 (default: when it is set up)."),
+    ] = None,
+    use_llm: Annotated[
+        bool, typer.Option("--llm", help="L3, at a cost (TEXT2ICD_LLM_BUDGET_USD caps it).")
+    ] = False,
+    access_log: Annotated[
+        bool,
+        typer.Option("--access-log", help="Log each request's path (search URLs hold the query)."),
+    ] = False,
+    log: Annotated[
+        bool,
+        typer.Option(
+            "--log", help="JSON logs on stderr: each phrase as a hash and its length only."
+        ),
+    ] = False,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Serve the coder over HTTP (API docs at /docs), on this machine only by default."""
+    try:
+        import uvicorn
+
+        from text2icd.api.app import create_app
+    except ImportError as exc:
+        typer.echo(
+            f"error: text2icd serve needs FastAPI and uvicorn: {install_hint('api')}", err=True
+        )
+        raise typer.Exit(code=1) from exc
+    if log:
+        configure_logs()
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            resolver = Resolver(
+                settings=settings, graph=graph, retrieval=use_retrieval, llm=use_llm
+            )
+        except (ResolverError, CalibrationError, LLMUnavailableError, PriceError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        with resolver:
+            for warning in resolver.warnings:
+                typer.echo(f"warning: {warning}", err=True)
+            try:
+                resolver.warm()  # L2's model now, not on the first escalated request
+            except EmbeddingsUnavailableError as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
+            if host not in ("127.0.0.1", "localhost", "::1"):
+                typer.echo(
+                    f"warning: listening on {host}: anyone who can reach it can send phrases; "
+                    "there is no authentication",
+                    err=True,
+                )
+            shown = f"[{host}]" if ":" in host else host
+            typer.echo(f"text2icd {__version__} ({resolver!r}) at http://{shown}:{port}", err=True)
+            uvicorn.run(
+                create_app(resolver),
+                host=host,
+                port=port,
+                access_log=access_log,
+                log_level="warning",
+            )
 
 
 @app.command("walk")

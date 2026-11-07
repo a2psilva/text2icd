@@ -513,6 +513,26 @@ written by `python -m text2icd.result` and checked by a test. It is built from t
 | `llm_calls`, `cost_usd` | what L3 cost for this phrase (0 for a cached result) |
 | `detail` (with `explain`) | per diagnosis: its path through the Index as graph terms (`steps`, the step that gives the code), the book, the code as the Index writes it, alternates, flags and its own trace; then the instructional notes and what they led to, the codes Excludes1 took out, the codes L2 weighed with their probabilities, and L3's decisions with their options |
 
+## HTTP service
+
+`text2icd serve` (the `api` extra) runs `text2icd.api.app.create_app(resolver)` with uvicorn, on
+127.0.0.1 by default. It warms the resolver first, so L2's model is loaded before the first
+request.
+
+| Route | Returns |
+| --- | --- |
+| `POST /v1/code` | `{phrase, setting, episode, explain}` → a `CodingResult` |
+| `POST /v1/batch` | up to 1,000 phrases → `{results: [...]}`, in order |
+| `GET /v1/{release}/codes/{code}` | the code, its ancestors and children, 7th characters, its own and inherited notes, the codes its notes name and the notes that name it, the Index terms that give it |
+| `GET /v1/{release}/terms/{id}` | the Index term, its ancestors and subterms, its codes, its cross-references and those that lead to it |
+| `GET /v1/{release}/search?q=&book=&k=` | Index terms (of one book, or all) and Tabular texts |
+| `GET /healthz`, `GET /version` | the release, graph hash and FTS5; what the resolver runs |
+
+Endpoints are synchronous (FastAPI's thread pool; the resolver is thread-safe). Phrases are never
+logged; the access log is off unless `--access-log`, since search URLs hold the query. A request
+body is limited to 2 MB and must give its length. Responses over 1 KB are gzipped. No CORS
+headers are sent: the UI comes from the same origin.
+
 ## Cost model
 
 Per L3 step with a small model priced at about $0.10 per million input tokens and $0.50 per million
