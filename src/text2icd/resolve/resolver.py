@@ -12,8 +12,14 @@
 evaluation. A small in-process cache returns a phrase coded before with the same settings
 without coding it again (task 9.3); its results are marked `cached`. It lives in memory only:
 nothing derived from a phrase is written to disk.
+
+Once built, the resolver's objects (about 1.2 million for a full release) are moved out of the
+garbage collector's reach with `gc.freeze()`. A full collection over them takes about 0.2 s and
+would otherwise land on whichever phrase is being coded; they are freed as usual, by reference
+counting, when the resolver is dropped, since they hold no cycles.
 """
 
+import gc
 import itertools
 import logging
 import threading
@@ -91,6 +97,7 @@ class Resolver:
             self._building = threading.Lock()
             self._cache = _Cache(cache_size)
             self.coder()  # the default episode's, so that a mismatched table fails now
+            gc.freeze()
         except BaseException:
             self.close()
             raise
@@ -234,6 +241,7 @@ class Resolver:
         answers its first escalated phrase as fast as the others."""
         if isinstance(self.retriever, LazyRetriever):
             self.retriever.load()
+            gc.freeze()
 
     def info(self) -> dict[str, Any]:
         """What this resolver runs, for `/version` and run headers."""

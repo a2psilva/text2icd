@@ -7,13 +7,11 @@ a new rule cannot be added without a case here."""
 import io
 import re
 import tokenize
-from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 
-from text2icd.graph.build import BuildReport
-from text2icd.graph.model import Graph, load
+from text2icd.graph.model import Graph
 from text2icd.resolve.coder import Coder, CodeSet
 from text2icd.resolve.walk import DEFAULT_CODE
 from text2icd.text.model import Setting
@@ -98,25 +96,11 @@ def test_every_cited_section_has_a_case() -> None:
     assert sorted(set(CASES) - sections) == []  # no case for a section nothing cites
 
 
-@pytest.fixture(scope="module")
-def release(release_graph: Callable[[str], BuildReport]) -> Iterator[Graph]:
-    with load(path=release_graph("fy2027").path) as graph:
-        yield graph
-
-
-@pytest.fixture(scope="module")
-def coders(release: Graph) -> dict[str, Coder]:
-    return {
-        "inpatient": Coder.from_graph(release),
-        "outpatient": Coder.from_graph(release, setting="outpatient"),
-    }
-
-
 @pytest.mark.slow
 @pytest.mark.parametrize("section", sorted(CASES))
-def test_release_section(coders: dict[str, Coder], section: str) -> None:
+def test_release_section(release_coder: Coder, section: str) -> None:
     phrase, codes, setting = CASES[section]
-    code_set = coders[setting].code(phrase)
+    code_set = release_coder.code(phrase, setting)
     assert code_set.codes == codes
     assert section in cited(code_set)
 
@@ -125,22 +109,22 @@ def test_release_section(coders: dict[str, Coder], section: str) -> None:
 
 
 @pytest.mark.slow
-def test_worked_example_default_code(coders: dict[str, Coder]) -> None:
-    code_set = coders["inpatient"].code("Appendicitis")
+def test_worked_example_default_code(release_coder: Coder) -> None:
+    code_set = release_coder.code("Appendicitis")
     assert code_set.codes == ("K37",)
     assert DEFAULT_CODE in code_set.diagnoses[0].flags
 
 
 @pytest.mark.slow
-def test_worked_example_subterm_descent(coders: dict[str, Coder]) -> None:
-    code_set = coders["inpatient"].code("aspiration pneumonia due to food")
+def test_worked_example_subterm_descent(release_coder: Coder) -> None:
+    code_set = release_coder.code("aspiration pneumonia due to food")
     assert code_set.codes == ("J69.0",)
     assert code_set.diagnoses[0].candidate.path == "Pneumonia > aspiration > due to > food"
 
 
 @pytest.mark.slow
-def test_worked_example_combination_and_use_additional_code(coders: dict[str, Coder]) -> None:
-    code_set = coders["inpatient"].code("type 2 DM with diabetic CKD stage 3a")
+def test_worked_example_combination_and_use_additional_code(release_coder: Coder) -> None:
+    code_set = release_coder.code("type 2 DM with diabetic CKD stage 3a")
     assert [(c.code, c.role, c.source) for c in code_set.sequence] == [
         ("E11.22", "diagnosis", None),
         ("N18.31", "use_additional", "E11.22"),
@@ -152,8 +136,8 @@ def test_worked_example_combination_and_use_additional_code(coders: dict[str, Co
 
 
 @pytest.mark.slow
-def test_worked_example_etiology_and_manifestation(coders: dict[str, Coder]) -> None:
-    code_set = coders["inpatient"].code("amyloid heart disease")
+def test_worked_example_etiology_and_manifestation(release_coder: Coder) -> None:
+    code_set = release_coder.code("amyloid heart disease")
     assert [(c.code, c.role) for c in code_set.sequence] == [
         ("E85.4", "diagnosis"),
         ("I43", "manifestation"),
@@ -161,19 +145,17 @@ def test_worked_example_etiology_and_manifestation(coders: dict[str, Coder]) -> 
 
 
 @pytest.mark.slow
-def test_worked_example_generated_seventh_character(
-    release: Graph, coders: dict[str, Coder]
-) -> None:
+def test_worked_example_generated_seventh_character(release: Graph, release_coder: Coder) -> None:
     phrase = (
         "mild nonproliferative diabetic retinopathy with macular edema due to underlying "
         "condition, right eye"
     )
-    assert coders["inpatient"].code(phrase).codes == ("E08.3211",)
+    assert release_coder.code(phrase).codes == ("E08.3211",)
     assert release.code("E08.321").seventh_from == "E08.32"  # the inherited definition
 
 
 @pytest.mark.slow
-def test_worked_example_placeholder_and_seventh_character(coders: dict[str, Coder]) -> None:
-    code_set = coders["inpatient"].code("accidental poisoning by 1-propanol, initial encounter")
+def test_worked_example_placeholder_and_seventh_character(release_coder: Coder) -> None:
+    code_set = release_coder.code("accidental poisoning by 1-propanol, initial encounter")
     assert code_set.codes == ("T51.3X1A",)
     assert code_set.diagnoses[0].candidate.book == "drug"

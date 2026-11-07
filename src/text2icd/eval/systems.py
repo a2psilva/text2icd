@@ -64,6 +64,10 @@ class System(ABC):
         """What the run should report besides its metrics (an LLM prompt cache never read)."""
         return []
 
+    def warm(self) -> None:  # noqa: B027  (optional hook)
+        """Load now what the system would load on first use, so that a benchmark times the
+        phrases alone."""
+
     def close(self) -> None:  # noqa: B027  (optional hook)
         """Release what the system holds (clients, models)."""
 
@@ -387,6 +391,9 @@ class CoderSystem(System):
         else:
             return []
         return [warning] if warning else []
+
+    def warm(self) -> None:
+        self.resolver.warm()  # L2's vectors and model
 
     def close(self) -> None:
         if self.navigator is not None:

@@ -153,6 +153,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Faster coding, with identical output (task 9.12). On the committed sample the coder starts in
+  1.89 s instead of 2.78 s and codes 814 phrases/s instead of 612, and its slowest phrase takes
+  6.9 ms instead of 272 ms. On mimic-silver dev it codes 1,333 phrases/s instead of 1,007.
+  - The resolver calls `gc.freeze()` once built, so a full garbage collection no longer walks
+    its 1.2 million objects in the middle of a phrase.
+  - `MainTermFinder.candidates(..., limit=)` scores a main term only if an exact upper bound on
+    its score can still reach the top `limit`: 86% fewer are scored.
+  - The speller compares a word only with Index words of a near length.
+  - Start-up: an ASCII fast path in `text.terms.words`, and each Index profile built once.
+  - `eval bench` loads L2 during setup; before, the model load was timed as a phrase.
+  - The full code-set JSON of every cms-synthetic and mimic-silver dev phrase is unchanged, with
+    and without L2.
+- The slow tests share one FY2027 coder (`release_coder` in `tests/conftest.py`) instead of
+  building one per module or per case.
 - `text2icd code --json` prints a `CodingResult` instead of the internal `CodeSet`.
 - The `Resolver` literal of `resolve.coder` (the cascade's layers) is now `Layer`.
 - Tests no longer read the developer's `.env` file or `TEXT2ICD_*` and `ANTHROPIC_*` variables

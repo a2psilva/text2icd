@@ -19,18 +19,20 @@ picks the main term from which the subterms can take up the rest of the statemen
 The ranking is an estimate: the subterm walk (`resolve.walk`) settles what the subterms do use.
 """
 
+import bisect
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
 from text2icd.graph.model import Graph, Term
-from text2icd.resolve.profiles import Match, Profiles, match
+from text2icd.resolve.profiles import MISSING, Match, Profile, Profiles, match
 from text2icd.resolve.words import STOPWORDS, Speller, WordForms, default_word_forms
 from text2icd.text.terms import words
 
 FoundBy = Literal["word", "search"]
 SEARCH_DEPTH = 50  # terms read from Index search when no main term holds a phrase word
+_MARGIN = 1e-9  # scores are sums of floats: a bound equal to a score is never pruned
 # Where the first segment of a phrase, which holds its head noun, ends.
 _HEAD_END = re.compile(
     r"[,;:(]|\b(?:of|with|without|due|in|from|secondary|complicated|and|or|on|following|after|"
@@ -88,6 +90,10 @@ class MainTermFinder:
         self.forms = forms or default_word_forms()
         self.profiles = profiles or Profiles(graph, self.forms)
         self.speller = speller or index_speller(graph)
+        # Per main term: the fewest slots of a part, and the most slots of a part one word fills.
+        self._slots = {
+            term.id: _slots(self.profiles[term.id]) for term in graph.terms() if term.parent is None
+        }
         self._site_only = frozenset(
             term.id
             for term in graph.terms()
@@ -118,18 +124,38 @@ class MainTermFinder:
                 head = form
         return PhraseWords(text, tuple(dict.fromkeys(forms)), tuple(corrections), head)
 
-    def candidates(self, phrase: PhraseWords, book: str = "index") -> list[Entry]:
-        """Every main term of `book` to start from, best first."""
+    def candidates(
+        self, phrase: PhraseWords, book: str = "index", limit: int | None = None
+    ) -> list[Entry]:
+        """The main terms of `book` to start from, best first: all of them, or the best `limit`.
+
+        With a limit, a main term is scored only if it could still rank (`_bound`). The terms
+        are scored from the highest bound down, until the next bound is below the score of the
+        `limit`-th best so far."""
+        ids = dict.fromkeys(
+            term_id
+            for word in phrase.forms
+            for term_id in self.profiles.main_terms_with(word, book)
+            if term_id not in self._site_only
+        )
+        found_by: FoundBy = "word"
+        if not ids and phrase.forms:
+            ids = dict.fromkeys(self._searched(phrase.text, book))
+            found_by = "search"
         remaining = phrase.remaining
-        seen: dict[int, Entry] = {}
-        for word in phrase.forms:
-            for term_id in self.profiles.main_terms_with(word, book):
-                if term_id not in seen and term_id not in self._site_only:
-                    seen[term_id] = self._entry(term_id, remaining, phrase.head, "word")
-        if not seen and phrase.forms:
-            for term_id in self._searched(phrase.text, book):
-                seen.setdefault(term_id, self._entry(term_id, remaining, phrase.head, "search"))
-        return sorted(seen.values(), key=_rank)
+        if limit is None:
+            entries = (self._entry(t, remaining, phrase.head, found_by) for t in ids)
+            return sorted(entries, key=_rank)
+        if limit < 1:
+            return []
+        bounds = sorted(((self._bound(t, remaining), t) for t in ids), key=lambda b: -b[0])
+        best: list[Entry] = []
+        for bound, term_id in bounds:
+            if len(best) >= limit and bound < best[-1].score - _MARGIN:
+                break
+            bisect.insort(best, self._entry(term_id, remaining, phrase.head, found_by), key=_rank)
+            del best[limit:]
+        return best
 
     def names_main_term(self, forms: Iterable[str], book: str = "index") -> bool:
         """Whether a word (in the walk's forms) is in the essential title of a main term that
@@ -139,6 +165,16 @@ class MainTermFinder:
             for word in forms
             for term_id in self.profiles.main_terms_with(word, book)
         )
+
+    def _bound(self, term_id: int, remaining: frozenset[str]) -> float:
+        """An upper bound on the main term's score. Each phrase word in or under it counts at
+        most 1, penalties only subtract, and its title leaves at least `shortest - overlap *
+        held` slots of its chosen part empty, each costing `MISSING`: the `held` phrase words of
+        its title fill at most `overlap` slots of a part each."""
+        profile = self.profiles[term_id]
+        shortest, overlap = self._slots[term_id]
+        held = len(remaining & profile.words)
+        return len(remaining & profile.below) - MISSING * max(0, shortest - overlap * held)
 
     def _entry(
         self, term_id: int, remaining: frozenset[str], head: str | None, found_by: FoundBy
@@ -162,6 +198,19 @@ class MainTermFinder:
         while term.parent is not None:
             term = self.graph.term(term.parent)
         return term.id
+
+
+def _slots(profile: Profile) -> tuple[int, int]:
+    if not profile.parts:
+        return 0, 1
+    overlap = max(
+        sum(word in slot for slot in part) for part in profile.parts for word in _union(part)
+    )
+    return min(len(part) for part in profile.parts), overlap
+
+
+def _union(part: tuple[frozenset[str], ...]) -> frozenset[str]:
+    return frozenset().union(*part)
 
 
 def _rank(entry: Entry) -> tuple[float, bool, float, int, int]:

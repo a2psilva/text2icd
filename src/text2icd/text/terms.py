@@ -27,6 +27,7 @@ _WORD = re.compile(r"[a-z0-9]+")
 _PARENS = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
 _UNSPECIFIC = re.compile(r"\b(?:nec|nos)\b")
 _JOINERS = frozenset({"and", "or"})
+_JOINED = re.compile(r"\s(?:and|or)\s", re.IGNORECASE)
 MAX_JOINED = 12  # longer CMS terms are not looked for in phrases
 MAX_NGRAM = 4
 # Words of the Neoplasm Table's sites that name conditions, not sites.
@@ -58,6 +59,8 @@ NOT_CONDITIONS = frozenset({"encounter", "encounters"})
 
 def words(text: str) -> list[str]:
     """The case-folded words of a text, without diacritics: `Schönlein's` is `schonlein`, `s`."""
+    if text.isascii():  # almost every CMS text: nothing to decompose
+        return _WORD.findall(text.lower())
     decomposed = unicodedata.normalize("NFKD", text.casefold())
     return _WORD.findall("".join(char for char in decomposed if not unicodedata.combining(char)))
 
@@ -230,7 +233,7 @@ def _only_sites(form: str, sites: frozenset[str]) -> bool:
 
 
 def _has_joiner(text: str) -> bool:
-    return bool(re.search(r"\s(?:and|or)\s", text, re.IGNORECASE))
+    return _JOINED.search(text) is not None
 
 
 def _sequence(text: str) -> tuple[str, ...]:
