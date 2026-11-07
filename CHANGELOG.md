@@ -8,6 +8,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The web UI (tasks 10.10 and 10.11), at `/` of `text2icd serve`: plain ES modules, no build step.
+  - The path view codes a phrase and draws each chunk's path to its code:
+    - the input with its chunks highlighted, and the abbreviations, modifiers and cues
+      underlined;
+    - the codes in coding order;
+    - one lane per diagnosis, from the chunks through the Index (see-references dashed) and the
+      Tabular steps to the code;
+    - the companions, Excludes1 removals, alternates, L2's weighing, L3's decisions and the
+      trace.
+
+    Hovering a chunk lights its lane; a step opens that term or code in a side panel; a
+    result's URL (`#/?q=`) codes it again; the result downloads as JSON.
+  - The explorer searches the Index and the Tabular List and shows a term (ancestors, subterms,
+    codes, cross-references both ways) or a code (ancestors, children, 7th characters, own and
+    inherited notes and the codes they name, the Index terms and notes that point to it).
+  - Text is inserted as text nodes only; a Content-Security-Policy limits the page to its own
+    files. Light and dark modes.
+  - Browser tests run with Playwright (`uv sync --group ui`, then
+    `uv run playwright install chromium`) and are skipped without it.
 - The HTTP service (task 10.3), `text2icd serve` (the new `api` extra: FastAPI, uvicorn; `all`
   includes it). `POST /v1/code`, `POST /v1/batch` (up to 1,000 phrases),
   `GET /v1/{release}/codes/{code}`, `/terms/{id}` and `/search` (`text2icd.api.views`: named

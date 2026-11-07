@@ -6,6 +6,7 @@
 - `GET /v1/{release}/codes/{code}`, `/v1/{release}/terms/{id}`, `/v1/{release}/search?q=`:
   the graph, for the explorer (`api.views`).
 - `GET /healthz` (with the FTS5 check) and `GET /version` (what the resolver runs).
+- `/`: the UI (`api/static/`), plain ES modules that read the routes above.
 
 The endpoints are synchronous: FastAPI runs them in its thread pool, and the resolver is safe to
 share between threads. Phrases are never logged (the resolver logs hashes only, task 9.7), and
@@ -15,11 +16,13 @@ the same origin.
 """
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path as FilePath
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Path, Query, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from text2icd import __version__
@@ -40,6 +43,12 @@ from text2icd.text.model import Setting
 
 MAX_BATCH = 1_000  # phrases per batch request
 MAX_BODY = 2 << 20  # bytes: a full batch of the longest phrases fits
+STATIC = FilePath(__file__).with_name("static")  # the UI (tasks 10.10 and 10.11)
+# The UI loads nothing but its own files; FastAPI's /docs pages keep their own (a CDN).
+CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+)
 
 
 class CodeRequest(BaseModel):
@@ -94,7 +103,11 @@ def create_app(resolver: Resolver) -> FastAPI:
                 return JSONResponse({"detail": "a Content-Length is required"}, status_code=411)
             if not length.isdigit() or int(length) > MAX_BODY:
                 return JSONResponse({"detail": f"over {MAX_BODY:,} bytes"}, status_code=413)
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        if not request.url.path.startswith(("/docs", "/redoc")):
+            response.headers["Content-Security-Policy"] = CSP
+        return response
 
     def served(release: str) -> None:
         if release != graph.release:
@@ -164,4 +177,6 @@ def create_app(resolver: Resolver) -> FastAPI:
         """What the resolver runs: release, graph hash, calibration, L2 model, L3 model."""
         return resolver.info()
 
+    # Last, so that the routes above come first: the UI at /.
+    app.mount("/", StaticFiles(directory=STATIC, html=True), name="ui")
     return app
