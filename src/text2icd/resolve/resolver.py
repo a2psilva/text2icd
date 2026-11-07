@@ -294,7 +294,7 @@ class Resolver:
             # Downloading it would stall the first escalated phrase, and fail offline.
             self.warnings.append(
                 f"L2 is off: its model ({meta.model_id}) is not downloaded yet; "
-                "--retrieval downloads it on the first escalated phrase"
+                "`text2icd setup` downloads it (or --retrieval, on the first escalated phrase)"
             )
             return None
         return LazyRetriever(self.graph, path)

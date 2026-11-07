@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `text2icd setup` (task 10.9): from an install to a working coder in one command. It checks
+  that SQLite has FTS5, keeps or downloads the release's graph (when this version lists a data
+  release) or else fetches the two CMS files it needs and builds it, then sets up L2: the
+  published vectors when they were built for this graph, and the model at its pinned revision.
+  It ends by coding a check phrase. Steps report as they end; an optional part that cannot be set
+  up is explained and skipped. The "graph does not exist" error now points to it.
 - Data releases (task 10.5): a release's graph and vectors, downloaded instead of built.
   - `.github/workflows/data-release.yml` (run by hand): fetch the CMS files, build and check the
     graph, embed it, check the coder and coder + L2 against the sample's bounds (FY2027), and

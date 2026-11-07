@@ -89,6 +89,15 @@ def model_files(spec: str, revision: str | None = None) -> tuple[str, str | None
     return repo, revision or PINNED.get(repo), ("tokenizer.json", file or ONNX_FILE)
 
 
+def download_model(spec: str, revision: str | None = None) -> None:
+    """Download an `onnx:` model's files into the local Hugging Face cache, at its revision."""
+    from huggingface_hub import hf_hub_download
+
+    repo, pinned, files = model_files(spec, revision)
+    for file in files:
+        hf_hub_download(repo, file, revision=pinned)
+
+
 def downloaded(spec: str, revision: str | None = None, cache_dir: Path | None = None) -> bool:
     """Whether an `onnx:` model's files are in the local Hugging Face cache, so that it loads with
     no network; checked without asking the Hub. Other kinds download themselves: True."""

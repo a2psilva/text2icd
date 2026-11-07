@@ -113,7 +113,7 @@ def test_graph_code_rejects_unknown_codes(built: Path) -> None:
 def test_graph_commands_need_a_built_graph(data_dir: Path) -> None:
     result = runner.invoke(cli.app, ["graph", "code", "E11.22", "--data-dir", str(data_dir)])
     assert result.exit_code == 1
-    assert "run `text2icd build-graph -r fy2027`" in result.output
+    assert "run `text2icd setup -r fy2027`" in result.output
 
 
 class _Letters:
