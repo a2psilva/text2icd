@@ -1,6 +1,7 @@
 """Command-line interface for text2icd."""
 
 import itertools
+import os
 import sqlite3
 from collections import Counter
 from collections.abc import Callable
@@ -12,8 +13,15 @@ import typer
 from pydantic import JsonValue
 
 from text2icd import __version__
-from text2icd.config import Settings
-from text2icd.embeddings import EmbeddingsUnavailableError, OnnxEmbedder, load_embedder
+from text2icd.config import Settings, default_cache_dir, default_data_dir
+from text2icd.embeddings import (
+    EmbeddingsUnavailableError,
+    OnnxEmbedder,
+    downloaded,
+    load_embedder,
+    missing,
+    model_files,
+)
 from text2icd.eval import report as eval_report
 from text2icd.eval import retrieval, synthetic
 from text2icd.eval.bench import bench
@@ -83,7 +91,7 @@ from text2icd.eval.systems import (
     build_system,
 )
 from text2icd.eval.versions import Reconciled, Reconciler, load_reconciler, reconcile_example
-from text2icd.fetch import FetchError, fetch_release, is_complete
+from text2icd.fetch import GRAPH_FILES, FetchError, fetch_release, is_complete
 from text2icd.graph.build import build_graph
 from text2icd.graph.integrity import check_graph, failed
 from text2icd.graph.model import Graph, GraphError, graph_file, load, read_meta
@@ -112,6 +120,7 @@ from text2icd.resolve.retrieve import (
     VectorsError,
     build_vectors,
     load_vectors,
+    read_vectors_meta,
     vectors_path,
 )
 from text2icd.resolve.retrieve import SOURCES as RETRIEVAL_SOURCES
@@ -158,7 +167,11 @@ mimic_app.add_typer(abbrev_app, name="abbrev")
 
 DataDirOption = Annotated[
     Path | None,
-    typer.Option("--data-dir", help="Data directory (default: TEXT2ICD_DATA_DIR or ./data)."),
+    typer.Option(
+        "--data-dir",
+        help="Data directory (default: TEXT2ICD_DATA_DIR, else the per-user one; "
+        "`text2icd data where` shows it).",
+    ),
 ]
 ReleaseOption = Annotated[
     str | None,
@@ -195,6 +208,63 @@ def data_releases(data_dir: DataDirOption = None) -> None:
         typer.echo(
             f"{release.id:<11} {release.scope:<8} effective {release.effective}  {local}{default}"
         )
+
+
+@data_app.command("where")
+def data_where(release: ReleaseOption = None, data_dir: DataDirOption = None) -> None:
+    """Show where text2icd keeps its files, and which of a release's files are present."""
+    settings = _settings(data_dir)
+    target = _full_release(release or settings.release)
+    raw_dir = settings.cms_raw_dir(target.id).resolve()
+    graph = settings.graph_path(target.id).resolve()
+    vectors = vectors_path(graph)
+    fetched = is_complete(target, raw_dir, GRAPH_FILES)
+    rows = [
+        (
+            "data",
+            f"{settings.data_dir.resolve()}  ({_source('DATA_DIR', data_dir, settings.data_dir)})",
+        ),
+        (
+            "cache",
+            f"{settings.cache_dir.resolve()}  ({_source('CACHE_DIR', None, settings.cache_dir)})",
+        ),
+        ("release", target.id),
+        ("CMS files", f"{raw_dir}  ({_present(fetched, f'data fetch -r {target.id}')})"),
+        ("graph", f"{graph}  ({_present(graph.is_file(), f'build-graph -r {target.id}')})"),
+        ("vectors", f"{vectors}  ({_present(vectors.is_file(), f'graph embed -r {target.id}')})"),
+        ("L2 model", _model_state(vectors)),
+        ("calibration", str(settings.calibration) if settings.calibration else "shipped"),
+    ]
+    width = max(len(name) for name, _ in rows)
+    for name, value in rows:
+        typer.echo(f"{name:<{width}}  {value}")
+
+
+def _source(name: str, flag: Path | None, value: Path) -> str:
+    """Where a directory setting came from."""
+    if flag is not None:
+        return "--data-dir"
+    if f"TEXT2ICD_{name}" in os.environ:
+        return f"TEXT2ICD_{name}"
+    default = default_data_dir() if name == "DATA_DIR" else default_cache_dir()
+    return "the per-user default" if value == default else ".env"
+
+
+def _present(found: bool, command: str) -> str:
+    return "present" if found else f"missing: `text2icd {command}`"
+
+
+def _model_state(vectors: Path) -> str:
+    try:
+        meta = read_vectors_meta(vectors)
+        spec, revision = meta.model, meta.revision
+    except VectorsError:
+        spec, revision = DEFAULT_RETRIEVAL_MODEL, None
+    repo, pinned, (_, file) = model_files(spec, revision)
+    at = f"{repo}:{file} at {pinned[:8]}" if pinned else f"{repo}:{file}"
+    if missing(spec):
+        return f"{at}  (needs the embeddings extra)"
+    return f"{at}  ({'downloaded' if downloaded(spec, revision) else 'not downloaded'})"
 
 
 @data_app.command("fetch")
@@ -397,7 +467,7 @@ def build_graph_command(
         typer.Option(
             "--output",
             "-o",
-            help="Output file (default: data/processed/text2icd-graph-<release>.sqlite).",
+            help="Output file (default: <data>/processed/text2icd-graph-<release>.sqlite).",
         ),
     ] = None,
     tokenizer: Annotated[
@@ -627,7 +697,7 @@ def eval_synth(
         typer.Option(
             "--output",
             "-o",
-            help="Full set (default: data/processed/eval/cms-synthetic-<release>.jsonl).",
+            help="Full set (default: <data>/processed/eval/cms-synthetic-<release>.jsonl).",
         ),
     ] = None,
     sample_output: Annotated[
@@ -693,7 +763,7 @@ def eval_run(
     resamples: Annotated[int, typer.Option(min=0, help="Bootstrap resamples.")] = 1000,
     output: Annotated[
         Path | None,
-        typer.Option("--output", "-o", help="Result file (default: under data/processed/eval)."),
+        typer.Option("--output", "-o", help="Result file (default: under <data>/processed/eval)."),
     ] = None,
     release: ReleaseOption = None,
     graph_path: GraphFileOption = None,
@@ -832,7 +902,7 @@ def eval_calibrate(
         typer.Option(
             "--output",
             "-o",
-            help="Table to write (default: under data/processed/calibration). The shipped one "
+            help="Table to write (default: under <data>/processed/calibration). The shipped one "
             "is src/text2icd/resources/calibration.json, fitted on a public dataset only.",
         ),
     ] = None,
@@ -1214,7 +1284,7 @@ def mimic_silver(
     limit: Annotated[int | None, typer.Option(min=1, help="Read only the first N notes.")] = None,
     output: Annotated[
         Path | None,
-        typer.Option("--output", "-o", help="Default: data/processed/eval/mimic-silver.jsonl."),
+        typer.Option("--output", "-o", help="Default: <data>/processed/eval/mimic-silver.jsonl."),
     ] = None,
     data_dir: DataDirOption = None,
 ) -> None:
@@ -1285,7 +1355,7 @@ def mimic_freeze(
 AuditFileOption = Annotated[
     Path | None,
     typer.Option(
-        "--file", "-f", help="Review file (default: data/processed/eval/audit/mimic-silver.csv)."
+        "--file", "-f", help="Review file (default: <data>/processed/eval/audit/mimic-silver.csv)."
     ),
 ]
 
@@ -1623,7 +1693,8 @@ def _full_release(release_id: str | None) -> Release:
 
 
 def _require_fetched(release: Release, raw_dir: Path) -> None:
-    if not is_complete(release, raw_dir):
+    """The files `build-graph` and `data stats` read are fetched and verified."""
+    if not is_complete(release, raw_dir, GRAPH_FILES):
         typer.echo(
             f"error: {release.id} is not fetched; run `text2icd data fetch -r {release.id}`",
             err=True,

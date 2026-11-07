@@ -1,13 +1,34 @@
-"""Runtime settings, read from `TEXT2ICD_*` environment variables and an optional `.env` file."""
+"""Runtime settings, read from `TEXT2ICD_*` environment variables and an optional `.env` file.
+
+Where files go, unless `TEXT2ICD_DATA_DIR` and `TEXT2ICD_CACHE_DIR` (or `--data-dir`) say
+otherwise: the per-user directories of the platform (`default_data_dir`, `default_cache_dir`),
+so that an installed text2icd finds its graph from any working directory. A checkout's `.env`
+(`make install` copies `.env.example`) keeps them in `./data` and `./.text2icd`.
+"""
 
 import re
 from pathlib import Path
 from typing import Literal
 
+import platformdirs
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 RELEASE_ID = re.compile(r"^fy\d{4}(-apr)?$")
+APP = "text2icd"
+
+
+def default_data_dir() -> Path:
+    """Graphs, CMS files and local datasets: `~/Library/Application Support/text2icd` on macOS,
+    `~/.local/share/text2icd` on Linux (`$XDG_DATA_HOME`), `%LOCALAPPDATA%\\text2icd` on
+    Windows."""
+    return platformdirs.user_data_path(APP, appauthor=False)
+
+
+def default_cache_dir() -> Path:
+    """The LLM decision cache: `~/Library/Caches/text2icd` on macOS, `~/.cache/text2icd` on
+    Linux (`$XDG_CACHE_HOME`), `%LOCALAPPDATA%\\text2icd\\Cache` on Windows."""
+    return platformdirs.user_cache_path(APP, appauthor=False)
 
 
 class Settings(BaseSettings):
@@ -20,8 +41,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    data_dir: Path = Path("data")
-    cache_dir: Path = Path(".text2icd")
+    data_dir: Path = Field(default_factory=default_data_dir)
+    cache_dir: Path = Field(default_factory=default_cache_dir)
     release: str | None = Field(
         default=None,
         description="Release id such as fy2026 or fy2026-apr; None selects the newest one.",

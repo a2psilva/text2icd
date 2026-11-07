@@ -63,6 +63,8 @@ jobs:
     # the slow tests on the real releases, then builds each graph and runs its integrity checks.
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      TEXT2ICD_DATA_DIR: data  # the checkout's data/, which the cache and the slow tests use
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
