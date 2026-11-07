@@ -291,7 +291,7 @@ On MIMIC-IV sets, an LLM system runs only through an approved endpoint
 ([data and compliance](data-and-compliance.md#llm-endpoints-and-mimic-iv)).
 
 B2 runs locally with a static embedding model (`text2icd.embeddings`, installed with
-`uv sync --extra embeddings`); the default, `NeuML/pubmedbert-base-embeddings-8M`, was trained on
+`uv sync --extra eval`); the default, `NeuML/pubmedbert-base-embeddings-8M`, was trained on
 biomedical text. `-O model=<id>` selects another model2vec model. The MIMIC-IV aligner uses a
 different model, so that silver labels do not favour B2.
 

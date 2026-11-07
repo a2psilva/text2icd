@@ -11,6 +11,7 @@ import pytest
 import text2icd.embeddings as embeddings
 from text2icd.embeddings import VectorIndex, Vectors, load_embedder, normalize
 from text2icd.graph.model import Graph, TabularText
+from text2icd.resolve import retrieve
 from text2icd.resolve.retrieve import (
     MAX_BYTES,
     EmbeddingRetriever,
@@ -198,8 +199,64 @@ def test_load_vectors_refuses_mismatches(graph: Graph, tmp_path: Path) -> None:
 
 
 def test_load_embedder_reads_the_onnx_file(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(embeddings, "OnnxEmbedder", lambda *args: calls.append(args))
+    calls: list[tuple[object, ...]] = []
+    monkeypatch.setattr(
+        embeddings, "OnnxEmbedder", lambda *args, revision=None: calls.append((*args, revision))
+    )
     load_embedder("onnx:Xenova/bge-small-en-v1.5")
-    load_embedder("onnx:Xenova/bge-small-en-v1.5:onnx/model.onnx")
-    assert calls == [("Xenova/bge-small-en-v1.5",), ("Xenova/bge-small-en-v1.5", "onnx/model.onnx")]
+    load_embedder("onnx:Xenova/bge-small-en-v1.5:onnx/model.onnx", "abc")
+    assert calls == [
+        ("Xenova/bge-small-en-v1.5", embeddings.ONNX_FILE, None),
+        ("Xenova/bge-small-en-v1.5", "onnx/model.onnx", "abc"),
+    ]
+
+
+def test_models_are_read_at_their_pinned_revision() -> None:
+    """Task 10.6: the shipped model at one Hub commit, the same weights on every install."""
+    pinned = embeddings.PINNED["Xenova/bge-small-en-v1.5"]
+    assert embeddings.model_files("onnx:Xenova/bge-small-en-v1.5:onnx/model.onnx") == (
+        "Xenova/bge-small-en-v1.5",
+        pinned,
+        ("tokenizer.json", "onnx/model.onnx"),
+    )
+    _, revision, _ = embeddings.model_files("onnx:Xenova/bge-small-en-v1.5", "abc")
+    assert revision == "abc"  # the vectors' own revision wins
+    assert embeddings.model_files("onnx:other/model")[1] is None  # not pinned: the newest
+    with pytest.raises(ValueError, match="onnx"):
+        embeddings.model_files("model2vec:other/model")
+
+
+def test_downloaded_reads_the_local_cache_only(tmp_path: Path) -> None:
+    pytest.importorskip("huggingface_hub")
+    spec = "onnx:org/model:onnx/model.onnx"
+    revision = "0" * 40
+    snapshot = tmp_path / "models--org--model" / "snapshots" / revision
+    assert not embeddings.downloaded(spec, revision, cache_dir=tmp_path)
+    (snapshot / "onnx").mkdir(parents=True)
+    (snapshot / "tokenizer.json").write_text("{}")
+    assert not embeddings.downloaded(spec, revision, cache_dir=tmp_path)  # weights still missing
+    (snapshot / "onnx" / "model.onnx").write_bytes(b"onnx")
+    assert embeddings.downloaded(spec, revision, cache_dir=tmp_path)
+    assert embeddings.downloaded("model2vec:org/model")  # downloads itself
+
+
+def test_vectors_keep_the_model_revision(
+    graph: Graph, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Task 10.6: the model is read at the Hub commit its vectors were built with."""
+
+    class Pinned(Words):
+        revision = "abc"
+
+    path = tmp_path / "graph.vectors.npy"
+    assert build_vectors(graph, Pinned(), "test:words", path).meta.revision == "abc"
+    asked: list[tuple[str, str | None]] = []
+
+    def load(spec: str, revision: str | None = None) -> Words:
+        asked.append((spec, revision))
+        return Words()
+
+    monkeypatch.setattr(retrieve, "load_embedder", load)
+    load_vectors(graph, path)
+    assert asked == [("test:words", "abc")]
+    assert build_vectors(graph, Words(), "test:words", path).meta.revision is None
