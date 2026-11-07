@@ -298,6 +298,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- onnxruntime's telemetry is off. From version 1.31, importing onnxruntime starts Microsoft
+  telemetry that uploads device and process details (no input text) over HTTPS. `import
+  text2icd` now sets `ORT_DISABLE_TELEMETRY=1` first, unless it is already set. Calling
+  `disable_telemetry_events()` would not be enough: by then the uploader is running.
 - The UI explains a result with no code: the guideline that keeps its conditions out (an
   uncertain diagnosis in the outpatient setting, IV.H), instead of saying that the Index codes
   none of them. The side panel closes when another phrase is coded.

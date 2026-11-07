@@ -39,6 +39,11 @@ These follow from the data use agreement. When in doubt, do not share, and ask P
 - `nbstripout` removes notebook outputs before commit.
 - Tests that need MIMIC-IV are marked `mimic` and skipped when the files are absent, so they never
   run in CI.
+- onnxruntime, which runs L2's encoder and the MIMIC-IV aligner, starts Microsoft telemetry
+  when it is imported, from version 1.31: device and process details (OS, CPU, memory, a hashed
+  device id, its version), uploaded over HTTPS, without input text. `import text2icd` sets
+  `ORT_DISABLE_TELEMETRY=1` before any onnxruntime import, which stops it entirely (no event store,
+  no connection; tested), and the Docker image sets it too. A value you set yourself is kept.
 - The browser review mode (`text2icd serve --review`) listens on 127.0.0.1 only and refuses the
   access log, L2 and L3; its responses are not cached, and phrases never go in the address, so
   the browser's history (which a browser may sync) holds item numbers only.

@@ -10,12 +10,18 @@ settings (`TEXT2ICD_*`, `.env`); `text2icd setup` puts the graph in place. For o
 or an explicit lifecycle, build a `text2icd.Resolver` yourself.
 """
 
+import os
 import threading
 from collections.abc import Iterable, Iterator
 from importlib.metadata import version
 from typing import TYPE_CHECKING, Any
 
 __version__ = version("text2icd")
+
+# onnxruntime (L2's encoder, the MIMIC-IV aligner) starts Microsoft telemetry as soon as it is
+# imported, from version 1.31: device and process details, uploaded over HTTPS. Its own switch
+# must be set before that import, so text2icd sets it here, first. A value the user set is kept.
+os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
 __all__ = ["CodingResult", "Resolver", "code", "code_many"]
 
 if TYPE_CHECKING:
