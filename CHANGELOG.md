@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The release workflow (task 10.7), `.github/workflows/release.yml`, on a `v*` tag or by hand
+  as a dry run.
+  - It checks that the tag, `pyproject.toml`'s version and `CHANGELOG.md` agree
+    (`scripts/release.py`).
+  - It builds the sdist and, from it, the wheel, then runs the whole test suite against the
+    wheel installed with every extra in a clean environment.
+  - For a tag, it attests both files' build provenance and creates the GitHub Release with
+    `SHA256SUMS` and the changelog's section as notes. text2icd is not published to PyPI.
+
+  `docs/releasing.md` is the checklist.
 - The static web demo (task 10.13): `text2icd demo export DIR` writes the UI with the
   deterministic coder's answers to 47 example phrases written for it, grouped by what they show
   (`resources/demo.toml`), and the graph pages they touch (5.4 MB, CMS data only).

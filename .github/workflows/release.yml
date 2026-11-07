@@ -1,0 +1,107 @@
+name: Release
+
+# On a version tag (v0.2.0), or by hand as a dry run (task 10.7):
+# 1. checks that the tag, pyproject.toml's version and CHANGELOG.md agree (scripts/release.py);
+# 2. builds the sdist, then the wheel from it;
+# 3. runs the whole test suite against the wheel, installed with every extra in a clean
+#    environment, so a file missing from the wheel fails here;
+# 4. for a tag only, attests the files' build provenance and creates the GitHub Release: the
+#    wheel, the sdist, SHA256SUMS, and the changelog's section as notes.
+# text2icd is not on PyPI. The Pages demo (pages.yml) deploys on the same tag; data releases have
+# their own workflow (data-release.yml), run before tagging so the wheel lists them.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Check, build and test the wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write  # build provenance (tags only)
+      attestations: write
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    env:
+      TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}  # empty: a dry run
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Check the tag, the version and the changelog
+        id: check
+        run: uv run --no-project python scripts/release.py ${TAG:+"$TAG"} --notes notes.md >> "$GITHUB_OUTPUT"
+      - name: Build the sdist, then the wheel from it
+        run: uv build --out-dir dist
+      - name: Install the wheel, with every extra and the test tools, in a clean environment
+        run: |
+          uv venv "$RUNNER_TEMP/wheel"
+          uv pip install --python "$RUNNER_TEMP/wheel" \
+            "$(ls dist/*.whl)[embeddings,llm,bedrock,vertex,eval,api]"
+          uv export --frozen --only-group dev --no-hashes --no-emit-project > "$RUNNER_TEMP/dev.txt"
+          uv pip install --python "$RUNNER_TEMP/wheel" -r "$RUNNER_TEMP/dev.txt"
+      - name: Run the tests against the installed wheel
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          "$RUNNER_TEMP/wheel/bin/python" - <<'EOF'
+          import os
+          import text2icd
+          assert text2icd.__file__.startswith(os.environ["RUNNER_TEMP"]), text2icd.__file__
+          assert text2icd.__version__ == os.environ["VERSION"], text2icd.__version__
+          EOF
+          "$RUNNER_TEMP/wheel/bin/python" -m pytest -p no:cacheprovider
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum -- * | tee SHA256SUMS
+      - name: Attest the build provenance
+        if: github.ref_type == 'tag'
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: |
+            dist/
+            notes.md
+          if-no-files-found: error
+
+  release:
+    name: Create the GitHub Release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.build.outputs.version }}
+      PRERELEASE: ${{ needs.build.outputs.prerelease }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: release
+      - name: Create the release
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "text2icd $VERSION" --notes-file notes.md "${flags[@]}"
