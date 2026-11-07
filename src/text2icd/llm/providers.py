@@ -22,6 +22,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from text2icd.extras import install_hint
 from text2icd.llm.cost import Usage
 
 PHYSIONET_GUIDANCE = (
@@ -285,9 +286,7 @@ def _sdk(what: str, extra: str) -> Any:
     try:
         import anthropic
     except ImportError as exc:
-        raise LLMUnavailableError(
-            f"{what} needs the optional dependency: uv sync --extra {extra}"
-        ) from exc
+        raise LLMUnavailableError(f"{what} needs the anthropic SDK: {install_hint(extra)}") from exc
     return anthropic
 
 

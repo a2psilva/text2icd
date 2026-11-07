@@ -31,7 +31,8 @@ from typing import Any, Literal, Self
 
 from text2icd import __version__, logs
 from text2icd.config import Settings
-from text2icd.embeddings import missing
+from text2icd.embeddings import downloaded, extra_for, missing
+from text2icd.extras import install_hint
 from text2icd.graph.model import Graph, load
 from text2icd.llm.navigator import Navigator, NoNavigator, build_navigator
 from text2icd.resolve.coder import Coder, CodeSet
@@ -284,14 +285,18 @@ class Resolver:
             raise ResolverError(str(exc)) from exc
         lacking = missing(meta.model)
         if lacking:
-            message = (
-                f"L2 needs {', '.join(lacking)}: install text2icd with the `embeddings` extra "
-                "(pip install 'text2icd[embeddings]', or uv sync --extra embeddings)"
-            )
+            message = f"L2 needs {', '.join(lacking)}: {install_hint(extra_for(meta.model))}"
             if auto:
                 self.warnings.append(f"L2 is off: {message}")
                 return None
             raise ResolverError(message)
+        if auto and not downloaded(meta.model, meta.revision):
+            # Downloading it would stall the first escalated phrase, and fail offline.
+            self.warnings.append(
+                f"L2 is off: its model ({meta.model_id}) is not downloaded yet; "
+                "--retrieval downloads it on the first escalated phrase"
+            )
+            return None
         return LazyRetriever(self.graph, path)
 
     # -- Lifecycle ---------------------------------------------------------------------------
