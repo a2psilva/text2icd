@@ -97,6 +97,27 @@ More detail is in [docs/architecture.md](docs/architecture.md) and
 - **`--explain`:** adds each diagnosis's path through the Index (graph term ids) and the Tabular
   List, the instructional notes, Excludes1, the codes L2 weighed, and L3's decisions.
 
+## Install
+
+text2icd is not on PyPI: install it from GitHub, then let it set itself up.
+
+```bash
+uv tool install "text2icd[all] @ git+https://github.com/a2psilva/text2icd"
+text2icd setup        # SQLite check, the graph, L2's vectors and model, then a check phrase
+text2icd code "type 2 DM with diabetic CKD stage 3a"     # E11.22, N18.31
+```
+
+`text2icd setup` downloads the release's graph and vectors from this repository's data releases
+when the installed version lists them, checking each file's SHA-256 and the graph's content hash.
+Otherwise it fetches the two CMS files the graph needs from cms.gov and builds it (about 15 s);
+L2 then needs `text2icd graph embed` (a few minutes). Files go to the per-user data directory;
+`text2icd data where` shows them.
+
+Extras: `embeddings` (L2, local retrieval), `llm`, `bedrock` and `vertex` (L3, the LLM
+navigator), `eval` (the evaluation's static-embedding baseline and calibration fitting), and
+`all` (`embeddings` and `llm`). `pip install "text2icd[all] @ git+https://github.com/a2psilva/text2icd"`
+works too.
+
 ## Quickstart (development)
 
 Requires [uv](https://docs.astral.sh/uv/).
@@ -121,12 +142,6 @@ uv run text2icd code "DM2 w/ CKD 3a" --json --explain             # the result, 
 uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all   # the BM25 baseline
 make check                   # lint, format check, type check, tests
 ```
-
-text2icd is not on PyPI; it installs from a clone or from GitHub
-(`pip install "text2icd[all] @ git+https://github.com/a2psilva/text2icd"`). Its extras:
-`embeddings` (L2, local retrieval), `llm`, `bedrock` and `vertex` (L3, the LLM navigator),
-`eval` (the evaluation's static-embedding baseline and calibration fitting), and `all`
-(`embeddings` and `llm`).
 
 ## Data
 
