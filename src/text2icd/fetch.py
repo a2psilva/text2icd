@@ -86,8 +86,33 @@ def ensure_archive(
     timeout: float = 120.0,
 ) -> bool:
     """Download `release_file` to `dest` unless a verified copy exists; True if it downloaded."""
+    return download(
+        release_file.url,
+        release_file.sha256,
+        release_file.size,
+        dest,
+        opener=opener,
+        sleep=sleep,
+        retries=retries,
+        timeout=timeout,
+    )
+
+
+def download(
+    url: str,
+    sha256: str,
+    size: int,
+    dest: Path,
+    *,
+    opener: Opener | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+    retries: int = 3,
+    timeout: float = 120.0,
+) -> bool:
+    """Download `url` to `dest` unless a verified copy exists, and check it has this SHA-256 and
+    size; True if it downloaded. Server errors and dropped connections are retried."""
     if dest.exists():
-        if sha256_of(dest) != release_file.sha256:
+        if sha256_of(dest) != sha256:
             raise FetchError(
                 f"{dest} exists but does not match the registry SHA-256; refusing to overwrite it"
             )
@@ -95,26 +120,27 @@ def ensure_archive(
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
-    request = urllib.request.Request(release_file.url, headers={"User-Agent": USER_AGENT})
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    open_url = opener or _urlopen
     for attempt in range(retries + 1):
         try:
-            digest, size = _download(opener(request, timeout), part)
+            digest, got = _download(open_url(request, timeout), part)
             break
         except urllib.error.HTTPError as exc:
             part.unlink(missing_ok=True)
             if exc.code < 500 or attempt == retries:
-                raise FetchError(f"HTTP {exc.code} for {release_file.url}") from exc
+                raise FetchError(f"HTTP {exc.code} for {url}") from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
             part.unlink(missing_ok=True)
             if attempt == retries:
-                raise FetchError(f"could not download {release_file.url}: {exc}") from exc
+                raise FetchError(f"could not download {url}: {exc}") from exc
         sleep(2.0**attempt)
 
-    if digest != release_file.sha256 or size != release_file.size:
+    if digest != sha256 or got != size:
         part.unlink(missing_ok=True)
         raise FetchError(
-            f"{release_file.url} does not match the registry "
-            f"(sha256 {digest}, {size} bytes; expected {release_file.sha256}, {release_file.size})"
+            f"{url} does not match the registry "
+            f"(sha256 {digest}, {got} bytes; expected {sha256}, {size})"
         )
     part.replace(dest)
     return True
