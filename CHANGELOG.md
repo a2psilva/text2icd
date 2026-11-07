@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The static web demo (task 10.13): `text2icd demo export DIR` writes the UI with the
+  deterministic coder's answers to 47 example phrases written for it, grouped by what they show
+  (`resources/demo.toml`), and the graph pages they touch (5.4 MB, CMS data only).
+  - Its files are the service's own answers, read by the same client; links to pages it does not
+    hold are shown as text.
+  - Each phrase lists its codes, and the export fails on the demo's release when one codes
+    differently; the integration job exports it.
+  - `.github/workflows/pages.yml` builds and deploys it to GitHub Pages on version tags or by
+    hand.
 - The local review mode (task 10.12), `text2icd serve --review audit|gold [--file F]`: the
   silver-label audit or the gold annotation in the browser, one item at a time, with a lookup
   pane for the Index and the Tabular List.
@@ -279,6 +288,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- The UI explains a result with no code: the guideline that keeps its conditions out (an
+  uncertain diagnosis in the outpatient setting, IV.H), instead of saying that the Index codes
+  none of them. The side panel closes when another phrase is coded.
+- The UI's example phrases no longer include two that text2icd codes wrongly.
 - Thread safety for a server (task 9.10). Coding a phrase from any thread but the one that
   loaded the graph failed with `sqlite3.ProgrammingError` when it reached the Index search.
   - A `Graph` now opens one read-only connection per thread (and per process after a fork), so

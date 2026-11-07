@@ -1,0 +1,55 @@
+name: Pages demo
+
+# Exports the static demo (task 10.13, `text2icd demo export`) and deploys it to GitHub Pages, on
+# a version tag or by hand. It holds the deterministic coder's answers to the demo's phrases
+# (src/text2icd/resources/demo.toml, written for it) and the CMS graph pages they touch: US public
+# domain data, no MIMIC-IV. The export fails if an example codes differently from its listed
+# codes. Needs Settings > Pages > Source: GitHub Actions.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Export the demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TEXT2ICD_DATA_DIR: data
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Set up FY2027 (the published graph, or one built from the cms.gov files)
+        run: uv run text2icd setup -r fy2027 --no-l2
+      - name: Export the demo
+        run: uv run text2icd demo export site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
