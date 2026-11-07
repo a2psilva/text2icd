@@ -111,6 +111,10 @@ text2icd setup        # SQLite check, the graph, L2's vectors and model, then a 
 text2icd code "type 2 DM with diabetic CKD stage 3a"     # E11.22, N18.31
 ```
 
+To install a fixed version, use its [release](https://github.com/a2psilva/text2icd/releases):
+each one has the wheel, the sdist, `SHA256SUMS` and build provenance, and its notes give the
+install line. Releasing is described in [docs/releasing.md](docs/releasing.md).
+
 From Python:
 
 ```python

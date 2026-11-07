@@ -99,7 +99,7 @@ default-groups = ["dev"]
 packages = ["src/text2icd"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/text2icd", "tests", "README.md", "LICENSE", "CHANGELOG.md"]
+include = ["src/text2icd", "tests", "scripts", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [tool.ruff]
 line-length = 100
@@ -128,7 +128,7 @@ known-first-party = ["text2icd"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src"]
+files = ["src", "scripts"]
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
