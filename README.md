@@ -11,8 +11,12 @@ trail for every code.
 > **Status: alpha (v0.1.0).** The deterministic coder works: Index walk, Tabular verification,
 > instructional notes and the main guideline rules, with no model and no API call
 > ([results](docs/results.md)). Each code set carries a calibrated confidence that marks the
-> phrases to escalate, and local retrieval (L2) recodes those on the CPU, at no API cost. The LLM
-> navigator, the cache and the service are still to come.
+> phrases to escalate, and local retrieval (L2) recodes those on the CPU, at no API cost. A web UI
+> (`text2icd serve`) shows each chunk's path to its code and explores the graph. The LLM
+> navigator is built but has not been evaluated against a live API yet.
+
+![The path view of "DM2 w/ CKD 3a, hx of MI, aspiration pneumonia 2/2 food": each chunk of the
+phrase, then one lane per diagnosis through the Alphabetic Index to its code](docs/images/path-view.png)
 
 ## Why
 
@@ -118,9 +122,13 @@ for result in text2icd.code_many(["acute appendicitis", "hip fracture, initial e
     print(result.primary.code, result.confidence)
 ```
 
-`text2icd serve` starts the HTTP service on http://127.0.0.1:8000 (the `api` extra; API docs at
-`/docs`): `POST /v1/code` and `POST /v1/batch` code phrases, and `GET /v1/<release>/codes/<code>`,
-`/terms/<id>` and `/search?q=` read the graph.
+`text2icd serve` starts the web UI and the HTTP service on http://127.0.0.1:8000 (the `api`
+extra). The UI codes a phrase and draws each chunk's path: the main term, subterms and
+cross-references in the Index, then the Tabular steps to the final code, with the notes that
+brought in other codes; click a step to see that term or code. Its explorer searches the Index
+and the Tabular List and follows them term by term. The API (docs at `/docs`): `POST /v1/code`
+and `POST /v1/batch` code phrases, and `GET /v1/<release>/codes/<code>`, `/terms/<id>` and
+`/search?q=` read the graph.
 
 `text2icd batch FILE` codes a file of phrases (JSON lines with `phrase` and `id`, CSV with a
 `phrase` column, or one phrase per line; `-` reads stdin) and writes one JSON line per row, in
