@@ -215,6 +215,9 @@ The resolver builds the cascade once:
 - one Tabular verifier per episode of care, built when first asked for;
 - L2's vectors and model, loaded on the first escalated phrase (the vectors memory-mapped).
 
+Then it calls `gc.freeze()`, so that garbage collections skip its 1.2 million long-lived objects;
+a full collection over them took about 0.2 s and fell on a random phrase.
+
 `Resolver.code_many` codes any number of phrases in order, streamed in batches of 256; a phrase
 repeated within a batch is coded once. Each phrase is still coded alone, so its result never
 depends on the phrases around it. Searching a batch's L2 queries in one encoder call was about

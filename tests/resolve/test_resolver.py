@@ -2,6 +2,7 @@
 with the setting and episode it is given, caches results in memory, returns the public result, and
 codes many phrases in order."""
 
+import gc
 import hashlib
 import itertools
 import json
@@ -121,6 +122,13 @@ def test_results_are_cached_in_memory(graph: Graph) -> None:
     off = Resolver(graph=graph, cache_size=0)
     off.code(PNEUMONIA)
     assert off.code(PNEUMONIA).cached is False
+
+
+def test_built_objects_are_frozen(graph: Graph) -> None:
+    """Task 9.12: a full collection does not walk the resolver's objects."""
+    gc.unfreeze()
+    Resolver(graph=graph)
+    assert gc.get_freeze_count() > 0
 
 
 def test_long_input_is_refused(resolver: Resolver) -> None:

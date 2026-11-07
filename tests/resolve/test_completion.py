@@ -1,15 +1,12 @@
 """Tabular verification: completing Index candidates to billable codes, and the coder."""
 
-from collections.abc import Callable, Iterator
-
 import pytest
 from typer.testing import CliRunner
 
 from text2icd import cli
 from text2icd.config import Settings
 from text2icd.eval.systems import SystemSetupError, build_system
-from text2icd.graph.build import BuildReport
-from text2icd.graph.model import Graph, load
+from text2icd.graph.model import Graph
 from text2icd.resolve.coder import Coder, describe_code_set
 from text2icd.resolve.confidence import read_calibration
 from text2icd.resolve.tabular import ASSUMED, REVIEW, UNSPECIFIED, Evidence, TabularVerifier
@@ -121,12 +118,6 @@ def test_code_command(graph_file: object) -> None:
     assert '"code": "E85.4"' in runner.invoke(cli.app, [*args, "--json"]).output
 
 
-@pytest.fixture(scope="module")
-def release(release_graph: Callable[[str], BuildReport]) -> Iterator[Graph]:
-    with load(path=release_graph("fy2027").path) as graph:
-        yield graph
-
-
 @pytest.mark.slow
 @pytest.mark.parametrize(
     ("phrase", "codes"),
@@ -150,8 +141,8 @@ def release(release_graph: Callable[[str], BuildReport]) -> Iterator[Graph]:
         ("accidental poisoning by 1-propanol, initial encounter", ("T51.3X1A",)),
     ],
 )
-def test_release_code_sets(release: Graph, phrase: str, codes: tuple[str, ...]) -> None:
-    assert Coder.from_graph(release).code(phrase).codes == codes
+def test_release_code_sets(release_coder: Coder, phrase: str, codes: tuple[str, ...]) -> None:
+    assert release_coder.code(phrase).codes == codes
 
 
 @pytest.mark.slow
