@@ -27,7 +27,7 @@ _WIDEN_ROWS = 16_384
 
 
 class EmbeddingsUnavailableError(RuntimeError):
-    """The optional embedding dependencies are not installed."""
+    """The optional embedding dependencies are not installed, or the model cannot be loaded."""
 
 
 class Embedder(Protocol):
@@ -205,14 +205,19 @@ class OnnxEmbedder:
         _, self.revision, (vocabulary, weights_file) = model_files(f"onnx:{repo}:{file}", revision)
         self.model = f"{repo}:{file}"
         self.batch_size = batch_size
-        self._tokenizer = Tokenizer.from_file(
-            hf_hub_download(repo, vocabulary, revision=self.revision)
-        )
+        try:
+            vocabulary_path = hf_hub_download(repo, vocabulary, revision=self.revision)
+            weights = hf_hub_download(repo, weights_file, revision=self.revision)
+        except OSError as exc:  # not in the local cache, and the Hub cannot be reached
+            raise EmbeddingsUnavailableError(
+                f"the model {self.model} is not downloaded and could not be fetched ({exc}); "
+                "`text2icd setup` downloads it"
+            ) from exc
+        self._tokenizer = Tokenizer.from_file(vocabulary_path)
         self._tokenizer.enable_truncation(max_length)
         self._tokenizer.enable_padding()
         options = onnxruntime.SessionOptions()
         options.log_severity_level = 3
-        weights = hf_hub_download(repo, weights_file, revision=self.revision)
         self.size_bytes = Path(weights).stat().st_size
         self._session = onnxruntime.InferenceSession(
             weights, options, providers=["CPUExecutionProvider"]

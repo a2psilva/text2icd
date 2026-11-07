@@ -260,3 +260,16 @@ def test_vectors_keep_the_model_revision(
     load_vectors(graph, path)
     assert asked == [("test:words", "abc")]
     assert build_vectors(graph, Words(), "test:words", path).meta.revision is None
+
+
+def test_a_model_that_cannot_be_fetched(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Task 10.2: not downloaded, and the Hub out of reach: a clear error, not a traceback."""
+    pytest.importorskip("onnxruntime")
+    import huggingface_hub
+
+    def offline(*args: object, **kwargs: object) -> str:
+        raise FileNotFoundError("offline")
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", offline)
+    with pytest.raises(embeddings.EmbeddingsUnavailableError, match="`text2icd setup` downloads"):
+        embeddings.OnnxEmbedder("org/model")
