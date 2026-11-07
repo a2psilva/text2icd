@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     default_episode: Literal["initial", "subsequent", "sequela"] = "initial"
     # A confidence calibration table (`text2icd eval calibrate`); None uses the shipped one.
     calibration: Path | None = None
+    # Logs show a phrase only as its length and a salted hash, unless this is true (task 9.7).
+    # Leave it off whenever inputs may come from restricted data such as MIMIC-IV.
+    log_inputs: bool = False
 
     @field_validator(
         "release", "llm_api_key", "llm_region", "llm_project", "calibration", mode="before"
