@@ -104,8 +104,9 @@ Requires [uv](https://docs.astral.sh/uv/).
 ```bash
 git clone https://github.com/a2psilva/text2icd.git
 cd text2icd
-uv sync --all-extras         # creates .venv with Python 3.12, the dev tools and local embeddings
+make install                 # .venv (Python 3.12, dev tools, every extra), and .env from .env.example
 uv run pre-commit install    # enables the lint and data-safety hooks
+uv run text2icd data where   # where the data goes: ./data in a checkout, through .env
 uv run text2icd data fetch   # downloads and verifies the newest CMS ICD-10-CM release
 uv run text2icd data stats   # parses it and checks it against the CMS code order file
 uv run text2icd build-graph  # builds the knowledge graph (data/processed/, about 10 s)
@@ -131,8 +132,13 @@ text2icd is not on PyPI; it installs from a clone or from GitHub
 
 | Source | License | Where it goes | Committed? |
 | --- | --- | --- | --- |
-| [CMS ICD-10-CM files](https://www.cms.gov/medicare/coding-billing/icd-10-codes) (Tables and Index XML, code order file, addenda, guidelines) | US public domain | `data/raw/cms/fy<YEAR>/` | No (downloaded by script) |
-| [MIMIC-IV](https://physionet.org/content/mimiciv/) and [MIMIC-IV-Note](https://physionet.org/content/mimic-iv-note/) | PhysioNet Credentialed Health Data Use Agreement | `data/raw/mimic-iv/` | **Never** |
+| [CMS ICD-10-CM files](https://www.cms.gov/medicare/coding-billing/icd-10-codes) (Tables and Index XML, code order file, addenda, guidelines) | US public domain | `<data>/raw/cms/fy<YEAR>/` | No (downloaded by script) |
+| [MIMIC-IV](https://physionet.org/content/mimiciv/) and [MIMIC-IV-Note](https://physionet.org/content/mimic-iv-note/) | PhysioNet Credentialed Health Data Use Agreement | `<data>/raw/mimic-iv/` | **Never** |
+
+`<data>` is `TEXT2ICD_DATA_DIR` (or `--data-dir`): `./data` in a checkout, through its `.env`.
+Unset, it is the per-user data directory (`~/Library/Application Support/text2icd` on macOS,
+`~/.local/share/text2icd` on Linux, `%LOCALAPPDATA%\text2icd` on Windows), so an installed
+text2icd finds its graph from any directory. `text2icd data where` shows the paths in use.
 
 MIMIC-IV is used only for local evaluation. Its rules (no redistribution, no sharing with third
 parties, LLM calls only through approved endpoints) are summarised in

@@ -2,7 +2,7 @@
 
 A decision's key hashes its kind, phrase, path and options (`Decision.key`); the cache key adds
 the provider, model, effort and prompt version, so a change of any of them asks again. The store
-is one SQLite file in the cache directory (`.text2icd/decisions.sqlite`, git-ignored) and holds
+is one SQLite file in the cache directory (`TEXT2ICD_CACHE_DIR/decisions.sqlite`) and holds
 only those hashes and the option ids chosen, never the phrase. Only the model's own answers are
 stored, `none` included; limits and errors are not, so a later run asks again.
 

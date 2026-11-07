@@ -2384,6 +2384,7 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "platformdirs" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "rapidfuzz" },
@@ -2434,6 +2435,7 @@ requires-dist = [
     { name = "model2vec", marker = "extra == 'eval'", specifier = ">=0.10" },
     { name = "numpy", specifier = ">=2.1" },
     { name = "onnxruntime", marker = "extra == 'embeddings'", specifier = ">=1.20" },
+    { name = "platformdirs", specifier = ">=4.0" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "rapidfuzz", specifier = ">=3.10" },

@@ -20,7 +20,7 @@ def data_dir(
     """A data directory whose `fy2027` holds the fixture files, treated as fully fetched."""
     root = tmp_path / "data"
     shutil.copytree(fixture_release.root, root / "raw" / "cms" / "fy2027")
-    monkeypatch.setattr(cli, "is_complete", lambda release, raw_dir: True)
+    monkeypatch.setattr(cli, "is_complete", lambda release, raw_dir, kinds=None: True)
     monkeypatch.delenv("TEXT2ICD_RELEASE", raising=False)
     return root
 
