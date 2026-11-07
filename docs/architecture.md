@@ -526,6 +526,10 @@ including the cache hit rate, from the `usage` fields of each response.
 
 - A release is a CMS fiscal year plus an optional mid-year update: `fy2026`, `fy2026-apr`, `fy2027`.
   Every artifact, cache key and result carries its release id.
+- Data releases: the data-release workflow builds a release's graph and vectors and attaches
+  them to a GitHub Release (`data-<release>-s<schema>`); each text2icd version lists the ones it
+  can download in `resources/graphs.toml`, with their SHA-256 and the graph's content hash
+  (`text2icd.published`). `text2icd data fetch-graph` installs them only once verified.
 - The builder is deterministic: the same input files give the same graph content, checked by a
   content hash over the sorted rows. Source file hashes are recorded in `meta`.
 - The same phrase, settings, graph and package give the same result, byte for byte, in any

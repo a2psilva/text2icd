@@ -1,0 +1,5 @@
+# Published data: the graph and vectors files of each release that this version of text2icd can
+# download (`text2icd data fetch-graph`, `text2icd setup`), attached to GitHub Releases by the
+# data-release workflow (.github/workflows/data-release.yml), which writes this file
+# (`text2icd data package --registry`) and opens the PR. The format is described in
+# src/text2icd/published.py. With no entry for a release, text2icd builds its graph instead.

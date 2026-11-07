@@ -103,6 +103,14 @@ from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.index import IndexSource
 from text2icd.ontology.order import billable_codes, parse_order_file
 from text2icd.ontology.stats import release_report
+from text2icd.published import (
+    Published,
+    PublishedError,
+    fetch_published,
+    load_published,
+    package,
+    registry_with,
+)
 from text2icd.releases import Release, load_registry
 from text2icd.resolve.coder import Coder, describe_code_set
 from text2icd.resolve.confidence import (
@@ -265,6 +273,84 @@ def _model_state(vectors: Path) -> str:
     if missing(spec):
         return f"{at}  (needs the embeddings extra)"
     return f"{at}  ({'downloaded' if downloaded(spec, revision) else 'not downloaded'})"
+
+
+@data_app.command("fetch-graph")
+def data_fetch_graph(
+    release: ReleaseOption = None,
+    vectors: Annotated[
+        bool,
+        typer.Option("--vectors/--no-vectors", help="Also fetch the vectors file for L2."),
+    ] = True,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Download a release's published graph (and vectors) from GitHub, verified, instead of
+    building it."""
+    settings = _settings(data_dir)
+    target = _full_release(release or settings.release)
+    published = _published(target.id)
+    try:
+        installed = fetch_published(published, settings.graph_path(target.id), vectors=vectors)
+    except (FetchError, PublishedError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    for item in installed:
+        typer.echo(f"  {item.path}  {'downloaded' if item.downloaded else 'present, verified'}")
+
+
+def _published(release_id: str) -> Published:
+    try:
+        published = load_published().get(release_id)
+    except PublishedError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    if published is None:
+        typer.echo(
+            f"error: text2icd {__version__} has no published graph for {release_id}; build it: "
+            f"`text2icd data fetch -r {release_id}`, then `text2icd build-graph -r {release_id}`",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    return published
+
+
+@data_app.command("package")
+def data_package(
+    release: ReleaseOption = None,
+    output: Annotated[
+        Path, typer.Option("--output", "-o", help="Directory for the compressed files.")
+    ] = Path("dist"),
+    tag: Annotated[
+        str | None, typer.Option(help="GitHub Release tag (default: data-<release>-s<schema>).")
+    ] = None,
+    registry: Annotated[
+        Path | None,
+        typer.Option(help="Also add the entry to this graphs.toml (replacing the release's)."),
+    ] = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Compress a built graph and its vectors for a data release, and write its `graphs.toml`
+    entry (the data-release workflow runs this)."""
+    path = _graph_path(release, graph_path, data_dir)
+    try:
+        published = package(path, output, __version__, tag)
+    except (GraphError, PublishedError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    entry = output / f"{published.release}.toml"
+    entry.write_text(published.toml(), encoding="utf-8")
+    if registry is not None:
+        try:
+            registry.write_text(
+                registry_with(published, registry.read_text("utf-8")), encoding="utf-8"
+            )
+        except (OSError, PublishedError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+    for file in published.files:
+        typer.echo(f"  {output / file.name}  {file.size / 1e6:.1f} MB  sha256 {file.sha256}")
+    typer.echo(f"  {entry}  (the graphs.toml entry, tag {published.tag})")
 
 
 @data_app.command("fetch")
