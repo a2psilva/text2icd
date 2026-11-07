@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- A Docker image (task 10.4): the service and web UI, with FY2027's graph, L2's vectors and the
+  model built in, so it runs with no network (656 MB uncompressed: the environment 211 MB, the
+  graph and vectors 164 MB, the model 128 MB).
+  - Multi-stage with uv, on `python:3.12-slim-trixie`, running as an unprivileged user. The
+    data is made once on the build machine, for every platform. `.dockerignore` lets in only
+    the files the build needs, never `data/` or `.env`.
+  - `.github/workflows/docker.yml` builds it for linux/amd64 on pull requests that change it,
+    and tests it with no network and with a read-only file system. On version tags it pushes
+    linux/amd64 and linux/arm64 images to `ghcr.io/a2psilva/text2icd`, with build provenance.
+  - `compose.yaml` runs the service on 127.0.0.1:8000 with a read-only file system.
 - The release workflow (task 10.7), `.github/workflows/release.yml`, on a `v*` tag or by hand
   as a dry run.
   - It checks that the tag, `pyproject.toml`'s version and `CHANGELOG.md` agree

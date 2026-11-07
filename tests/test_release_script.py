@@ -59,6 +59,7 @@ def test_a_release(tmp_path: Path) -> None:
     assert "The coder" not in notes  # the next section is left out
     assert "releases/download/v0.2.0rc1/text2icd-0.2.0rc1-py3-none-any.whl" in notes
     assert "gh attestation verify" in notes
+    assert "ghcr.io/a2psilva/text2icd:0.2.0rc1" in notes
 
 
 def test_a_dry_run(tmp_path: Path) -> None:

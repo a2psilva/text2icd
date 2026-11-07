@@ -111,6 +111,19 @@ text2icd setup        # SQLite check, the graph, L2's vectors and model, then a 
 text2icd code "type 2 DM with diabetic CKD stage 3a"     # E11.22, N18.31
 ```
 
+Or run the image, which has the FY2027 graph, L2's vectors and the model built in and needs no
+network (about 660 MB; linux/amd64 and linux/arm64):
+
+```bash
+docker run --rm -p 127.0.0.1:8000:8000 ghcr.io/a2psilva/text2icd    # the UI at http://127.0.0.1:8000
+docker run --rm ghcr.io/a2psilva/text2icd code "type 2 DM with diabetic CKD stage 3a"
+```
+
+[compose.yaml](compose.yaml) runs the service with a read-only file system. Images are pushed for
+each release; `docker build -t text2icd .` builds one from a checkout (it fetches the CMS files
+and embeds the graph, about 10 minutes on a laptop; a published data release saves the
+embedding).
+
 To install a fixed version, use its [release](https://github.com/a2psilva/text2icd/releases):
 each one has the wheel, the sdist, `SHA256SUMS` and build provenance, and its notes give the
 install line. Releasing is described in [docs/releasing.md](docs/releasing.md).
