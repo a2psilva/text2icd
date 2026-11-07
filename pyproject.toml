@@ -40,10 +40,14 @@ Homepage = "https://github.com/a2psilva/text2icd"
 Issues = "https://github.com/a2psilva/text2icd/issues"
 Changelog = "https://github.com/a2psilva/text2icd/blob/main/CHANGELOG.md"
 
+# Install from GitHub, not PyPI (see text2icd/extras.py):
+#   uv tool install "text2icd[all] @ git+https://github.com/a2psilva/text2icd"
 [project.optional-dependencies]
+# L2, local retrieval: the ONNX encoder, its tokenizer, and the Hub client that downloads them.
 embeddings = [
-    "model2vec>=0.10",
+    "huggingface_hub>=0.30",
     "onnxruntime>=1.20",
+    "tokenizers>=0.21",
 ]
 llm = [
     "anthropic>=2.3",
@@ -56,6 +60,16 @@ bedrock = [
 vertex = [
     "anthropic[vertex]>=2.3",
 ]
+# The evaluation: the static-embedding baseline (B2) and the MIMIC-IV aligner (model2vec), and
+# fitting the confidence calibration (`text2icd eval calibrate`). The coder needs none of it.
+eval = [
+    "model2vec>=0.10",
+    "scikit-learn>=1.5",
+]
+# What the coder can use: L2, and L3 on the Anthropic API.
+all = [
+    "text2icd[embeddings,llm]",
+]
 
 [dependency-groups]
 dev = [
@@ -65,13 +79,9 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.8",
 ]
-# Fitting the confidence calibration (`text2icd eval calibrate`); the runtime needs none of it.
-eval = [
-    "scikit-learn>=1.5",
-]
 
 [tool.uv]
-default-groups = ["dev", "eval"]
+default-groups = ["dev"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/text2icd"]

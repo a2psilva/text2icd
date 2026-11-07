@@ -209,6 +209,7 @@ class VectorsMeta(BaseModel):
     format: int = VECTORS_FORMAT
     model: str  # as `embeddings.load_embedder` reads it
     model_id: str  # the embedder's own name, with its weights file
+    revision: str | None = None  # the model's Hub commit; None in files from before 0.2
     sources: tuple[Source, ...]
     release: str
     graph: str  # the graph's content_sha256
@@ -267,6 +268,7 @@ def build_vectors(
     meta = VectorsMeta(
         model=model,
         model_id=embedder.model,
+        revision=getattr(embedder, "revision", None),
         sources=tuple(sources),
         release=graph.release,
         graph=graph.meta.get("content_sha256", ""),
@@ -286,15 +288,16 @@ def build_vectors(
 def load_vectors(
     graph: Graph, path: Path | None = None, embedder: Embedder | None = None
 ) -> EmbeddingRetriever:
-    """The retriever over the graph's vectors file, with the model it was built with (or
-    `embedder`, of the same dimension). The matrix is memory-mapped: it costs no load time and
-    no memory until it is searched, and processes share it through the page cache."""
+    """The retriever over the graph's vectors file, with the model it was built with, at the
+    same Hub revision (or `embedder`, of the same dimension). The matrix is memory-mapped: it
+    costs no load time and no memory until it is searched, and processes share it through the
+    page cache."""
     path, meta = vectors_meta(graph, path)
     rebuild = f"run `text2icd graph embed -r {graph.release}`"
     vectors = np.load(path, mmap_mode="r", allow_pickle=False)
     if vectors.dtype != np.float16 or vectors.shape != (meta.rows, meta.dim):
         raise VectorsError(f"{path} does not match its .json file; {rebuild}")
-    embedder = embedder or load_embedder(meta.model)
+    embedder = embedder or load_embedder(meta.model, meta.revision)
     dim = getattr(embedder, "dim", meta.dim)
     if dim != meta.dim:
         raise VectorsError(f"{path} has {meta.dim} dimensions, the model {dim}; {rebuild}")
@@ -328,6 +331,7 @@ class LazyRetriever:
         self._graph = graph
         self._path, meta = vectors_meta(graph, path)
         self.name = meta.model_id
+        self.model, self.revision = meta.model, meta.revision
         self._loaded: EmbeddingRetriever | None = None
         self._loading = threading.Lock()
 

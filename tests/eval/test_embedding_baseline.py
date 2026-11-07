@@ -96,7 +96,7 @@ def test_missing_dependency(graph: Graph, monkeypatch: pytest.MonkeyPatch) -> No
         return real_import(name, *args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(builtins, "__import__", without_model2vec)
-    with pytest.raises(EmbeddingsUnavailableError, match="uv sync --extra embeddings"):
+    with pytest.raises(EmbeddingsUnavailableError, match="uv sync --extra eval"):
         build_system("embedding", graph, Settings(), {})
 
 

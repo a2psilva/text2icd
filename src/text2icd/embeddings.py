@@ -1,8 +1,11 @@
-"""Local text embeddings: static models run with numpy only (no torch, no network at encode time
-once the model is cached). Install with `uv sync --extra embeddings`.
+"""Local text embeddings, run on the CPU with no torch and, once a model is downloaded, no network.
 
-Used by the B2 baseline, the MIMIC-IV aligner and local retrieval (L2, `resolve.retrieve`). The
-model is configuration, named `<kind>:<id>` (`load_embedder`), and recorded with every result.
+- `onnx:` models (L2, local retrieval, `resolve.retrieve`) need the `embeddings` extra.
+- `model2vec:` static models (the B2 baseline, the MIMIC-IV aligner) need the `eval` extra.
+
+The model is configuration, named `<kind>:<id>` (`load_embedder`), and recorded with every
+result. A model text2icd ships vectors for is pinned to one Hub revision (`PINNED`), so every
+install reads the same weights, and a model already downloaded loads without asking the Hub.
 """
 
 import importlib.util
@@ -12,6 +15,8 @@ from typing import Protocol
 
 import numpy as np
 import numpy.typing as npt
+
+from text2icd.extras import install_hint
 
 Vectors = npt.NDArray[np.float32]
 
@@ -40,27 +45,62 @@ def normalize(vectors: npt.ArrayLike) -> Vectors:
     return array / norms
 
 
-# The modules each kind of model needs (the `embeddings` extra).
-_NEEDS = {"onnx": ("onnxruntime", "tokenizers", "huggingface_hub"), "model2vec": ("model2vec",)}
+# The extra and modules each kind of model needs.
+_NEEDS = {
+    "onnx": ("embeddings", ("onnxruntime", "tokenizers", "huggingface_hub")),
+    "model2vec": ("eval", ("model2vec",)),
+}
+ONNX_FILE = "onnx/model_quantized.onnx"  # an `onnx:` model's weights unless the spec names a file
+# The Hub revision (commit) of each model that text2icd ships vectors for.
+PINNED = {"Xenova/bge-small-en-v1.5": "ea104dacec62c0de699686887e3f920caeb4f3e3"}
 
 
 def missing(spec: str) -> tuple[str, ...]:
     """The modules `load_embedder(spec)` needs that are not installed, without importing them."""
-    needed = _NEEDS.get(spec.split(":", 1)[0], ())
+    _, needed = _NEEDS.get(spec.split(":", 1)[0], ("", ()))
     return tuple(module for module in needed if importlib.util.find_spec(module) is None)
 
 
-def load_embedder(spec: str) -> Embedder:
+def extra_for(spec: str) -> str:
+    """The extra that installs what `load_embedder(spec)` needs."""
+    return _NEEDS.get(spec.split(":", 1)[0], ("embeddings", ()))[0]
+
+
+def load_embedder(spec: str, revision: str | None = None) -> Embedder:
     """An embedder named `model2vec:<id>` (a static model) or `onnx:<id>[:<file>]` (a transformer
-    encoder exported to ONNX; by default its quantized weights, `onnx/model_quantized.onnx`),
-    `<id>` a Hugging Face Hub repository."""
+    encoder exported to ONNX; by default its quantized weights, `ONNX_FILE`), `<id>` a Hugging
+    Face Hub repository. `revision`: the Hub commit to read an `onnx:` model at (default: its
+    pinned one, else the newest)."""
     kind, _, model = spec.partition(":")
     if kind == "model2vec" and model:
         return StaticEmbedder(model)
     repo, _, file = model.partition(":")
     if kind == "onnx" and repo:
-        return OnnxEmbedder(repo, file) if file else OnnxEmbedder(repo)
+        return OnnxEmbedder(repo, file or ONNX_FILE, revision=revision)
     raise ValueError(f"embedding model {spec!r}: expected model2vec:<id> or onnx:<id>[:<file>]")
+
+
+def model_files(spec: str, revision: str | None = None) -> tuple[str, str | None, tuple[str, ...]]:
+    """The Hub repository, revision and files an `onnx:` model is read from."""
+    kind, _, model = spec.partition(":")
+    repo, _, file = model.partition(":")
+    if kind != "onnx" or not repo:
+        raise ValueError(f"embedding model {spec!r}: expected onnx:<id>[:<file>]")
+    return repo, revision or PINNED.get(repo), ("tokenizer.json", file or ONNX_FILE)
+
+
+def downloaded(spec: str, revision: str | None = None, cache_dir: Path | None = None) -> bool:
+    """Whether an `onnx:` model's files are in the local Hugging Face cache, so that it loads with
+    no network; checked without asking the Hub. Other kinds download themselves: True."""
+    if not spec.startswith("onnx:") or missing(spec):
+        return True
+    from huggingface_hub import try_to_load_from_cache
+
+    repo, pinned, files = model_files(spec, revision)
+    return all(
+        isinstance(try_to_load_from_cache(repo, file, cache_dir=cache_dir, revision=pinned), str)
+        for file in files
+    )
 
 
 class StaticEmbedder:
@@ -71,7 +111,7 @@ class StaticEmbedder:
             from model2vec import StaticModel
         except ImportError as exc:
             raise EmbeddingsUnavailableError(
-                "local embeddings need the optional dependencies: uv sync --extra embeddings"
+                f"static embeddings need model2vec: {install_hint('eval')}"
             ) from exc
         self.model = model
         self._model = StaticModel.from_pretrained(model)
@@ -130,13 +170,17 @@ class OnnxEmbedder:
     padding included, so a text's vector shifts slightly with the texts batched with it (mean
     cosine 0.9993 between two batchings of the graph's texts). The full-precision weights
     (`model.onnx`) give the same vector in any batch, which L2 needs: its texts are embedded in
-    large batches, its phrases one at a time."""
+    large batches, its phrases one at a time.
+
+    The files are read at `revision` (default: the model's pinned one, `PINNED`). At a pinned
+    commit, files already in the local cache are used without a network call."""
 
     def __init__(
         self,
         repo: str,
-        file: str = "onnx/model_quantized.onnx",
+        file: str = ONNX_FILE,
         *,
+        revision: str | None = None,
         max_length: int = 64,
         batch_size: int = 256,
     ) -> None:
@@ -146,16 +190,20 @@ class OnnxEmbedder:
             from tokenizers import Tokenizer
         except ImportError as exc:
             raise EmbeddingsUnavailableError(
-                "local embeddings need the optional dependencies: uv sync --extra embeddings"
+                f"local retrieval needs onnxruntime, tokenizers and huggingface_hub: "
+                f"{install_hint('embeddings')}"
             ) from exc
+        _, self.revision, (vocabulary, weights_file) = model_files(f"onnx:{repo}:{file}", revision)
         self.model = f"{repo}:{file}"
         self.batch_size = batch_size
-        self._tokenizer = Tokenizer.from_file(hf_hub_download(repo, "tokenizer.json"))
+        self._tokenizer = Tokenizer.from_file(
+            hf_hub_download(repo, vocabulary, revision=self.revision)
+        )
         self._tokenizer.enable_truncation(max_length)
         self._tokenizer.enable_padding()
         options = onnxruntime.SessionOptions()
         options.log_severity_level = 3
-        weights = hf_hub_download(repo, file)
+        weights = hf_hub_download(repo, weights_file, revision=self.revision)
         self.size_bytes = Path(weights).stat().st_size
         self._session = onnxruntime.InferenceSession(
             weights, options, providers=["CPUExecutionProvider"]
