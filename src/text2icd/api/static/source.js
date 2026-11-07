@@ -10,12 +10,7 @@ function liveSource() {
   return {
     kind: "live",
     health: () => call("healthz"),
-    code: (request) =>
-      call("v1/code", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(request),
-      }),
+    code: (request) => call("v1/code", json("POST", request)),
     codePage: (release, key) => call(`v1/${enc(release)}/codes/${enc(key)}`),
     termPage: (release, id) => call(`v1/${enc(release)}/terms/${enc(id)}`),
     search: (release, q, book) => {
@@ -23,7 +18,18 @@ function liveSource() {
       if (book) query.set("book", book);
       return call(`v1/${enc(release)}/search?${query}`);
     },
+    // The local review mode (`text2icd serve --review`, task 10.12).
+    review: {
+      progress: () => call("v1/review"),
+      item: (n) => call(`v1/review/${n}`),
+      check: (n, line) => call(`v1/review/${n}/check`, json("POST", { line })),
+      answer: (n, body) => call(`v1/review/${n}`, json("PUT", body)),
+    },
   };
+}
+
+function json(method, body) {
+  return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
 function staticSource() {

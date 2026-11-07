@@ -128,7 +128,8 @@ cross-references in the Index, then the Tabular steps to the final code, with th
 brought in other codes; click a step to see that term or code. Its explorer searches the Index
 and the Tabular List and follows them term by term. The API (docs at `/docs`): `POST /v1/code`
 and `POST /v1/batch` code phrases, and `GET /v1/<release>/codes/<code>`, `/terms/<id>` and
-`/search?q=` read the graph.
+`/search?q=` read the graph. `text2icd serve --review audit|gold` is the local review mode for
+the MIMIC-IV hand reviews ([annotation guide](docs/annotation-guide.md)).
 
 `text2icd batch FILE` codes a file of phrases (JSON lines with `phrase` and `id`, CSV with a
 `phrase` column, or one phrase per line; `-` reads stdin) and writes one JSON line per row, in
