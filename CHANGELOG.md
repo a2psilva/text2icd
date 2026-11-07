@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The Python API (task 10.1): `text2icd.code(phrase, release=, setting=, episode=, explain=)`
+  and `text2icd.code_many(...)`, through one shared `Resolver` per release built on first use,
+  and `text2icd.Resolver` and `text2icd.CodingResult`, imported on first use, so that
+  `import text2icd` stays cheap (36 ms).
+- `text2icd batch FILE` (task 10.2): JSON lines, CSV (`--column`, `--id-column`) or one phrase
+  per line, `-` for stdin; one JSON line per row, in order, `{"line", "id", "result"}` or
+  `"error"` for a row that cannot be coded (no phrase, over 1,000 characters, not a JSON
+  object), so one bad row does not stop the run. Streamed through `Resolver.code_many`, 256 rows
+  at a time; `--setting`, `--episode`, `--explain`, `--retrieval`, `--llm`; `--log` writes the
+  private JSON logs to stderr; a summary line ends the run. The committed sample: 1,067 rows in
+  2.2 s.
 - `text2icd setup` (task 10.9): from an install to a working coder in one command. It checks
   that SQLite has FTS5, keeps or downloads the release's graph (when this version lists a data
   release) or else fetches the two CMS files it needs and builds it, then sets up L2: the
@@ -172,6 +183,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- An L2 model that is not downloaded, with the Hub out of reach, raises
+  `EmbeddingsUnavailableError` naming the model and `text2icd setup`, not the Hub's traceback.
 - Data paths that work outside a checkout (task 10.8). With `TEXT2ICD_DATA_DIR` and
   `TEXT2ICD_CACHE_DIR` unset, text2icd uses the per-user directories of the platform
   (`platformdirs`, a new dependency) instead of `./data` and `./.text2icd` relative to wherever
