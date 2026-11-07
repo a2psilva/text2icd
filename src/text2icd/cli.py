@@ -3,16 +3,17 @@
 import itertools
 import os
 import sqlite3
+import sys
 from collections import Counter
-from collections.abc import Callable
-from contextlib import closing
+from collections.abc import Callable, Iterator
+from contextlib import closing, contextmanager
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated, TextIO, cast
 
 import typer
 from pydantic import JsonValue
 
-from text2icd import __version__
+from text2icd import __version__, batch
 from text2icd.config import Settings, default_cache_dir, default_data_dir
 from text2icd.embeddings import (
     EmbeddingsUnavailableError,
@@ -99,6 +100,7 @@ from text2icd.graph.search import DEFAULT_TOKENIZER, Tokenizer
 from text2icd.graph.show import show_code, show_term
 from text2icd.llm.cost import PriceError
 from text2icd.llm.providers import LLMUnavailableError
+from text2icd.logs import configure as configure_logs
 from text2icd.ontology.files import ReleaseFiles
 from text2icd.ontology.index import IndexSource
 from text2icd.ontology.order import billable_codes, parse_order_file
@@ -132,6 +134,7 @@ from text2icd.resolve.retrieve import (
     vectors_path,
 )
 from text2icd.resolve.retrieve import SOURCES as RETRIEVAL_SOURCES
+from text2icd.resolve.tabular import EPISODES
 from text2icd.resolve.walk import IndexWalker, describe_walk
 from text2icd.setup import SetupError, Step, setup
 from text2icd.text.abbreviations import default_lexicon
@@ -513,6 +516,118 @@ def code_command(
                 typer.echo(f"error: {exc}", err=True)
                 raise typer.Exit(code=1) from exc
     typer.echo("\n".join(describe_code_set(code_set)))
+
+
+@app.command("batch")
+def batch_command(
+    source: Annotated[
+        str, typer.Argument(help="File of phrases (.jsonl, .csv or .txt), or - for stdin.")
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="JSON-lines file to write (default: stdout)."),
+    ] = None,
+    fmt: Annotated[
+        str | None,
+        typer.Option("--format", help="jsonl, csv or lines (default: from the extension)."),
+    ] = None,
+    column: Annotated[str, typer.Option(help="CSV column holding the phrase.")] = "phrase",
+    id_column: Annotated[str, typer.Option(help="CSV column holding the row id.")] = "id",
+    setting: Annotated[
+        str,
+        typer.Option(help="inpatient (uncertain diagnoses coded as if established) or outpatient."),
+    ] = "inpatient",
+    episode: Annotated[
+        str | None,
+        typer.Option(help="7th character when a phrase states none: initial, subsequent, sequela."),
+    ] = None,
+    explain: Annotated[
+        bool, typer.Option("--explain", help="Add each code's Index path and L2/L3 decisions.")
+    ] = False,
+    use_retrieval: Annotated[
+        bool | None,
+        typer.Option("--retrieval/--no-retrieval", help="L2 (default: when it is set up)."),
+    ] = None,
+    use_llm: Annotated[
+        bool, typer.Option("--llm", help="L3, at a cost (TEXT2ICD_LLM_BUDGET_USD caps it).")
+    ] = False,
+    log: Annotated[
+        bool,
+        typer.Option(
+            "--log", help="JSON logs on stderr: each phrase as a hash and its length only."
+        ),
+    ] = False,
+    release: ReleaseOption = None,
+    graph_path: GraphFileOption = None,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Code a file of phrases: one JSON line per row, in order, `{"line", "id", "result"}` (or
+    `"error"` for a row that cannot be coded). Streams: rows are written as they are coded."""
+    if setting not in ("inpatient", "outpatient"):
+        typer.echo("error: --setting is inpatient or outpatient", err=True)
+        raise typer.Exit(code=2)
+    if episode is not None and episode not in EPISODES:
+        typer.echo(f"error: --episode is one of {', '.join(EPISODES)}", err=True)
+        raise typer.Exit(code=2)
+    chosen: Setting = "outpatient" if setting == "outpatient" else "inpatient"
+    if log:
+        configure_logs()
+    try:
+        form = batch.detect(source) if fmt is None else fmt
+        if form not in batch.FORMATS:
+            raise batch.BatchError(f"--format is one of {', '.join(batch.FORMATS)}")
+    except batch.BatchError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    settings = _settings(data_dir)
+    with _open_graph(release, graph_path, data_dir) as graph:
+        try:
+            resolver = Resolver(
+                settings=settings, graph=graph, retrieval=use_retrieval, llm=use_llm
+            )
+        except (ResolverError, CalibrationError, LLMUnavailableError, PriceError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        with resolver, _text_in(source) as stream, _text_out(output) as out:
+            for warning in resolver.warnings:
+                typer.echo(f"warning: {warning}", err=True)
+            try:
+                rows = batch.read_rows(stream, form, column, id_column)
+                summary = batch.run(
+                    resolver,
+                    rows,
+                    out,
+                    setting=chosen,
+                    episode=episode,
+                    explain=explain,
+                )
+            except (batch.BatchError, EmbeddingsUnavailableError, OSError) as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
+    typer.echo(summary.line(), err=True)
+
+
+@contextmanager
+def _text_in(source: str) -> Iterator[TextIO]:
+    if source == "-":
+        yield sys.stdin
+        return
+    path = Path(source)
+    if not path.is_file():
+        typer.echo(f"error: {source} does not exist", err=True)
+        raise typer.Exit(code=1)
+    with path.open(encoding="utf-8", newline="") as stream:
+        yield stream
+
+
+@contextmanager
+def _text_out(path: Path | None) -> Iterator[TextIO]:
+    if path is None:
+        yield sys.stdout
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as out:
+        yield out
 
 
 @app.command("walk")

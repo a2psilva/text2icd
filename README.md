@@ -107,6 +107,21 @@ text2icd setup        # SQLite check, the graph, L2's vectors and model, then a 
 text2icd code "type 2 DM with diabetic CKD stage 3a"     # E11.22, N18.31
 ```
 
+From Python:
+
+```python
+import text2icd
+
+result = text2icd.code("type 2 DM with diabetic CKD stage 3a")
+[c.code for c in result.codes]  # ['E11.22', 'N18.31']
+for result in text2icd.code_many(["acute appendicitis", "hip fracture, initial encounter"]):
+    print(result.primary.code, result.confidence)
+```
+
+`text2icd batch FILE` codes a file of phrases (JSON lines with `phrase` and `id`, CSV with a
+`phrase` column, or one phrase per line; `-` reads stdin) and writes one JSON line per row, in
+order: `{"line": 2, "id": "a1", "result": {...}}`, or `"error"` for a row it cannot code.
+
 `text2icd setup` downloads the release's graph and vectors from this repository's data releases
 when the installed version lists them, checking each file's SHA-256 and the graph's content hash.
 Otherwise it fetches the two CMS files the graph needs from cms.gov and builds it (about 15 s);
@@ -139,6 +154,7 @@ uv run text2icd parse "DM2 w/ CKD 3a, possible UTI 2/2 E. coli"   # how a phrase
 uv run text2icd walk "aspiration pneumonia due to food"         # the Index walk's candidates
 uv run text2icd code "type 2 DM with diabetic CKD stage 3a"      # the coder, then L2 if unsure
 uv run text2icd code "DM2 w/ CKD 3a" --json --explain             # the result, with its paths
+uv run text2icd batch phrases.csv -o coded.jsonl                  # a file of phrases, streamed
 uv run text2icd eval run -d cms-synthetic-sample -s bm25 --split all   # the BM25 baseline
 make check                   # lint, format check, type check, tests
 ```
