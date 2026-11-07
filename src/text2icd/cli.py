@@ -133,6 +133,7 @@ from text2icd.resolve.retrieve import (
 )
 from text2icd.resolve.retrieve import SOURCES as RETRIEVAL_SOURCES
 from text2icd.resolve.walk import IndexWalker, describe_walk
+from text2icd.setup import SetupError, Step, setup
 from text2icd.text.abbreviations import default_lexicon
 from text2icd.text.model import Setting
 from text2icd.text.parse import Parser, describe_parsed
@@ -540,6 +541,34 @@ def walk_command(
         typer.echo(result.model_dump_json(indent=2))
         return
     typer.echo("\n".join(describe_walk(result, top)))
+
+
+@app.command("setup")
+def setup_command(
+    release: ReleaseOption = None,
+    build: Annotated[
+        bool, typer.Option("--build", help="Build the graph from the CMS files, not download it.")
+    ] = False,
+    l2: Annotated[
+        bool, typer.Option("--l2/--no-l2", help="Also set up L2: its vectors and model.")
+    ] = True,
+    data_dir: DataDirOption = None,
+) -> None:
+    """Get a working coder: the graph (downloaded, or built from the CMS files), L2's vectors and
+    model, then a check phrase."""
+    settings = _settings(data_dir)
+    target = _full_release(release or settings.release)
+    typer.echo(f"text2icd {__version__}: {target.id} in {settings.data_dir.resolve()}")
+
+    def report(step: Step) -> None:
+        typer.echo(f"  {step.name:<9} {step.status:<8} {step.detail}")
+
+    try:
+        setup(settings, target, build=build, l2=l2, report=report)
+    except (SetupError, FetchError, PublishedError, GraphError, ResolverError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo('Ready: text2icd code "aspiration pneumonia due to food" --explain')
 
 
 @app.command("build-graph")
