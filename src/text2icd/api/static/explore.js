@@ -15,6 +15,12 @@ const NOTES = {
 };
 const VIA = { see: "see", see_also: "see also", see_condition: "see condition" };
 
+// The static demo holds some pages only: a link to any other is shown as text.
+let held = () => true;
+export function holdOnly(has) {
+  held = has;
+}
+
 // `go` opens a node: go({term: 123}) or go({code: "E11.22"}).
 export function termView(view, go, chosen = new Set()) {
   const term = view.term;
@@ -156,10 +162,14 @@ function crumbs(ancestors, go) {
 }
 
 function termLink(id, label, go) {
+  if (!held({ term: id })) return h("span", { class: "unheld", title: "Not in the demo" }, label);
   return h("a", { href: `#/term/${id}`, onclick: (event) => follow(event, () => go({ term: id })) }, label);
 }
 
 function codeLink(key, go, title) {
+  if (!held({ code: key })) {
+    return h("span", { class: "code unheld", title: title ? `${title} (not in the demo)` : "Not in the demo" }, key);
+  }
   return h("a", { class: "code", href: `#/code/${encodeURIComponent(key)}`, title, onclick: (event) => follow(event, () => go({ code: key })) }, key);
 }
 

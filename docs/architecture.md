@@ -553,6 +553,17 @@ library, reading the routes above.
   phrases and lookups out of the address. The gold items carry no silver code, band, chapter or
   admission id, and the page does not code the phrase: the person codes blind.
 
+- The static demo (`text2icd demo export DIR`, `text2icd.demo`; GitHub Pages through
+  `pages.yml`) is the same client reading files: the page's `text2icd-source` is `static`, and
+  `source.js` reads `data/index.json` (the examples, the answer file of each setting and phrase,
+  the pages held), the answers (`POST /v1/code` with `explain`) and the explorer's pages (`GET`
+  answers), each exactly what the service returns. It holds the terms and codes the answers
+  name, the codes one link away from those, the terms their cross-references lead to and the
+  codes those give, and all their ancestors: about 1,000 pages, 5.4 MB for 47 phrases. Links to
+  other pages are shown as text, and search needs the service. The phrases
+  (`resources/demo.toml`) list their codes, and the export fails on the demo's release when one
+  codes differently; the integration job runs it.
+
 Text goes into the page as text nodes only, and a Content-Security-Policy allows the page's own
 files and nothing else. All URLs are relative, so that the static demo can live under a path.
 
