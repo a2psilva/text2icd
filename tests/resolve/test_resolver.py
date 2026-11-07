@@ -1,8 +1,11 @@
-"""Tasks 9.1 to 9.3: the resolver builds the cascade from the settings, codes a phrase with the
-setting and episode it is given, caches results in memory, and returns the public result."""
+"""Tasks 9.1 to 9.3 and 9.5: the resolver builds the cascade from the settings, codes a phrase
+with the setting and episode it is given, caches results in memory, returns the public result, and
+codes many phrases in order."""
 
 import hashlib
+import itertools
 import json
+import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -132,6 +135,49 @@ def test_from_many_threads(resolver: Resolver) -> None:
         got = list(pool.map(lambda p: resolver.code(p, setting="inpatient"), phrases))
     for phrase, result in zip(phrases, got, strict=True):
         assert result.model_copy(update={"cached": False}) == expected[phrase]
+
+
+def test_code_many_keeps_the_order(resolver: Resolver) -> None:
+    phrases = [PNEUMONIA, PROPANOL, "possible aspiration pneumonia", PROPANOL, PNEUMONIA]
+    alone = Resolver(graph=resolver.graph, cache_size=0)
+    got = list(resolver.code_many(phrases, batch_size=2))
+    assert [r.input for r in got] == phrases
+    for phrase, result in zip(phrases, got, strict=True):
+        assert result.model_copy(update={"cached": False}) == alone.code(phrase)
+    assert list(resolver.code_many([])) == []
+
+
+def test_code_many_codes_a_repeat_once(graph: Graph, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.INFO, logger="text2icd")
+    off = Resolver(graph=graph, cache_size=0)
+    got = off.code_many([PNEUMONIA, PROPANOL, PNEUMONIA, PNEUMONIA], batch_size=3)
+    # The cache is off: the repeat in the first batch is coded once, the second batch codes it.
+    assert [r.cached for r in got] == [False, False, True, False]
+    batches = [r.fields for r in caplog.records if r.getMessage() == "batch"]  # type: ignore[attr-defined]
+    assert [(b["phrases"], b["coded"]) for b in batches] == [(3, 2), (1, 1)]
+    on = Resolver(graph=graph)
+    got = on.code_many([PNEUMONIA, PNEUMONIA, PNEUMONIA], batch_size=2)
+    assert [r.cached for r in got] == [False, True, True]  # the cache spans batches
+
+
+def test_code_many_streams(resolver: Resolver) -> None:
+    endless = resolver.code_many(itertools.repeat(PNEUMONIA), batch_size=4)
+    assert len(list(itertools.islice(endless, 6))) == 6  # two batches read, not the whole input
+    with pytest.raises(ValueError, match="at least 1"):
+        resolver.code_many([PNEUMONIA], batch_size=0)  # refused when called, not when read
+
+
+def test_code_many_takes_the_setting_and_episode(resolver: Resolver) -> None:
+    (outpatient,) = resolver.code_many(
+        ["possible aspiration pneumonia"], setting="outpatient", explain=True
+    )
+    assert outpatient.setting == "outpatient"
+    assert "J69.0" not in [c.code for c in outpatient.codes]
+    assert outpatient.detail is not None
+    (later,) = resolver.code_many([PROPANOL], episode="subsequent")
+    assert later.codes[0].code == "T51.3X1D"
+    with pytest.raises(ResolverError, match="at most"):
+        list(resolver.code_many([PNEUMONIA, "pneumonia " * (MAX_PHRASE // 10 + 1)]))
 
 
 def test_retrieval_is_off_without_vectors(graph: Graph) -> None:

@@ -215,6 +215,15 @@ The resolver builds the cascade once:
 - one Tabular verifier per episode of care, built when first asked for;
 - L2's vectors and model, loaded on the first escalated phrase (the vectors memory-mapped).
 
+`Resolver.code_many` codes any number of phrases in order, streamed in batches of 256; a phrase
+repeated within a batch is coded once. Each phrase is still coded alone, so its result never
+depends on the phrases around it. Searching a batch's L2 queries in one encoder call was about
+24% faster, but the batch's padding moved L2's confidence slightly for 0.2% of phrases.
+
+Logs (`text2icd.logs`) show a phrase only as its length and a hash salted per process, with the
+number of codes, the layer, escalation, cost and time. The phrase and its codes appear only with
+`TEXT2ICD_LOG_INPUTS=true`.
+
 ### L1: deterministic coder
 
 1. **Route** each diagnosis (`text2icd.resolve.route`). Behaviour wording ("malignant neoplasm
@@ -509,4 +518,7 @@ including the cache hit rate, from the `usage` fields of each response.
   Every artifact, cache key and result carries its release id.
 - The builder is deterministic: the same input files give the same graph content, checked by a
   content hash over the sorted rows. Source file hashes are recorded in `meta`.
+- The same phrase, settings, graph and package give the same result, byte for byte, in any
+  process: tests compare fresh interpreters with different hash seeds, on the fixture graph and
+  on the committed sample.
 - LLM-backed runs pin the model id and record it in the result, so benchmark runs can be repeated.
