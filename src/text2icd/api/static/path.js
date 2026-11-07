@@ -52,7 +52,7 @@ function summary(result) {
       { class: "primary" },
       primary
         ? [h("span", { class: "code big" }, primary.code), h("span", {}, primary.description)]
-        : h("span", { class: "muted" }, "No code: the phrase states no condition the Index codes."),
+        : h("span", { class: "muted" }, noCode(result)),
     ),
     h(
       "dl",
@@ -471,4 +471,13 @@ function trace(result, open) {
       ),
     ),
   );
+}
+
+// Why a result has no code: the reasons its conditions are not reported (uncertain in the
+// outpatient setting, negated...), or that the Index codes none of them.
+function noCode(result) {
+  const unreported = result.chunks.length > 0 && result.chunks.every((c) => !c.reportable);
+  const why = unreported ? result.trace.filter((t) => t.layer === "text" && t.guideline) : [];
+  if (!why.length) return "No code: the phrase states no condition the Index codes.";
+  return `No code: ${why.map((t) => `${t.detail} (Guideline ${t.guideline})`).join("; ")}.`;
 }

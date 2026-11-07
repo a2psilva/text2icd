@@ -1,4 +1,4 @@
-"""Tasks 10.10 to 10.12 in a real browser (Playwright's Chromium), on the fixture graph.
+"""Tasks 10.10 to 10.13 in a real browser (Playwright's Chromium), on the fixture graph.
 Skipped unless installed: `uv sync --group ui && uv run playwright install chromium`."""
 
 import re
@@ -18,6 +18,7 @@ import uvicorn  # noqa: E402
 
 from text2icd.api.app import create_app  # noqa: E402
 from text2icd.api.review import AuditReview, GoldReview, Review  # noqa: E402
+from text2icd.demo import export, load_demo  # noqa: E402
 from text2icd.eval.mimic import annotate, audit  # noqa: E402
 from text2icd.graph.model import Graph  # noqa: E402
 from text2icd.resolve.resolver import Resolver  # noqa: E402
@@ -26,10 +27,15 @@ from text2icd.resolve.resolver import Resolver  # noqa: E402
 @contextmanager
 def serving(graph: Graph, review: Review | None = None) -> Iterator[str]:
     """The service on a free port, in a thread."""
+    with serving_app(create_app(Resolver(graph=graph, retrieval=False), review)) as url:
+        yield url
+
+
+@contextmanager
+def serving_app(app: Any) -> Iterator[str]:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
-    app = create_app(Resolver(graph=graph, retrieval=False), review)
     server = uvicorn.Server(uvicorn.Config(app, port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
@@ -171,3 +177,46 @@ def test_audit_review(page: object, graph: Graph, tmp_path: Path) -> None:
         assert "Wrong" in p.inner_text(".verdict.on")
     saved = audit.read_review(path)
     assert (saved[0]["verdict"], saved[0]["comment"]) == ("n", "checked the Index")
+
+
+DEMO = """
+release = "fy2099"
+[[group]]
+name = "Combination codes"
+examples = [{ phrase = "amyloid heart disease", codes = ["E85.4", "I43"] }]
+[[group]]
+name = "Uncertain diagnoses"
+examples = [{ phrase = "possible aspiration pneumonia", codes = ["J69.0"], outpatient = [] }]
+"""
+
+
+def test_static_demo(page: object, graph: Graph, tmp_path: Path) -> None:
+    """The export, served as files under a path, as GitHub Pages serves it."""
+    from starlette.applications import Starlette
+    from starlette.staticfiles import StaticFiles
+
+    phrases = tmp_path / "demo.toml"
+    phrases.write_text(DEMO, encoding="utf-8")
+    with Resolver(graph=graph, retrieval=False) as resolver:
+        export(resolver, load_demo(phrases), tmp_path / "site")
+    app = Starlette()
+    app.mount("/text2icd", StaticFiles(directory=tmp_path / "site", html=True))
+    p: Any = page
+    with serving_app(app) as url:
+        p.goto(f"{url}/text2icd/")
+        p.wait_for_selector(".example-groups")
+        assert "fy2099 · demo" in p.inner_text("#release")
+        p.click(".example-groups >> text=amyloid heart disease")
+        p.wait_for_selector(".lane")
+        assert "E85.4" in p.inner_text(".summary .primary")
+        p.locator(".lane .node.final button").first.click()
+        p.wait_for_selector(".panel .node-view")
+        p.goto(f"{url}/text2icd/#/?q=possible+aspiration+pneumonia&setting=outpatient")
+        p.wait_for_selector(".summary")
+        assert "Guideline IV.H" in p.inner_text(".summary")
+        p.goto(f"{url}/text2icd/#/?q=headache")
+        p.wait_for_selector("#result .error")
+        assert "example phrases only" in p.inner_text("#result .error")
+        p.goto(f"{url}/text2icd/#/explore")
+        p.wait_for_selector(".explore-body p")
+        assert p.locator("input[type=search]").count() == 0  # no search in the demo

@@ -33,18 +33,36 @@ function json(method, body) {
 }
 
 function staticSource() {
-  // The demo's files: data/index.json lists the phrases it holds; each answer is a file.
+  // The demo's files (`text2icd demo export`): data/index.json lists the answers and the pages it
+  // holds; each answer and each page is a file.
   let listing = null;
+  let held = null;
   const read = (path) => call(`data/${path}`);
-  const index = async () => (listing ??= await read("index.json"));
+  const index = async () => {
+    if (!listing) {
+      listing = await read("index.json");
+      held = { codes: new Set(listing.pages.codes), terms: new Set(listing.pages.terms) };
+    }
+    return listing;
+  };
   return {
     kind: "static",
     health: async () => (await index()).health,
-    examples: async () => (await index()).phrases,
+    examples: async () => (await index()).examples,
+    // Whether a term or code page is in the demo (after health()); the UI does not link the others.
+    has: (target) => !held || (target.term !== undefined ? held.terms.has(target.term) : held.codes.has(target.code)),
     code: async (request) => {
-      const found = (await index()).results[key(request)];
-      if (!found) throw new Error("The demo holds the example phrases only: run text2icd serve to code others.");
-      return read(found);
+      const { results } = await index();
+      const found = results[key(request)];
+      if (found) return read(found);
+      const phrase = normal(request.phrase);
+      const settings = Object.keys(results)
+        .filter((k) => k.endsWith(`|${phrase}`))
+        .map((k) => k.split("|")[0]);
+      if (settings.length) {
+        throw new Error(`The demo holds this phrase ${settings.join(" and ")}, with the 7th character as stated: choose that, or run text2icd serve.`);
+      }
+      throw new Error("The demo holds its example phrases only. To code any phrase, install text2icd and run text2icd serve.");
     },
     codePage: (release, code) => read(`${release}/codes/${code}.json`).catch(missing),
     termPage: (release, id) => read(`${release}/terms/${id}.json`).catch(missing),
@@ -54,8 +72,13 @@ function staticSource() {
   };
 }
 
+// The answer's key in the demo's index.json (the export computes the same, `demo.key`).
 export function key(request) {
-  return `${request.setting}|${request.episode ?? ""}|${request.phrase}`;
+  return `${request.setting}|${request.episode ?? ""}|${normal(request.phrase)}`;
+}
+
+function normal(phrase) {
+  return phrase.trim().split(/\s+/).join(" ").toLowerCase();
 }
 
 function missing() {

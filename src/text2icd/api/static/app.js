@@ -3,21 +3,28 @@
 // with `--review`, it is the hand review instead (#/review/<n>).
 
 import { clear, h } from "./dom.js";
-import { codeView, searchView, termView } from "./explore.js";
+import { codeView, holdOnly, searchView, termView } from "./explore.js";
 import { renderResult } from "./path.js";
 import { reviewer } from "./review.js";
 import { makeSource } from "./source.js";
 
+// The demo lists its own examples, by group (resources/demo.toml); these are the service's.
 const EXAMPLES = [
-  "DM2 w/ CKD 3a, possible UTI 2/2 E. coli",
-  "type 2 DM with diabetic CKD stage 3a",
-  "aspiration pneumonia due to food",
-  "open fracture of shaft of right femur, subsequent encounter with delayed healing",
-  "malignant neoplasm of right upper lobe of lung",
-  "adverse effect of digoxin, initial encounter",
-  "amyloid heart disease",
-  "acute on chronic systolic heart failure",
+  {
+    group: null,
+    phrases: [
+      "DM2 w/ CKD 3a, hx of MI, aspiration pneumonia 2/2 food",
+      "type 2 DM with diabetic CKD stage 3a",
+      "aspiration pneumonia due to food",
+      "open fracture of shaft of right femur, subsequent encounter with delayed healing",
+      "malignant neoplasm of right upper lobe of lung",
+      "adverse effect of digoxin, initial encounter",
+      "amyloid heart disease",
+      "constipation and fecal impaction",
+    ],
+  },
 ];
+const REPOSITORY = "https://github.com/a2psilva/text2icd";
 const BOOKS = [
   ["", "every book"],
   ["index", "Alphabetic Index"],
@@ -38,6 +45,8 @@ async function start() {
     state.release = health.release;
     document.getElementById("release").textContent = `${health.release}${source.kind === "static" ? " · demo" : ""}`;
     if (source.examples) state.examples = await source.examples();
+    if (source.has) holdOnly(source.has);
+    if (source.kind === "static") document.querySelector(".top nav").append(h("a", { href: REPOSITORY }, "Source"));
     if (health.review) reviewMode(health.review);
   } catch (error) {
     clear(main, h("p", { class: "error" }, error.message));
@@ -80,6 +89,7 @@ function reviewMode(mode) {
 // -- Coding a phrase ------------------------------------------------------------------------------
 
 function codePage(params) {
+  closePanel(); // it shows a page of the previous result
   const phrase = params.get("q") ?? "";
   const setting = params.get("setting") === "outpatient" ? "outpatient" : "inpatient";
   const episode = params.get("episode") ?? "";
@@ -87,7 +97,7 @@ function codePage(params) {
     id: "phrase",
     rows: "2",
     maxlength: "1000",
-    placeholder: "A diagnosis phrase or a list, such as: DM2 w/ CKD 3a, possible UTI 2/2 E. coli",
+    placeholder: "A diagnosis phrase or a list, such as: DM2 w/ CKD 3a, hx of MI, HTN",
     "aria-label": "diagnosis phrase",
     onkeydown: (event) => {
       if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) form.requestSubmit();
@@ -119,15 +129,17 @@ function codePage(params) {
       "p",
       { class: "examples" },
       "Try: ",
-      state.examples.map((example) =>
-        h("button", { type: "button", class: "chip", onclick: () => { box.value = example; form.requestSubmit(); } }, example),
-      ),
+      chips(state.examples).map((example) => h("button", { type: "button", class: "chip", onclick: () => pick(example) }, example)),
     ),
   );
+  const pick = (example) => {
+    box.value = example;
+    form.requestSubmit();
+  };
   const out = h("div", { id: "result", "aria-live": "polite" });
   clear(main, form, out);
   if (!phrase) {
-    clear(out, intro());
+    clear(out, intro(pick));
     box.focus();
     return;
   }
@@ -148,12 +160,34 @@ function select(name, options, value, title) {
   return el;
 }
 
-function intro() {
+// One chip per group, or the phrases of the only group.
+function chips(groups) {
+  return groups.length === 1 ? groups[0].phrases : groups.map((g) => g.phrases[0]);
+}
+
+function intro(pick) {
+  const count = state.examples.reduce((n, g) => n + g.phrases.length, 0);
   return h(
     "div",
-    { class: "intro muted" },
-    h("p", {}, "text2icd codes the way a coder does: it splits the phrase into its conditions, looks each one up in the Alphabetic Index, follows the subterms and cross-references, and checks the code in the Tabular List."),
-    h("p", {}, "The result shows each chunk of the phrase and its path to the code. Click a step to see that Index term or code, or open the explorer."),
+    { class: "intro" },
+    h(
+      "div",
+      { class: "muted" },
+      h("p", {}, "text2icd codes the way a coder does: it splits the phrase into its conditions, looks each one up in the Alphabetic Index, follows the subterms and cross-references, and checks the code in the Tabular List."),
+      h("p", {}, "The result shows each chunk of the phrase and its path to the code. Click a step to see that Index term or code, or open the explorer."),
+      source.kind === "static"
+        ? h("p", {}, `This demo holds the answers to ${count} example phrases, computed in advance by the deterministic coder (no model, no API). To code any phrase, `, h("a", { href: REPOSITORY }, "install text2icd"), " and run text2icd serve.")
+        : null,
+    ),
+    state.examples.length > 1
+      ? h(
+          "div",
+          { class: "example-groups" },
+          state.examples.map((g) =>
+            h("section", {}, h("h4", {}, g.group), h("ul", {}, g.phrases.map((p) => h("li", {}, h("button", { type: "button", class: "link", onclick: () => pick(p) }, p))))),
+          ),
+        )
+      : null,
   );
 }
 
@@ -242,13 +276,17 @@ async function explorePage(target) {
     location.hash = next.term !== undefined ? `#/term/${next.term}` : `#/code/${encodeURIComponent(next.code)}`;
   };
   const out = h("div", { class: "explore-body" });
-  // In the review mode the search is the review page's lookup pane, which keeps it out of the address.
-  clear(main, state.review ? h("p", {}, h("a", { href: "#/review" }, "‹ back to the review")) : form, out);
+  // In the review mode the search is the review page's lookup pane, which keeps it out of the
+  // address; the demo cannot search.
+  const top = state.review ? h("p", {}, h("a", { href: "#/review" }, "‹ back to the review")) : source.kind === "static" ? null : form;
+  clear(main, top, out);
   try {
     if (target.term !== undefined || target.code !== undefined) {
       clear(out, await nodeView(target, go));
     } else if (target.search) {
       clear(out, searchView(await source.search(state.release, target.search, target.book || null), go));
+    } else if (source.kind === "static") {
+      clear(out, h("p", { class: "muted" }, "The demo holds the Index terms and codes its examples touch: open one from an example's result, or start at ", h("a", { href: "#/code/E11.22" }, "E11.22"), ". Searching the whole Index and Tabular List needs text2icd serve."));
     } else {
       clear(out, h("p", { class: "muted" }, "Search for a condition (", h("a", { href: "#/search?q=pneumonia" }, "pneumonia"), "), or open a code (", h("a", { href: "#/code/E11.22" }, "E11.22"), ")."));
       q.focus();
